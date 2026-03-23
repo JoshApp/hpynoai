@@ -139,6 +139,7 @@ export class StageManager {
 
   /** Resume stage progression */
   resume(): void {
+    if (!this.paused) return; // Guard: resume without pause would corrupt virtual time
     // Subtract pause duration so the stage doesn't fast-forward
     const pauseDuration = performance.now() / 1000 - this.pauseStartReal;
     this.virtualTimeOffset -= pauseDuration;
@@ -262,6 +263,15 @@ export class StageManager {
 
   setSpeedMultiplier(m: number): void {
     this.speedMultiplier = m;
+  }
+
+  /** Resume at a specific stage — used by HMR to restart the current section cleanly.
+   *  Unlike start() + jumpToStage(), this fires onStageChange exactly once. */
+  resumeAt(index: number): void {
+    this.started = true;
+    this.lastRealTime = performance.now() / 1000;
+    this.virtualTimeOffset = 0;
+    this.jumpToStage(index);
   }
 
   jumpToStage(index: number): void {

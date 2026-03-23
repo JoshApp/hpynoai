@@ -11,6 +11,7 @@ import type { MicSignals } from './microphone';
 import type { BreathController, BreathStage } from './breath';
 import { Text3D } from './text3d';
 import type { NarrationEngine } from './narration';
+import { isTouchDevice, pointerNDC, tapLabel } from './touch';
 
 /** Shader-readable state for breath-sync and hum-sync effects */
 export interface InteractionShaderState {
@@ -112,6 +113,9 @@ export class InteractionManager {
     waitStart: 0,
   };
 
+  // Pending timers — cleared on clear() to prevent stale callbacks
+  private pendingTimers = new Set<ReturnType<typeof setTimeout>>();
+
   // Shader state (read by main.ts each frame)
   private _shaderState: InteractionShaderState = {
     breathSyncActive: 0,
@@ -142,12 +146,12 @@ export class InteractionManager {
 
   /** Move the interaction plane to a new depth */
   setDepth(z: number): void {
-    this.group.position.z = z - (-1.2);
+    this.group.position.z = z;
   }
 
-  /** Scale interaction elements */
+  /** Scale interaction elements (x/y only to preserve depth) */
   setScale(s: number): void {
-    this.group.scale.setScalar(s);
+    this.group.scale.set(s, s, 1);
   }
 
   setMicSignals(getter: () => MicSignals): void {
@@ -205,6 +209,35 @@ export class InteractionManager {
       this.spaceHeld = false;
       if (!this.active) return;
       if (this.active.type === 'breath-sync') this.breathSyncState.isHolding = false;
+      if (this.active.type === 'hum-sync') this.humSyncState.lastHumming = false;
+    });
+
+    // Touch equivalents — tap acts like space for gate/affirm/focus,
+    // touch-hold acts like space-hold for hum-sync
+    // (breath-sync touch is handled in startBreathSync separately)
+    this.canvas.addEventListener('touchstart', (e: TouchEvent) => {
+      if (!this.active) return;
+      e.preventDefault();
+
+      switch (this.active.type) {
+        case 'focus-target':
+          this.resolve();
+          break;
+        case 'gate':
+        case 'voice-gate':
+          this.resolve();
+          break;
+        case 'hum-sync':
+          this.humSyncState.lastHumming = true;
+          break;
+        case 'affirm':
+          if (!this.affirmState.detected) this.affirmState.detected = true;
+          break;
+      }
+    }, { passive: false });
+
+    this.canvas.addEventListener('touchend', () => {
+      if (!this.active) return;
       if (this.active.type === 'hum-sync') this.humSyncState.lastHumming = false;
     });
   }
@@ -276,6 +309,10 @@ export class InteractionManager {
   }
 
   clear(): void {
+    // Cancel all pending timers to prevent stale callbacks
+    for (const id of this.pendingTimers) clearTimeout(id);
+    this.pendingTimers.clear();
+
     while (this.group.children.length > 0) {
       const child = this.group.children[0];
       this.group.remove(child);
@@ -639,7 +676,7 @@ export class InteractionManager {
 
   private startFocusTarget(): void {
     this.text3d.show('focus on the center', 6);
-    setTimeout(() => {
+    this.safeTimeout(() => {
       if (this.active?.type === 'focus-target') this.resolve();
     }, 6000);
   }
@@ -710,6 +747,15 @@ export class InteractionManager {
       };
       requestAnimationFrame(check);
     });
+  }
+
+  /** setTimeout that auto-cancels on clear() — prevents stale callbacks */
+  private safeTimeout(fn: () => void, ms: number): void {
+    const id = setTimeout(() => {
+      this.pendingTimers.delete(id);
+      if (this.active) fn();
+    }, ms);
+    this.pendingTimers.add(id);
   }
 
   private sleep(ms: number): Promise<void> {
@@ -814,7 +860,7 @@ export class InteractionManager {
         this._shaderState.breathSyncProgress = this.breathSyncState.goodCycles / 4;
 
         if (this.breathSyncState.goodCycles >= 4) {
-          setTimeout(() => this.resolve(), 800);
+          this.safeTimeout(() => this.resolve(), 800);
           this.breathSyncState.lastBreathVal = breathVal;
           return;
         }
@@ -938,7 +984,10 @@ export class InteractionManager {
     const hintY = cy + s * 0.24;
     ctx.font = `300 ${s * 0.04}px Georgia, serif`;
     ctx.fillStyle = `${opts.ringColor}66`;
-    ctx.fillText('hold space to inhale \u00B7 release to exhale', cx, hintY);
+    const breathHint = isTouchDevice()
+      ? 'hold screen to inhale \u00B7 release to exhale'
+      : 'hold space to inhale \u00B7 release to exhale';
+    ctx.fillText(breathHint, cx, hintY);
 
     this.qteTexture.needsUpdate = true;
   }
@@ -983,9 +1032,9 @@ export class InteractionManager {
     this.createQteRing();
     this.createQteLabel();
 
-    setTimeout(() => {
+    this.safeTimeout(() => {
       if (this.active?.type === 'voice-gate') {
-        this.updateQteLabel('speak or press space');
+        this.updateQteLabel(tapLabel('speak or press space', 'speak or tap'));
       }
     }, 1500);
 
@@ -1060,7 +1109,7 @@ export class InteractionManager {
       this.countdownState.lastNumberTime = time;
 
       if (this.countdownState.current <= 0) {
-        setTimeout(() => this.resolve(), 2000);
+        this.safeTimeout(() => this.resolve(), 2000);
         this.countdownState.current = -999;
         return;
       }
@@ -1076,7 +1125,7 @@ export class InteractionManager {
 
     this.createQteRing();
     this.createQteLabel();
-    this.updateQteLabel('hum or hold space');
+    this.updateQteLabel(tapLabel('hum or hold space', 'hum or hold screen'));
   }
 
   private updateHumSync(): void {
@@ -1116,7 +1165,7 @@ export class InteractionManager {
     }
 
     if (this.humSyncState.humDuration >= this.humSyncState.targetDuration) {
-      setTimeout(() => this.resolve(), 500);
+      this.safeTimeout(() => this.resolve(), 500);
     }
   }
 
@@ -1131,7 +1180,7 @@ export class InteractionManager {
     this.createQteRing();
     this.createQteLabel();
 
-    setTimeout(() => {
+    this.safeTimeout(() => {
       if (this.active?.type === 'affirm' && !this.affirmState.detected) {
         this.updateQteLabel('say it aloud', '#c8a0ff');
       }
@@ -1157,7 +1206,7 @@ export class InteractionManager {
     });
 
     if (this.affirmState.detected) {
-      setTimeout(() => this.resolve(), 1500);
+      this.safeTimeout(() => this.resolve(), 1500);
       this.affirmState.detected = false;
       this.affirmState.waitStart = Infinity;
     }

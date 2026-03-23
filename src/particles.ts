@@ -20,11 +20,11 @@ export class ParticleField {
       const i3 = i * 3;
       this.positions[i3] = (Math.random() - 0.5) * 10;
       this.positions[i3 + 1] = (Math.random() - 0.5) * 10;
-      this.positions[i3 + 2] = (Math.random() - 0.5) * 10;
+      this.positions[i3 + 2] = -Math.random() * 10; // spread into the tunnel (negative Z)
 
       this.velocities[i3] = (Math.random() - 0.5) * 0.003;
       this.velocities[i3 + 1] = (Math.random() - 0.5) * 0.003;
-      this.velocities[i3 + 2] = -0.005 - Math.random() * 0.01; // drift toward camera
+      this.velocities[i3 + 2] = 0.005 + Math.random() * 0.01; // fly toward camera (positive Z)
     }
 
     this.geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
@@ -52,11 +52,11 @@ export class ParticleField {
       this.positions[i3 + 1] += this.velocities[i3 + 1] + Math.sin(time + i) * 0.0005;
       this.positions[i3 + 2] += this.velocities[i3 + 2];
 
-      // Reset particles that drift too far
-      if (Math.abs(this.positions[i3 + 2]) > 5) {
+      // Reset particles that pass the camera — respawn deep in tunnel
+      if (this.positions[i3 + 2] > 2 || this.positions[i3 + 2] < -10) {
         this.positions[i3] = (Math.random() - 0.5) * 10;
         this.positions[i3 + 1] = (Math.random() - 0.5) * 10;
-        this.positions[i3 + 2] = 5;
+        this.positions[i3 + 2] = -8 - Math.random() * 2; // respawn far in tunnel
       }
     }
 

@@ -1,13 +1,15 @@
 /**
  * Guided calibration — 3-step in-tunnel wizard.
- * Runs inside the 3D scene using floating text sprites.
- * Arrow keys to adjust, Space to confirm each step.
+ * Uses SpriteText for all text rendering (shared system).
+ * Arrow keys / touch zones to adjust, Space / center-tap to confirm.
  */
 
 import * as THREE from 'three';
 import type { SettingsManager } from './settings';
 import type { AudioEngine } from './audio';
 import type { Text3D } from './text3d';
+import { SpriteText } from './sprite-text';
+import { isTouchDevice } from './touch';
 
 interface CalibrationDeps {
   scene: THREE.Scene;
@@ -56,7 +58,6 @@ export class GuidedCalibration {
       await this.runStepAudio();
       if (this.cancelled) return;
 
-      // Done
       await this.showMessage('calibration complete', 2000);
     } finally {
       this.cleanup();
@@ -70,7 +71,6 @@ export class GuidedCalibration {
   }
 
   update(_time: number): void {
-    // Gentle bob on all active sprites
     if (!this._active) return;
     const t = performance.now() / 1000;
     for (const sprite of this.sprites) {
@@ -82,12 +82,12 @@ export class GuidedCalibration {
   // ── Steps ──
 
   private async runStepSpeed(): Promise<void> {
-    const title = this.addSprite('tunnel speed', 48, '#c8a0ff', 0, 0.25, -2);
-    const hint = this.addSprite(
-      '\u2190 slower   \u2192 faster   space = confirm',
-      28, '#8060aa', 0, -0.05, -1.8,
-    );
-    const valueSprite = this.addSprite('', 32, '#a8e6cf', 0, 0.08, -1.8);
+    const title = this.addText('tunnel speed', 0.12, '#c8a0ff', 0, 0.25, -2);
+    const hintText = isTouchDevice()
+      ? 'tap left = slower   tap right = faster   center = confirm'
+      : '\u2190 slower   \u2192 faster   space = confirm';
+    const hint = this.addText(hintText, 0.06, '#8060aa', 0, -0.05, -1.8, 28);
+    const valueSprite = this.addText('1.0x', 0.08, '#a8e6cf', 0, 0.08, -1.8, 32);
 
     await this.animateIn(title, 1000);
     await this.animateIn(hint, 800);
@@ -95,18 +95,18 @@ export class GuidedCalibration {
     if (this.cancelled) return;
 
     let speed = this.deps.settings.current.tunnelSpeed;
-    this.updateSpriteText(valueSprite, this.fmtVal(speed, 'x'));
+    this.updateText(valueSprite, this.fmtVal(speed, 'x'));
 
     await this.waitForAdjustment({
       onLeft: () => {
         speed = Math.max(0, speed - 0.1);
         this.deps.settings.updateBatch({ tunnelSpeed: speed });
-        this.updateSpriteText(valueSprite, this.fmtVal(speed, 'x'));
+        this.updateText(valueSprite, this.fmtVal(speed, 'x'));
       },
       onRight: () => {
         speed = Math.min(5, speed + 0.1);
         this.deps.settings.updateBatch({ tunnelSpeed: speed });
-        this.updateSpriteText(valueSprite, this.fmtVal(speed, 'x'));
+        this.updateText(valueSprite, this.fmtVal(speed, 'x'));
       },
     });
 
@@ -117,15 +117,14 @@ export class GuidedCalibration {
   }
 
   private async runStepText(): Promise<void> {
-    // Show sample narration text
     this.deps.text3d.show('you are feeling calm and focused', 30);
 
-    const title = this.addSprite('text readability', 48, '#c8a0ff', 0, 0.25, -2);
-    const hint = this.addSprite(
-      '\u2190 smaller   \u2192 bigger   space = confirm',
-      28, '#8060aa', 0, -0.05, -1.8,
-    );
-    const valueSprite = this.addSprite('', 32, '#a8e6cf', 0, 0.08, -1.8);
+    const title = this.addText('text readability', 0.12, '#c8a0ff', 0, 0.25, -2);
+    const hintText = isTouchDevice()
+      ? 'tap left = smaller   tap right = bigger   center = confirm'
+      : '\u2190 smaller   \u2192 bigger   space = confirm';
+    const hint = this.addText(hintText, 0.06, '#8060aa', 0, -0.05, -1.8, 28);
+    const valueSprite = this.addText('1.0x', 0.08, '#a8e6cf', 0, 0.08, -1.8, 32);
 
     await this.animateIn(title, 1000);
     await this.animateIn(hint, 800);
@@ -133,18 +132,18 @@ export class GuidedCalibration {
     if (this.cancelled) return;
 
     let scale = this.deps.settings.current.narrationScale;
-    this.updateSpriteText(valueSprite, this.fmtVal(scale, 'x'));
+    this.updateText(valueSprite, this.fmtVal(scale, 'x'));
 
     await this.waitForAdjustment({
       onLeft: () => {
         scale = Math.max(0.1, scale - 0.1);
         this.deps.settings.updateBatch({ narrationScale: scale });
-        this.updateSpriteText(valueSprite, this.fmtVal(scale, 'x'));
+        this.updateText(valueSprite, this.fmtVal(scale, 'x'));
       },
       onRight: () => {
         scale = Math.min(5, scale + 0.1);
         this.deps.settings.updateBatch({ narrationScale: scale });
-        this.updateSpriteText(valueSprite, this.fmtVal(scale, 'x'));
+        this.updateText(valueSprite, this.fmtVal(scale, 'x'));
       },
     });
 
@@ -158,12 +157,12 @@ export class GuidedCalibration {
   private async runStepAudio(): Promise<void> {
     this.startTestTone();
 
-    const title = this.addSprite('audio level', 48, '#c8a0ff', 0, 0.25, -2);
-    const hint = this.addSprite(
-      '\u2190 quieter   \u2192 louder   space = confirm',
-      28, '#8060aa', 0, -0.05, -1.8,
-    );
-    const valueSprite = this.addSprite('', 32, '#a8e6cf', 0, 0.08, -1.8);
+    const title = this.addText('audio level', 0.12, '#c8a0ff', 0, 0.25, -2);
+    const hintText = isTouchDevice()
+      ? 'tap left = quieter   tap right = louder   center = confirm'
+      : '\u2190 quieter   \u2192 louder   space = confirm';
+    const hint = this.addText(hintText, 0.06, '#8060aa', 0, -0.05, -1.8, 28);
+    const valueSprite = this.addText('100%', 0.08, '#a8e6cf', 0, 0.08, -1.8, 32);
 
     await this.animateIn(title, 1000);
     await this.animateIn(hint, 800);
@@ -171,20 +170,20 @@ export class GuidedCalibration {
     if (this.cancelled) return;
 
     let vol = this.deps.settings.current.masterVolume;
-    this.updateSpriteText(valueSprite, Math.round(vol * 100) + '%');
+    this.updateText(valueSprite, Math.round(vol * 100) + '%');
 
     await this.waitForAdjustment({
       onLeft: () => {
         vol = Math.max(0, vol - 0.05);
         this.deps.settings.updateBatch({ masterVolume: vol });
         this.setTestToneVolume(vol);
-        this.updateSpriteText(valueSprite, Math.round(vol * 100) + '%');
+        this.updateText(valueSprite, Math.round(vol * 100) + '%');
       },
       onRight: () => {
         vol = Math.min(2, vol + 0.05);
         this.deps.settings.updateBatch({ masterVolume: vol });
         this.setTestToneVolume(vol);
-        this.updateSpriteText(valueSprite, Math.round(vol * 100) + '%');
+        this.updateText(valueSprite, Math.round(vol * 100) + '%');
       },
     });
 
@@ -198,9 +197,8 @@ export class GuidedCalibration {
   // ── Test tone ──
 
   private startTestTone(): void {
-    // Use the audio engine's context if available, otherwise create our own
     const ctx = this.deps.audio.context ?? new AudioContext();
-    this.testCtx = this.deps.audio.context ? null : ctx; // track if we own it
+    this.testCtx = this.deps.audio.context ? null : ctx;
 
     this.testGain = ctx.createGain();
     this.testGain.gain.value = 0;
@@ -212,7 +210,6 @@ export class GuidedCalibration {
     this.testOsc.connect(this.testGain);
     this.testOsc.start();
 
-    // Gentle fade in
     const vol = this.deps.settings.current.masterVolume;
     this.testGain.gain.setValueAtTime(0, ctx.currentTime);
     this.testGain.gain.linearRampToValueAtTime(vol * 0.3, ctx.currentTime + 1);
@@ -245,121 +242,83 @@ export class GuidedCalibration {
     onRight: () => void;
   }): Promise<void> {
     return new Promise((resolve) => {
+      const cleanup = () => {
+        window.removeEventListener('keydown', handler, true);
+        this.deps.canvas.removeEventListener('touchstart', touchHandler);
+        this.deps.canvas.removeEventListener('click', clickHandler);
+        this.keyHandler = null;
+      };
+
       const handler = (e: KeyboardEvent) => {
         e.preventDefault();
         e.stopPropagation();
-
         if (e.code === 'ArrowLeft' || e.code === 'ArrowDown' || e.code === 'KeyA' || e.code === 'KeyS') {
           opts.onLeft();
         } else if (e.code === 'ArrowRight' || e.code === 'ArrowUp' || e.code === 'KeyD' || e.code === 'KeyW') {
           opts.onRight();
         } else if (e.code === 'Space' || e.code === 'Enter') {
-          window.removeEventListener('keydown', handler, true);
-          this.keyHandler = null;
-          resolve();
+          cleanup(); resolve();
         } else if (e.code === 'Escape') {
-          window.removeEventListener('keydown', handler, true);
-          this.keyHandler = null;
-          this.cancelled = true;
-          resolve();
+          cleanup(); this.cancelled = true; resolve();
         }
       };
+
+      const touchHandler = (e: TouchEvent) => {
+        if (e.touches.length === 0) return;
+        e.preventDefault();
+        const x = e.touches[0].clientX / window.innerWidth;
+        if (x < 0.33) { opts.onLeft(); }
+        else if (x > 0.66) { opts.onRight(); }
+        else { cleanup(); resolve(); }
+      };
+
+      const clickHandler = (e: MouseEvent) => {
+        const x = e.clientX / window.innerWidth;
+        if (x < 0.33) { opts.onLeft(); }
+        else if (x > 0.66) { opts.onRight(); }
+        else { cleanup(); resolve(); }
+      };
+
       this.keyHandler = handler;
-      window.addEventListener('keydown', handler, true); // capture phase
+      window.addEventListener('keydown', handler, true);
+      this.deps.canvas.addEventListener('touchstart', touchHandler, { passive: false });
+      this.deps.canvas.addEventListener('click', clickHandler);
     });
   }
 
-  // ── Sprite helpers ──
+  // ── Text helpers (using shared SpriteText) ──
 
-  private addSprite(
-    text: string, fontSize: number, color: string,
+  private addText(
+    text: string, height: number, color: string,
     x: number, y: number, z: number,
+    fontSize = 48,
   ): THREE.Sprite {
-    const sprite = this.makeTextSprite(text, fontSize, color);
+    const sprite = SpriteText.create(text, {
+      height,
+      fontSize,
+      color,
+      glow: `${color}66`,
+    });
     sprite.position.set(x, y, z);
+    // Store the intended scale, then zero it for animate-in
+    sprite.userData._targetScale = sprite.scale.clone();
     sprite.scale.set(0, 0, 1);
-    (sprite.material as THREE.SpriteMaterial).opacity = 0;
+    SpriteText.setOpacity(sprite, 0);
     this.group.add(sprite);
     this.sprites.push(sprite);
     return sprite;
   }
 
-  private makeTextSprite(text: string, fontSize: number, color: string): THREE.Sprite {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d')!;
-    const font = `300 ${fontSize}px Georgia, serif`;
-    ctx.font = font;
-
-    const metrics = ctx.measureText(text || 'M');
-    const pad = fontSize * 0.8;
-    canvas.width = Math.ceil(metrics.width + pad * 2);
-    canvas.height = Math.ceil(fontSize * 2 + pad * 2);
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.font = font;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.shadowColor = `${color}66`;
-    ctx.shadowBlur = 20;
-    ctx.fillStyle = color;
-    ctx.fillText(text, canvas.width / 2, canvas.height / 2);
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.minFilter = THREE.LinearFilter;
-    texture.magFilter = THREE.LinearFilter;
-
-    const material = new THREE.SpriteMaterial({
-      map: texture,
-      transparent: true,
-      opacity: 0,
-      depthTest: false,
-      blending: THREE.AdditiveBlending,
-    });
-
-    const sprite = new THREE.Sprite(material);
-    const aspect = canvas.width / canvas.height;
-    sprite.scale.set(0.5 * aspect, 0.5, 1);
-    // Store canvas/ctx on userData for updateSpriteText
-    sprite.userData = { canvas, ctx, font, color, fontSize };
-    return sprite;
-  }
-
-  private updateSpriteText(sprite: THREE.Sprite, text: string): void {
-    const { canvas, ctx, font, color, fontSize } = sprite.userData;
-    if (!canvas || !ctx) return;
-
-    // Resize canvas if needed
-    ctx.font = font;
-    const metrics = ctx.measureText(text);
-    const pad = fontSize * 0.8;
-    const newW = Math.ceil(metrics.width + pad * 2);
-    if (newW > canvas.width) {
-      canvas.width = newW;
-    }
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.font = font;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.shadowColor = `${color}66`;
-    ctx.shadowBlur = 20;
-    ctx.fillStyle = color;
-    ctx.fillText(text, canvas.width / 2, canvas.height / 2);
-
-    const mat = sprite.material as THREE.SpriteMaterial;
-    mat.map!.needsUpdate = true;
-
-    // Update aspect
-    const aspect = canvas.width / canvas.height;
-    const currentScaleY = sprite.scale.y;
-    sprite.scale.set(currentScaleY * aspect, currentScaleY, 1);
+  private updateText(sprite: THREE.Sprite, text: string): void {
+    SpriteText.updateText(sprite, text);
+    // After updateText, scale is reset to the natural size — store it
+    sprite.userData._targetScale = sprite.scale.clone();
   }
 
   private animateIn(sprite: THREE.Sprite, durationMs: number): Promise<void> {
     if (this.cancelled) return Promise.resolve();
-    const mat = sprite.material as THREE.SpriteMaterial;
-    const targetScale = sprite.scale.clone();
-    const aspect = targetScale.x / Math.max(targetScale.y, 0.001);
+    const target = sprite.userData._targetScale as THREE.Vector3;
+    if (!target) return Promise.resolve();
     const start = performance.now();
 
     return new Promise((resolve) => {
@@ -367,9 +326,8 @@ export class GuidedCalibration {
         if (this.cancelled) { resolve(); return; }
         const t = Math.min(1, (performance.now() - start) / durationMs);
         const ease = 1 - (1 - t) * (1 - t);
-        mat.opacity = ease * 0.9;
-        const s = targetScale.y * ease;
-        sprite.scale.set(s * aspect, s, 1);
+        SpriteText.setOpacity(sprite, ease * 0.9);
+        sprite.scale.set(target.x * ease, target.y * ease, 1);
         if (t < 1) requestAnimationFrame(tick);
         else resolve();
       };
@@ -393,7 +351,7 @@ export class GuidedCalibration {
   }
 
   private async showMessage(text: string, durationMs: number): Promise<void> {
-    const sprite = this.addSprite(text, 44, '#a8e6cf', 0, 0.1, -1.8);
+    const sprite = this.addText(text, 0.1, '#a8e6cf', 0, 0.1, -1.8, 44);
     await this.animateIn(sprite, 1000);
     await this.sleep(durationMs);
     this.animateOut(sprite, 800);
@@ -419,9 +377,7 @@ export class GuidedCalibration {
     this.stopTestTone();
     for (const sprite of this.sprites) {
       this.group.remove(sprite);
-      const mat = sprite.material as THREE.SpriteMaterial;
-      mat.map?.dispose();
-      mat.dispose();
+      SpriteText.dispose(sprite);
     }
     this.sprites = [];
     this.deps.scene.remove(this.group);

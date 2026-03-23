@@ -239,6 +239,8 @@ export class NarrationEngine {
   /** Stop continuous stage playback */
   stopStagePlayback(): void {
     if (this.stageAudio) {
+      // Null out onended BEFORE pausing to prevent stale callback firing
+      this.stageAudio.onended = null;
       this.stageAudio.pause();
       this.stageAudio = null;
     }

@@ -24,7 +24,7 @@ MAX_CHARS = 950
 # ── Script Parser ──
 
 def parse_script(path):
-    """Parse script.txt into stages with slices and gates."""
+    """Parse script.txt into stages with slices, gates, and interaction markers."""
     stages = []
     current = None
 
@@ -39,15 +39,37 @@ def parse_script(path):
                 if current:
                     _flush(current)
                     stages.append(current)
-                current = {'name': m.group(1).strip(), 'slices': [], 'gates': [], '_buf': ''}
+                current = {'name': m.group(1).strip(), 'slices': [], 'gates': [], 'slice_types': [], '_buf': ''}
                 continue
 
             if not current:
                 continue
 
+            # Old-style [GATE: text] — separate gate (kept for backwards compat)
             m = re.match(r'\[GATE:\s*(.+?)\]', line)
             if m:
                 current['gates'].append(m.group(1).strip())
+                continue
+
+            # Inline [GATE] — tags the PREVIOUS slice as a gate prompt
+            if line == '[GATE]':
+                _flush(current)
+                if current['slices']:
+                    # Tag the last slice as a gate
+                    idx = len(current['slices']) - 1
+                    while len(current['slice_types']) <= idx:
+                        current['slice_types'].append('narration')
+                    current['slice_types'][idx] = 'gate'
+                continue
+
+            # Inline [BREATH-SYNC] — tags the previous slice as breath-sync trigger
+            if line == '[BREATH-SYNC]':
+                _flush(current)
+                if current['slices']:
+                    idx = len(current['slices']) - 1
+                    while len(current['slice_types']) <= idx:
+                        current['slice_types'].append('narration')
+                    current['slice_types'][idx] = 'breath-sync'
                 continue
 
             if line == '[SLICE]':
@@ -67,6 +89,9 @@ def parse_script(path):
     for s in stages:
         del s['_buf']
         s['slices'] = [re.sub(r'\s+', ' ', t).strip() for t in s['slices']]
+        # Pad slice_types to match slices length
+        while len(s['slice_types']) < len(s['slices']):
+            s['slice_types'].append('narration')
 
     return stages
 
@@ -304,6 +329,23 @@ def generate_session_config(manifest, script_path, stages):
 
     config_lines.append("};")
 
+    # Export interaction markers per stage
+    config_lines.append("")
+    config_lines.append("// Interaction markers from script (gate, breath-sync, etc.)")
+    config_lines.append("export const stageInteractions: Record<string, Array<{ index: number; type: string; text: string }>> = {")
+    for stage in manifest["stages"]:
+        markers = []
+        for li, line in enumerate(stage["lines"]):
+            if line.get("type"):
+                markers.append({"index": li, "type": line["type"], "text": line["text"]})
+        if markers:
+            config_lines.append(f"  '{stage['name']}': [")
+            for m in markers:
+                escaped = m['text'].replace("\\", "\\\\").replace("'", "\\'")
+                config_lines.append(f"    {{ index: {m['index']}, type: '{m['type']}', text: '{escaped}' }},")
+            config_lines.append("  ],")
+    config_lines.append("};")
+
     # Also export stage durations so the session config can use them
     config_lines.append("")
     config_lines.append("// Stage durations from audio (use these in session config)")
@@ -427,6 +469,12 @@ def main():
                     }
                     if ct.get("words"):
                         entry["words"] = ct["words"]
+                    # Add interaction type if tagged
+                    slice_idx = ct["index"]
+                    if slice_idx < len(stage.get('slice_types', [])):
+                        stype = stage['slice_types'][slice_idx]
+                        if stype != 'narration':
+                            entry["type"] = stype
                     lines.append(entry)
 
                 # Fix last line if Whisper ran out — extend to fill remaining stage audio

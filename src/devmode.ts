@@ -249,4 +249,8 @@ export class DevMode {
   get isVisible(): boolean {
     return this.visible;
   }
+
+  destroy(): void {
+    this.panel.remove();
+  }
 }

@@ -6,7 +6,8 @@
 
 import type { SettingsManager, HpynoSettings } from './settings';
 
-const CALIBRATED_KEY = 'hpyno-calibrated';
+// Bump version to force re-calibration when sprite/text system changes
+const CALIBRATED_KEY = 'hpyno-calibrated-v2';
 const WARMUP_FRAMES = 30;
 const MEASURE_FRAMES = 90;
 const TOTAL_FRAMES = WARMUP_FRAMES + MEASURE_FRAMES;
@@ -88,22 +89,23 @@ function computeSettings(frameTimes: number[]): Partial<HpynoSettings> {
   const screenScale = Math.max(0.6, Math.min(2.5, effectivePx / referencePx));
 
   if (isMobile) {
-    // Mobile: shallower depths, larger relative text
-    changes.narrationScale = 1.5 * screenScale;
-    changes.menuScale = 1.3 * screenScale;
-    changes.interactionScale = 1.3 * screenScale;
-    changes.narrationStartZ = -2;
-    changes.narrationEndZ = -0.2;
+    // Mobile: shallower depths, larger relative text, closer to camera
+    changes.narrationScale = 1.8 * screenScale;
+    changes.menuScale = 2.5 * screenScale;
+    changes.interactionScale = 1.5 * screenScale;
+    changes.narrationStartZ = -1.4;
+    changes.narrationEndZ = -0.3;
     changes.menuDepth = -1.2;
-    changes.interactionDepth = -1.0;
+    changes.interactionDepth = -0.9;
   } else {
-    // Desktop: scale everything proportionally to screen size
-    changes.narrationScale = 1.2 * screenScale;
-    changes.menuScale = 1.0 * screenScale;
-    changes.interactionScale = 1.0 * screenScale;
-    changes.narrationStartZ = -2.5 - screenScale;
-    changes.menuDepth = -1.2 - screenScale * 0.3;
-    changes.interactionDepth = -1.0 - screenScale * 0.2;
+    // Desktop: scale proportionally
+    changes.narrationScale = 1.5 * screenScale;
+    changes.menuScale = 2.5 * screenScale;
+    changes.interactionScale = 1.3 * screenScale;
+    changes.narrationStartZ = -1.8;
+    changes.narrationEndZ = -0.4;
+    changes.menuDepth = -1.5;
+    changes.interactionDepth = -1.2;
   }
 
   console.log(`[AutoCal] Screen scale factor: ${screenScale.toFixed(2)} (${effectivePx}px effective)`);

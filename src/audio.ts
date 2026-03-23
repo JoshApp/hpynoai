@@ -52,6 +52,11 @@ export class AudioEngine {
   async init(): Promise<void> {
     this.ctx = new AudioContext();
 
+    // iOS/Safari suspends AudioContext until a user gesture — resume it
+    if (this.ctx.state === 'suspended') {
+      await this.ctx.resume().catch(() => {});
+    }
+
     // Create analyzer — sits between masterGain and destination
     this._analyzer = new AudioAnalyzer(this.ctx, 1024);
 

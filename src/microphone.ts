@@ -271,13 +271,19 @@ export class MicrophoneEngine {
     }
   }
 
+  /** Reusable buffer for pitch detection — avoids allocating every frame */
+  private pitchBuf: Float32Array | null = null;
+
   private detectPitch(): number {
     if (!this.ctx) return 0;
     const sampleRate = this.ctx.sampleRate;
     const bufLen = this.timeData.length;
 
-    // Convert to float
-    const buf = new Float32Array(bufLen);
+    // Reuse buffer — only reallocate if analyser size changed
+    if (!this.pitchBuf || this.pitchBuf.length !== bufLen) {
+      this.pitchBuf = new Float32Array(bufLen);
+    }
+    const buf = this.pitchBuf;
     for (let i = 0; i < bufLen; i++) {
       buf[i] = (this.timeData[i] - 128) / 128;
     }

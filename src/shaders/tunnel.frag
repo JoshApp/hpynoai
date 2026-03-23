@@ -1,284 +1,289 @@
-// WMP-style tunnel — polar coordinate warp, rings flowing toward you
-// No raymarching needed — pure 2D math, extremely fast
+// ═══════════════════════════════════════════════════════════════
+// HPYNO Tunnel v2 — clean rewrite
+//
+// Classic demoscene tunnel: depth = 1/r in polar space.
+// One coherent lighting model, no stacked darkening passes.
+//
+// Structure:
+//   1. Polar coords + organic distortion
+//   2. Depth mapping + forward scroll
+//   3. Wall texture (rings, segments, patterns, noise)
+//   4. Lighting (one pass: cylindrical normal + depth + fog)
+//   5. Center glow
+//   6. Vignette + breath
+//   7. Final output
+// ═══════════════════════════════════════════════════════════════
 
 uniform float uTime;
 uniform float uIntensity;
-uniform vec2 uMouse;
+uniform vec2  uMouse;
+uniform float uBreathValue;
+uniform float uBreathStage;
 uniform float uBreathePhase;
-uniform float uBreathValue;  // 0-1 direct from BreathController (supports holds)
-uniform float uBreathStage;  // 0=inhale, 1=hold-in, 2=exhale, 3=hold-out
 uniform float uSpiralSpeed;
-uniform float uSpiralAngle;  // accumulated rotation (no jumps on speed change)
+uniform float uSpiralAngle;
 uniform float uTunnelSpeed;
 uniform float uTunnelWidth;
 uniform float uBreathExpansion;
-uniform float uTunnelShape;    // 0 = geometric, 1 = organic/cervical
-uniform vec2 uResolution;
-uniform vec3 uColor1; // primary
-uniform vec3 uColor2; // secondary
-uniform vec3 uColor3; // accent
-uniform vec3 uColor4; // background
+uniform float uTunnelShape;
+uniform vec2  uResolution;
+uniform vec3  uColor1; // primary
+uniform vec3  uColor2; // secondary
+uniform vec3  uColor3; // accent
+uniform vec3  uColor4; // background / deep
 
-// Audio-reactive uniforms (0-1, fed from AudioAnalyzer + NarrationEngine)
-uniform float uAudioEnergy;  // overall audio energy
-uniform float uAudioBass;    // bass band energy
-uniform float uAudioMid;     // mid band energy
-uniform float uAudioHigh;    // high band energy
-uniform float uVoiceEnergy;  // narrator voice energy (simulated or real)
+uniform float uAudioEnergy;
+uniform float uAudioBass;
+uniform float uAudioMid;
+uniform float uAudioHigh;
+uniform float uVoiceEnergy;
 
-// Interaction-driven uniforms
-uniform float uBreathSyncActive; // 1 when breath-sync interaction is active
-uniform float uBreathSyncFill;   // 0-1 how in-sync the user is
-uniform float uBreathSyncProgress; // 0-1 (goodCycles / 4)
+uniform float uBreathSyncActive;
+uniform float uBreathSyncFill;
+uniform float uBreathSyncProgress;
 
 varying vec2 vUv;
 
-#define PI 3.14159265359
+#define PI  3.14159265359
 #define TAU 6.28318530718
 
-// ── Cheap hash noise ──
-float hash(float n) { return fract(sin(n) * 43758.5453123); }
+// ── Noise ──────────────────────────────────────────────────────
+float hash(float n) { return fract(sin(n) * 43758.5453); }
+float hash2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 
 float noise(vec2 p) {
   vec2 i = floor(p);
   vec2 f = fract(p);
-  f = f * f * (3.0 - 2.0 * f);
+  f = f * f * (3.0 - 2.0 * f); // smoothstep
   float n = i.x + i.y * 157.0;
   return mix(
-    mix(hash(n), hash(n + 1.0), f.x),
+    mix(hash(n),         hash(n + 1.0),   f.x),
     mix(hash(n + 157.0), hash(n + 158.0), f.x),
     f.y
   );
 }
 
-// ── Breathing ──
-float breathe() {
-  // Use direct value from BreathController — supports hold phases
-  return uBreathValue;
-}
-
+// ═══════════════════════════════════════════════════════════════
 void main() {
   vec2 uv = vUv - 0.5;
   float aspect = uResolution.x / uResolution.y;
   uv.x *= aspect;
 
-  // ── Tunnel path — curves simulated via asymmetric shading ──
-  // Very gentle, NOT intensity-dependent — prevents rotation jumps on intensity changes
-  float pathTime = uTime * 0.08; // slower path evolution
-  vec2 curveDir = vec2(
-    sin(pathTime * 1.0) + sin(pathTime * 2.3) * 0.3,
-    cos(pathTime * 0.7) + sin(pathTime * 1.8) * 0.25
-  );
-  float curveMag = length(curveDir);
-  curveDir = curveMag > 0.01 ? curveDir / curveMag : vec2(0.0);
-  float curveAmount = min(curveMag * 0.08, 0.08); // fixed amount, no intensity scaling
+  float br = uBreathValue;
 
-  // Mouse adds subtle steering feel
+  // ────────────────────────────────────────────────────────────
+  // 1. POLAR COORDINATES
+  // ────────────────────────────────────────────────────────────
+  // Mouse adds subtle offset
   uv += uMouse * 0.04 * uIntensity;
 
-  // Polar coordinates — center stays fixed
-  float r = length(uv);
+  float r     = length(uv);
   float angle = atan(uv.y, uv.x);
 
-  // Curve feel is handled by asymmetric brightness only (no angle rotation)
-  // Angle rotation caused streak artifacts at the transition boundary
-
-  // ── Organic shape distortion (uTunnelShape: 0=off, 1=full) ──
+  // Organic distortion (uTunnelShape: 0 = geometric, 1 = organic)
   if (uTunnelShape > 0.01) {
     float org = uTunnelShape;
-    float t = uTime;
-
-    // Radial folds — makes the tunnel cross-section non-circular
-    // Like looking into a fleshy tube with ridges
-    float folds = sin(angle * 3.0 + t * 0.2) * 0.06
-                + sin(angle * 5.0 - t * 0.15) * 0.03
-                + sin(angle * 7.0 + t * 0.3) * 0.015;
-    r += folds * org * (0.5 + breathe() * 0.5);
-
-    // Peristaltic wave — undulation along depth that contracts/relaxes
-    // Creates the sense of muscular walls
-    float wave = sin(r * 15.0 - t * 1.5) * 0.02
-               + sin(r * 8.0 + t * 0.8) * 0.015;
-    r += wave * org;
-
-    // Asymmetric opening — slightly off-center, like a real passage
-    float asymX = sin(t * 0.1) * 0.02 * org;
-    float asymY = cos(t * 0.13) * 0.015 * org;
-    r += (uv.x * asymX + uv.y * asymY);
-
-    // Warm pulsing — the whole passage throbs gently
-    float throb = sin(t * 0.7) * 0.5 + 0.5;
-    r *= 1.0 - throb * 0.03 * org;
+    float t   = uTime;
+    // Radial folds — non-circular cross-section
+    r += (sin(angle * 3.0 + t * 0.2)  * 0.06
+        + sin(angle * 5.0 - t * 0.15) * 0.03
+        + sin(angle * 7.0 + t * 0.3)  * 0.015)
+        * org * (0.5 + br * 0.5);
+    // Peristaltic wave along depth
+    r += (sin(r * 15.0 - t * 1.5) * 0.02
+        + sin(r * 8.0  + t * 0.8) * 0.015) * org;
+    // Asymmetric opening
+    r += uv.x * sin(t * 0.1) * 0.02 * org
+       + uv.y * cos(t * 0.13) * 0.015 * org;
+    // Warm throb
+    r *= 1.0 - (sin(t * 0.7) * 0.5 + 0.5) * 0.03 * org;
   }
 
-  // ── Breathing ──
-  float br = breathe();
+  // ────────────────────────────────────────────────────────────
+  // 2. DEPTH MAPPING
+  // ────────────────────────────────────────────────────────────
+  // Breath bulge — tunnel mouth opens/closes
+  float bulgeFall = exp(-pow((r - 0.20) / 0.18, 2.0));
+  float bulgedR   = r - bulgeFall * (br - 0.5) * 0.10 * uBreathExpansion;
 
-  // ── Tube bulge — subtle tunnel breathing ──
-  float bulgeCenter = 0.20;
-  float bulgeFalloff = exp(-pow((r - bulgeCenter) / 0.18, 2.0));
-  float bulgeAmount = (br - 0.5) * 0.10 * uBreathExpansion;
-  float bulgedR = r - bulgeFalloff * bulgeAmount;
+  // Classic tunnel: depth = 1/r (clamped to prevent infinity at center)
+  float sr    = bulgedR / uTunnelWidth;
+  float depth = 0.5 / (max(sr, 0.01) + 0.03);
 
-  // ── Tunnel depth mapping — deeper falloff for stronger 3D feel ──
-  float scaledR = bulgedR / uTunnelWidth;
-  float depth = 0.5 / (max(scaledR, 0.01) + 0.03);
+  // Subtle breath depth shift
+  depth += (br - 0.5) * 0.03 * uBreathExpansion;
 
-  // Very subtle depth shift — tube bulge handles the main breathing visual
-  // Large values here cause rings to race at high ringFreq
-  float breathDepth = (br - 0.5) * 0.03 * uBreathExpansion;
-  depth += breathDepth;
+  // Multi-timescale: tunnel's own slow rhythm
+  depth += sin(uTime * 0.25) * 0.012;  // ~25s
+  depth += sin(uTime * 0.07) * 0.006;  // ~90s glacial
 
-  // Forward movement — constant base speed
+  // Scrolling forward
   float z = depth + uTime * 0.6 * uTunnelSpeed;
 
-  // ── Tunnel texture coordinates ──
-  // Angle gives us "around the tube", depth gives us "along the tube"
-  float texU = angle / TAU + 0.5; // 0-1 around
-  float texV = z; // along the tunnel
-
-  // ── Spiral twist — accumulated angle + fixed depth twist (no intensity dependency) ──
-  float rawDepth = 0.4 / (r / uTunnelWidth + 0.05);
-  float twist = uSpiralAngle + rawDepth * 0.3;
+  // ────────────────────────────────────────────────────────────
+  // 3. TEXTURE COORDINATES
+  // ────────────────────────────────────────────────────────────
+  float rawDepth     = 0.4 / (r / uTunnelWidth + 0.05);
+  float twist        = uSpiralAngle + rawDepth * 0.3;
   float twistedAngle = angle + twist;
-  float texUTwisted = twistedAngle / TAU + 0.5;
+  float texU         = twistedAngle / TAU + 0.5; // around tube
+  float texV         = z;                         // along tube
 
-  // ── Ring segments — more defined, stronger 3D illusion ──
-  float ringFreq = mix(14.0, 7.0, uTunnelShape); // more rings = deeper tunnel feel
-  float rings = sin(z * ringFreq) * 0.5 + 0.5;
-  float ringSharpLo = mix(0.25, 0.1, uTunnelShape); // sharper ring edges
-  float ringSharpHi = mix(0.65, 0.8, uTunnelShape);
-  rings = smoothstep(ringSharpLo, ringSharpHi, rings);
+  // ────────────────────────────────────────────────────────────
+  // 4. WALL TEXTURE
+  // ────────────────────────────────────────────────────────────
+  // Rings — the primary depth cue
+  float ringFreq = mix(14.0, 7.0, uTunnelShape);
+  float rings    = sin(texV * ringFreq) * 0.5 + 0.5;
+  rings = smoothstep(
+    mix(0.25, 0.10, uTunnelShape),
+    mix(0.65, 0.80, uTunnelShape),
+    rings
+  );
+  rings *= 1.0 + uAudioBass * 0.4; // bass pumps rings
 
-  // Bass makes rings pulse
-  float ringPulse = 1.0 + uAudioBass * 0.5;
-  rings *= ringPulse;
+  // Segment lines — radial structure
+  float segCount = mix(12.0, 3.0, uTunnelShape);
+  float segLines = abs(sin(twistedAngle * segCount));
+  segLines = smoothstep(mix(0.92, 0.98, uTunnelShape), 0.99, segLines);
+  segLines *= 1.0 - uTunnelShape * 0.7;
 
-  // ── Segment lines — fixed count to prevent rotation artifacts on intensity changes ──
-  float segments = mix(12.0, 3.0, uTunnelShape);
-  float segLines = abs(sin(twistedAngle * segments));
-  float segThreshold = mix(0.92, 0.98, uTunnelShape); // thinner in organic mode
-  segLines = smoothstep(segThreshold, 0.99, segLines);
-  segLines *= (1.0 - uTunnelShape * 0.7); // fade segments in organic mode
+  // Flowing patterns
+  float pat1 = sin(texU * TAU * 3.0 + texV * 2.0) * 0.5 + 0.5;
+  float pat2 = sin(texU * TAU * 5.0 - texV * 1.5 + uTime * 0.5) * 0.5 + 0.5;
 
-  // ── Wall pattern — flowing organic texture ──
-  float pattern1 = sin(texUTwisted * TAU * 3.0 + z * 2.0) * 0.5 + 0.5;
-  float pattern2 = sin(texUTwisted * TAU * 5.0 - z * 1.5 + uTime * 0.5) * 0.5 + 0.5;
+  // Noise texture
+  float nScale   = mix(0.3, 0.7, uTunnelShape);
+  float wallNois = noise(vec2(twistedAngle * 2.0, texV * 0.5)) * nScale * uIntensity
+                 + noise(vec2(angle * 4.0 + uTime * 0.1, texV * 0.3)) * 0.2 * uTunnelShape;
 
-  // Noise for organic feel — much stronger in organic mode (fleshy texture)
-  float noiseScale = mix(0.3, 0.7, uTunnelShape);
-  float wallNoise = noise(vec2(twistedAngle * 2.0, z * 0.5)) * noiseScale * uIntensity;
-  // Extra layered noise in organic mode for subsurface look
-  wallNoise += noise(vec2(angle * 4.0 + uTime * 0.1, z * 0.3)) * 0.2 * uTunnelShape;
+  // ────────────────────────────────────────────────────────────
+  // 5. COLOR — single accumulation path
+  // ────────────────────────────────────────────────────────────
+  // Slow color evolution (prevents loop feel)
+  float slowDrift    = sin(uTime * 0.04) * 0.5 + 0.5;  // ~40s
+  float glacialDrift = sin(uTime * 0.017) * 0.5 + 0.5; // ~60s
+  float medPulse     = sin(uTime * 0.35) * 0.5 + 0.5;  // ~18s
 
-  // ── Color computation ──
+  // Base wall: blend primary ↔ secondary via pattern + slow drift
+  float balance = clamp(pat1 + (slowDrift - 0.5) * 0.15, 0.0, 1.0);
+  vec3 wall = mix(uColor1, uColor2, balance);
 
-  // Base wall color — spiral pattern between primary and secondary
-  vec3 wallColor = mix(uColor1, uColor2, pattern1);
+  // Accent washes
+  wall = mix(wall, uColor3, glacialDrift * 0.08 * uIntensity);
+  wall = mix(wall, uColor3, pat2 * br * uIntensity * 0.4 + medPulse * 0.04 * uIntensity);
+  wall = mix(wall, uColor2, uAudioMid * 0.15);
 
-  // Accent color pulsing with breath
-  wallColor = mix(wallColor, uColor3, pattern2 * br * uIntensity * 0.5);
+  // Ring highlights
+  vec3 ringCol = uColor3 * 1.6 + uColor2 * uAudioHigh * 0.5;
+  wall = mix(wall, ringCol, rings * 0.5 * uIntensity);
 
-  // Mid frequencies shift the color pattern
-  wallColor = mix(wallColor, uColor2, uAudioMid * 0.2);
+  // Segment lines
+  wall += uColor3 * segLines * 0.3 * uIntensity;
 
-  // Ring highlights — strong accent glow on ring edges for 3D definition
-  vec3 ringColor = uColor3 * 1.8;
-  ringColor += uColor2 * uAudioHigh * 0.6;
-  wallColor = mix(wallColor, ringColor, rings * 0.55 * uIntensity);
+  // Noise variation
+  wall *= 1.0 + wallNois;
 
-  // Segment lines — geometric structure
-  wallColor += uColor3 * segLines * 0.35 * uIntensity;
+  // Voice warmth
+  wall += uColor3 * uVoiceEnergy * 0.12;
 
-  // Wall noise organic variation
-  wallColor *= 1.0 + wallNoise;
+  // ────────────────────────────────────────────────────────────
+  // 6. LIGHTING — one unified pass
+  // ────────────────────────────────────────────────────────────
+  // a) Cylindrical shading: light from above — subtle, not heavy
+  float cylLight = 0.82 + 0.18 * cos(angle - PI * 0.5);
 
-  // Voice energy warms walls when narrator speaks
-  wallColor += uColor3 * uVoiceEnergy * 0.15;
+  // b) Depth gradient: near walls bright, far walls dim
+  float depthLight = 0.3 + 0.7 * smoothstep(0.0, 2.5, depth);
 
-  // ── Depth shading — stronger contrast between near and far walls ──
-  float depthShade = smoothstep(0.0, 2.0, depth);
-  wallColor *= 0.35 + 0.65 * depthShade;
+  // c) Curve shading: turning illusion
+  vec2 curveDir = vec2(
+    sin(uTime * 0.08) + sin(uTime * 0.184) * 0.3,
+    cos(uTime * 0.056) + sin(uTime * 0.144) * 0.25
+  );
+  float cLen = length(curveDir);
+  curveDir = cLen > 0.01 ? curveDir / cLen : vec2(0.0);
+  float curveLight = 1.0 + dot(normalize(uv + 0.001), curveDir) * min(cLen * 0.08, 0.08) * 0.5;
 
-  // ── Curve shading — asymmetric brightness sells the turning illusion ──
-  // The side we're "turning toward" gets brighter (wall appears closer)
-  float curveDot = dot(normalize(uv + 0.001), curveDir);
-  float curveShade = 1.0 + curveDot * curveAmount * 0.6;
-  wallColor *= curveShade;
+  // d) Depth fog: fade to darkness at extreme distance
+  float fogMix = 1.0 - exp(-depth * 0.08);
 
-  // ── Fog — subtle fade at extreme depth ──
-  float fog = exp(-depth * 0.08);
-  wallColor = mix(wallColor, uColor4 * 0.3, 1.0 - fog);
+  // Apply lighting in one multiply (no stacking!)
+  wall *= cylLight * depthLight * curveLight;
 
-  // ── Center glow — hypnotic pull toward the center ──
-  // Steady center brightness — breath modulates gently, no strobing
-  float centerFalloff = exp(-r * 4.0);
-  float centerGlow = centerFalloff * (0.85 + uIntensity * 0.15);
-  centerGlow *= 0.8 + br * 0.15; // very gentle breath modulation (no strobe)
-  centerGlow += exp(-r * 7.0) * uVoiceEnergy * 0.2;
-  vec3 glowColor = mix(uColor3, vec3(1.0), 0.6);
+  // Fog blends toward deep color
+  wall = mix(wall, uColor4 * 0.25, fogMix);
 
-  // Blend: center pulls you in
-  wallColor = mix(wallColor, glowColor, centerGlow);
+  // ────────────────────────────────────────────────────────────
+  // 7. CENTER GLOW — the hypnotic attractor
+  // ────────────────────────────────────────────────────────────
+  float centerFall = exp(-r * 4.0);
+  float glow       = centerFall * (0.85 + uIntensity * 0.15) * (0.85 + br * 0.15);
+  glow += exp(-r * 7.0) * uVoiceEnergy * 0.2;
+  vec3 glowCol = mix(uColor3, vec3(1.0), 0.55);
+  wall = mix(wall, glowCol, glow);
 
-  // ── Hypnotic pulse rings — avoid center to prevent strobe ──
-  float pulseRingSpeed = 2.0 + uAudioBass * 3.0;
-  float pulseRings = sin(r * 20.0 - uTime * pulseRingSpeed) * 0.5 + 0.5;
-  // Start rings further from center (r * 3.0 falloff) so they don't flash at r≈0
-  pulseRings *= exp(-r * 3.0) * (1.0 - exp(-r * 8.0)) * uIntensity * 0.18;
-  pulseRings *= 1.0 + uAudioEnergy * 0.4;
-  wallColor += uColor2 * pulseRings;
+  // Pulse rings — ripples from center (not at r≈0)
+  float pulseSpd   = 2.0 + uAudioBass * 3.0;
+  float pulseRings = sin(r * 20.0 - uTime * pulseSpd) * 0.5 + 0.5;
+  pulseRings *= exp(-r * 3.0) * (1.0 - exp(-r * 8.0)) * uIntensity * 0.15;
+  pulseRings *= 1.0 + uAudioEnergy * 0.3;
+  wall += uColor2 * pulseRings;
 
-  // ── Chromatic aberration ──
-  float aberration = uIntensity * 0.004;
-  wallColor.r *= 1.0 + r * aberration * 8.0;
-  wallColor.b *= 1.0 - r * aberration * 4.0;
+  // ────────────────────────────────────────────────────────────
+  // 8. CHROMATIC ABERRATION
+  // ────────────────────────────────────────────────────────────
+  float aber = uIntensity * 0.004;
+  wall.r *= 1.0 + r * aber * 8.0;
+  wall.b *= 1.0 - r * aber * 4.0;
 
-  // ── Breath-sync interaction (applied to wall before vignette) ──
+  // ────────────────────────────────────────────────────────────
+  // 9. BREATH-SYNC INTERACTION
+  // ────────────────────────────────────────────────────────────
   if (uBreathSyncActive > 0.5) {
-    float syncBandMask = exp(-pow((r - 0.18) / 0.12, 2.0));
-    wallColor += uColor3 * syncBandMask * uBreathSyncFill * 0.4;
-    wallColor *= 1.0 + uBreathSyncFill * br * 0.12;
-    wallColor += uColor3 * syncBandMask * uBreathSyncProgress * 0.2;
+    float band = exp(-pow((r - 0.18) / 0.12, 2.0));
+    wall += uColor3 * band * uBreathSyncFill * 0.35;
+    wall *= 1.0 + uBreathSyncFill * br * 0.1;
+    wall += uColor3 * band * uBreathSyncProgress * 0.18;
   }
 
-  // ── Darkness frame — always present, breathes noticeably ──
-  // The screen edges open on inhale (lighter, warmer) and close on exhale
-  // (darker, cooler). This is the primary subliminal breath indicator —
-  // perceived in peripheral vision without competing with center text.
-  float vrx = (vUv.x - 0.5) * aspect;
-  float vry = vUv.y - 0.5;
-  float vignR = length(vec2(vrx, vry)) * 2.0;
+  // ────────────────────────────────────────────────────────────
+  // 10. ATMOSPHERIC FOG — wispy noise at edges (baked in, no extra draw call)
+  // ────────────────────────────────────────────────────────────
+  float vr = length(vec2((vUv.x - 0.5) * aspect, vUv.y - 0.5)) * 2.0;
+  float fogRadial = smoothstep(0.15, 0.8, vr);
+  float brFogMod  = 0.85 + (1.0 - br) * 0.15;
+  // 3 fog layers at different scales/speeds — one noise call each
+  float fogFar  = noise(uv * 1.5 + vec2(uTime * 0.02, uTime * 0.015));
+  float fogMid2 = noise(uv * 2.5 - vec2(uTime * 0.04, uTime * 0.03) + vec2(5.0));
+  float fogNear = noise(uv * 4.0 + vec2(uTime * 0.07, uTime * 0.05) + vec2(10.0));
+  vec3 fogAccum = uColor4 * smoothstep(0.35, 0.6, fogFar) * 0.04
+                + mix(uColor1, uColor3, 0.4) * smoothstep(0.35, 0.6, fogMid2) * 0.03
+                + uColor3 * smoothstep(0.35, 0.6, fogNear) * 0.02;
+  wall += fogAccum * fogRadial * brFogMod * uIntensity;
 
-  // Inner edge breathes more prominently — opens on inhale, tightens on exhale
+  // ────────────────────────────────────────────────────────────
+  // 11. VIGNETTE — breathing darkness frame
+  // ────────────────────────────────────────────────────────────
+
   float breathOpen = br * uBreathExpansion;
-  float vigInner = 0.25 - uIntensity * 0.15 + breathOpen * 0.12;
-  float vigOuter = 0.60 - uIntensity * 0.10 + breathOpen * 0.08;
-  float vigDark = smoothstep(vigInner, vigOuter, vignR);
-  vigDark = max(vigDark, 0.12);
-  vigDark *= 0.5 + uIntensity * 0.45;
+  float vigInner   = 0.28 - uIntensity * 0.12 + breathOpen * 0.10;
+  float vigOuter   = 0.62 - uIntensity * 0.08 + breathOpen * 0.06;
+  float vig        = smoothstep(vigInner, vigOuter, vr);
+  vig = max(vig, 0.10);
+  vig *= 0.5 + uIntensity * 0.45;
+  wall *= 1.0 - vig;
 
-  // Darken walls toward black at edges
-  wallColor *= 1.0 - vigDark;
+  // Peripheral breath tint
+  float edgeMask = smoothstep(0.5, 0.9, vr);
+  wall += mix(uColor4 * 0.06, uColor3 * 0.12, br) * edgeMask * uBreathExpansion;
 
-  // ── Peripheral breath color — warm tint on inhale, cool on exhale ──
-  // Only visible at the very edges, subliminal
-  float edgeMask = smoothstep(0.5, 0.9, vignR); // only outer edges
-  vec3 inhaleEdge = uColor3 * 0.15;   // warm accent
-  vec3 exhaleEdge = uColor4 * 0.08;   // cool dark
-  vec3 edgeTint = mix(exhaleEdge, inhaleEdge, br);
-  wallColor += edgeTint * edgeMask * uBreathExpansion;
+  // ────────────────────────────────────────────────────────────
+  // 11. FINAL
+  // ────────────────────────────────────────────────────────────
+  wall *= 0.6 + 0.4 * uIntensity;
+  wall *= 1.0 + uAudioEnergy * 0.15;
+  wall += mix(uColor2 * 0.015, uColor3 * 0.03, br) * uBreathExpansion;
 
-  // ── Overall intensity scaling (keep minimum brightness for tunnel feel) ──
-  wallColor *= 0.6 + 0.4 * uIntensity;
-
-  // ── Audio energy overall brightness boost ──
-  wallColor *= 1.0 + uAudioEnergy * 0.2;
-
-  // ── Ambient breathing warmth — very subtle, no flicker ──
-  // Just a gentle overall warmth that shifts with breath, not a visible band
-  vec3 breathTint = mix(uColor2 * 0.02, uColor3 * 0.04, br);
-  wallColor += breathTint * uBreathExpansion;
-
-  gl_FragColor = vec4(wallColor, 1.0);
+  gl_FragColor = vec4(wall, 1.0);
 }

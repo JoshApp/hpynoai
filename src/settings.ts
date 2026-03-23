@@ -34,6 +34,13 @@ export interface HpynoSettings {
   narrationVolume: number;
   muted: boolean;
 
+  // Experience level
+  // 'listen' = audio + text only
+  // 'watch' = + gates/prompts
+  // 'breathe' = + breath sync interaction
+  // 'immerse' = + mic/voice detection
+  experienceLevel: 'listen' | 'watch' | 'breathe' | 'immerse';
+
   // Features
   ttsEnabled: boolean;
   micEnabled: boolean;
@@ -53,19 +60,20 @@ const DEFAULTS: HpynoSettings = {
   tunnelWidth: 1,
   breathExpansion: 1,
   menuDepth: -1.5,
-  menuScale: 1.8,
-  narrationStartZ: -3,
-  narrationEndZ: -0.3,
-  narrationScale: 1,
+  menuScale: 2.5,
+  narrationStartZ: -1.8,
+  narrationEndZ: -0.4,
+  narrationScale: 1.4,
   interactionDepth: -1.2,
-  interactionScale: 1,
+  interactionScale: 1.2,
   particleOpacity: 1,
   particleSize: 1,
   masterVolume: 1,
   narrationVolume: 0.8,
   muted: false,
+  experienceLevel: 'watch' as const,
   ttsEnabled: true,
-  micEnabled: true,
+  micEnabled: false,
   sunoApiKey: '',
 };
 
@@ -76,6 +84,7 @@ export class SettingsManager {
   private listeners: SettingsListener[] = [];
   private panel: HTMLDivElement;
   private muteBtn: HTMLButtonElement;
+  private gearBtn: HTMLButtonElement;
   private visible = false;
   private calibrateHandler: (() => void) | null = null;
   private sliderDefs: Array<{ key: keyof HpynoSettings; unit?: string }> = [];
@@ -84,8 +93,10 @@ export class SettingsManager {
     this.settings = this.load();
     this.panel = this.createPanel();
     this.muteBtn = this.createMuteButton();
+    this.gearBtn = this.createGearButton();
     document.body.appendChild(this.panel);
     document.body.appendChild(this.muteBtn);
+    document.body.appendChild(this.gearBtn);
     this.bindKeys();
     this.updateMuteButton();
   }
@@ -146,6 +157,14 @@ export class SettingsManager {
     if (ttsCheck) ttsCheck.checked = this.settings.ttsEnabled;
     const micCheck = this.panel.querySelector<HTMLInputElement>('#settings-micEnabled');
     if (micCheck) micCheck.checked = this.settings.micEnabled;
+    // Experience level
+    const levels = ['listen', 'watch', 'breathe', 'immerse'];
+    const selectedIdx = levels.indexOf(this.settings.experienceLevel);
+    this.panel.querySelectorAll<HTMLButtonElement>('.settings-level-btn').forEach(b => {
+      const idx = levels.indexOf(b.dataset.level!);
+      b.classList.toggle('active', idx === selectedIdx);
+      b.classList.toggle('included', idx < selectedIdx);
+    });
   }
 
   toggleMute(): void {
@@ -172,6 +191,18 @@ export class SettingsManager {
     return btn;
   }
 
+  private createGearButton(): HTMLButtonElement {
+    const btn = document.createElement('button');
+    btn.id = 'settings-gear-btn';
+    btn.textContent = '\u2699';
+    btn.title = 'Settings';
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.visible ? this.hide() : this.show();
+    });
+    return btn;
+  }
+
   private createPanel(): HTMLDivElement {
     const panel = document.createElement('div');
     panel.id = 'settings-panel';
@@ -187,20 +218,20 @@ export class SettingsManager {
     }> = [
       { key: 'cameraZ', label: 'camera distance', min: 0.1, max: 10, step: 0.05, group: 'camera' },
       { key: 'cameraFOV', label: 'field of view', min: 20, max: 160, step: 1, unit: '\u00B0', group: 'camera' },
-      { key: 'cameraSway', label: 'camera sway', min: 0, max: 10, step: 0.1, unit: 'x', group: 'camera' },
+      { key: 'cameraSway', label: 'camera sway', min: 0, max: 3, step: 0.1, unit: 'x', group: 'camera' },
       { key: 'tunnelSpeed', label: 'tunnel speed', min: 0, max: 5, step: 0.05, unit: 'x', group: 'tunnel' },
       { key: 'spiralSpeedMult', label: 'spiral speed', min: 0, max: 5, step: 0.05, unit: 'x', group: 'tunnel' },
       { key: 'tunnelWidth', label: 'tunnel width', min: 0.3, max: 3, step: 0.05, unit: 'x', group: 'tunnel' },
       { key: 'breathExpansion', label: 'breath expansion', min: 0, max: 2, step: 0.05, unit: 'x', group: 'tunnel' },
-      { key: 'menuDepth', label: 'menu depth', min: -20, max: -0.1, step: 0.1, group: 'spatial' },
-      { key: 'menuScale', label: 'menu size', min: 0.1, max: 10, step: 0.1, unit: 'x', group: 'spatial' },
-      { key: 'narrationStartZ', label: 'narration appear', min: -20, max: -0.1, step: 0.1, group: 'spatial' },
-      { key: 'narrationEndZ', label: 'narration fade', min: -5, max: 5, step: 0.05, group: 'spatial' },
-      { key: 'narrationScale', label: 'narration size', min: 0.1, max: 10, step: 0.1, unit: 'x', group: 'spatial' },
-      { key: 'interactionDepth', label: 'interaction depth', min: -20, max: -0.1, step: 0.1, group: 'spatial' },
-      { key: 'interactionScale', label: 'interaction size', min: 0.1, max: 10, step: 0.1, unit: 'x', group: 'spatial' },
-      { key: 'particleOpacity', label: 'particle brightness', min: 0, max: 5, step: 0.1, unit: 'x', group: 'particles' },
-      { key: 'particleSize', label: 'particle size', min: 0, max: 10, step: 0.1, unit: 'x', group: 'particles' },
+      { key: 'menuDepth', label: 'menu depth', min: -5, max: -0.5, step: 0.1, group: 'spatial' },
+      { key: 'menuScale', label: 'menu size', min: 0.5, max: 5, step: 0.1, unit: 'x', group: 'spatial' },
+      { key: 'narrationStartZ', label: 'narration appear', min: -5, max: -0.5, step: 0.1, group: 'spatial' },
+      { key: 'narrationEndZ', label: 'narration fade', min: -2, max: -0.1, step: 0.05, group: 'spatial' },
+      { key: 'narrationScale', label: 'narration size', min: 0.5, max: 5, step: 0.1, unit: 'x', group: 'spatial' },
+      { key: 'interactionDepth', label: 'interaction depth', min: -5, max: -0.3, step: 0.1, group: 'spatial' },
+      { key: 'interactionScale', label: 'interaction size', min: 0.5, max: 4, step: 0.1, unit: 'x', group: 'spatial' },
+      { key: 'particleOpacity', label: 'particle brightness', min: 0, max: 3, step: 0.1, unit: 'x', group: 'particles' },
+      { key: 'particleSize', label: 'particle size', min: 0, max: 5, step: 0.1, unit: 'x', group: 'particles' },
       { key: 'masterVolume', label: 'master volume', min: 0, max: 2, step: 0.05, group: 'audio' },
       { key: 'narrationVolume', label: 'narration volume', min: 0, max: 1.5, step: 0.05, group: 'audio' },
     ];
@@ -228,6 +259,27 @@ export class SettingsManager {
             ${sliders.filter(s => s.group === g).map(s => this.sliderHTML(s)).join('')}
           </div>
         `).join('')}
+        <div class="settings-group">
+          <div class="settings-group-title">experience level</div>
+          <div class="settings-level-picker" id="settings-experienceLevel">
+            <button class="settings-level-btn ${this.settings.experienceLevel === 'listen' ? 'active' : ''}" data-level="listen">
+              <span class="level-name">🎧 listen</span>
+              <span class="level-features">audio + visuals</span>
+            </button>
+            <button class="settings-level-btn ${this.settings.experienceLevel === 'watch' ? 'active' : ''}" data-level="watch">
+              <span class="level-name">👁 watch</span>
+              <span class="level-features">+ prompts &amp; gates</span>
+            </button>
+            <button class="settings-level-btn ${this.settings.experienceLevel === 'breathe' ? 'active' : ''}" data-level="breathe">
+              <span class="level-name">🫁 breathe</span>
+              <span class="level-features">+ breathing sync</span>
+            </button>
+            <button class="settings-level-btn ${this.settings.experienceLevel === 'immerse' ? 'active' : ''}" data-level="immerse">
+              <span class="level-name">🎤 immerse</span>
+              <span class="level-features">+ mic &amp; voice</span>
+            </button>
+          </div>
+        </div>
         <div class="settings-group">
           <div class="settings-group-title">features</div>
           <div class="settings-row settings-toggle-row">
@@ -280,6 +332,23 @@ export class SettingsManager {
         this.updateMuteButton();
       });
 
+      // Experience level buttons
+      panel.querySelectorAll<HTMLButtonElement>('.settings-level-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const level = btn.dataset.level!;
+          (this.settings as unknown as Record<string, unknown>).experienceLevel = level;
+          this.save();
+          // Update active state on all buttons — highlight selected + all below it
+          const levels = ['listen', 'watch', 'breathe', 'immerse'];
+          const selectedIdx = levels.indexOf(level);
+          panel.querySelectorAll<HTMLButtonElement>('.settings-level-btn').forEach(b => {
+            const idx = levels.indexOf(b.dataset.level!);
+            b.classList.toggle('active', idx === selectedIdx);
+            b.classList.toggle('included', idx < selectedIdx);
+          });
+        });
+      });
+
       // Feature toggles
       for (const key of ['ttsEnabled', 'micEnabled'] as const) {
         panel.querySelector<HTMLInputElement>(`#settings-${key}`)!.addEventListener('change', (e) => {
@@ -300,6 +369,8 @@ export class SettingsManager {
 
       panel.querySelector('#settings-reset-calibration')!.addEventListener('click', () => {
         localStorage.removeItem('hpyno-calibrated');
+        localStorage.removeItem('hpyno-calibrated-v2');
+        localStorage.removeItem('hpyno-level-set');
         this.settings = { ...DEFAULTS };
         this.save();
         this.updateMuteButton();
@@ -346,13 +417,17 @@ export class SettingsManager {
   show(): void {
     this.visible = true;
     this.panel.classList.add('visible');
-    document.body.style.cursor = 'default';
+    if (window.matchMedia('(pointer: fine)').matches) {
+      document.body.style.cursor = 'default';
+    }
   }
 
   hide(): void {
     this.visible = false;
     this.panel.classList.remove('visible');
-    document.body.style.cursor = 'none';
+    if (window.matchMedia('(pointer: fine)').matches) {
+      document.body.style.cursor = 'none';
+    }
   }
 
   get isVisible(): boolean {

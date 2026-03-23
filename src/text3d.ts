@@ -62,7 +62,7 @@ export class Text3D {
   private textColor = '#c8a0ff';
   private glowColor = 'rgba(200, 160, 255, 0.4)';
   private breathPhase = 0;
-  private _settings: Text3DSettings = { startZ: -3, endZ: -0.3, scale: 1 };
+  private _settings: Text3DSettings = { startZ: -1.8, endZ: -0.4, scale: 1.4 };
 
   // Floating lines (narration)
   private lines: FloatingLine[] = [];
@@ -96,24 +96,32 @@ export class Text3D {
 
     const rawLines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
+    // Split into display lines — keep short text as 1 line, split long text at ~5 words
     let displayLines: string[];
     if (rawLines.length === 1) {
       const words = rawLines[0].split(/\s+/);
-      displayLines = [];
-      const wordsPerLine = Math.max(3, Math.ceil(words.length / 2));
-      for (let i = 0; i < words.length; i += wordsPerLine) {
-        displayLines.push(words.slice(i, i + wordsPerLine).join(' '));
+      if (words.length <= 5) {
+        // Short enough for one line
+        displayLines = [rawLines[0]];
+      } else {
+        // Split into lines of ~4-5 words
+        displayLines = [];
+        const wordsPerLine = Math.max(4, Math.ceil(words.length / 2));
+        for (let i = 0; i < words.length; i += wordsPerLine) {
+          displayLines.push(words.slice(i, i + wordsPerLine).join(' '));
+        }
       }
     } else {
       displayLines = rawLines;
     }
 
     const totalWords = displayLines.reduce((sum, l) => sum + l.split(/\s+/).length, 0);
-    // If we have word timestamps, use the total audio duration for reveal timing
     const revealTime = wordTimings ? (wordTimings[wordTimings.length - 1]?.end ?? duration * 0.4) : duration * 0.4;
     const revealPerWord = revealTime / Math.max(totalWords, 1);
 
-    const lineSpacing = 0.12;
+    // Line spacing scales with text size so lines never overlap
+    const baseScale = 0.25 * this._settings.scale;
+    const lineSpacing = baseScale * 1.3;  // 130% of text height
     const totalHeight = (displayLines.length - 1) * lineSpacing;
     let wordOffset = 0;
 
@@ -137,7 +145,6 @@ export class Text3D {
       });
 
       const sprite = new THREE.Sprite(material);
-      const baseScale = 0.25 * this._settings.scale;
       sprite.scale.set(baseScale * aspect, baseScale, 1);
 
       const startZ = this._settings.startZ;
@@ -441,10 +448,8 @@ export class Text3D {
     const now = performance.now() / 1000;
     const breathPulse = Math.sin(this.breathPhase) * 0.5 + 0.5;
 
-    // ── Update floating lines (narration) ──
-    const toRemove: number[] = [];
-
-    for (let i = 0; i < this.lines.length; i++) {
+    // ── Update floating lines (narration) — reverse iterate to allow in-place removal ──
+    for (let i = this.lines.length - 1; i >= 0; i--) {
       const line = this.lines[i];
 
       // For audio-synced lines, elapsed comes from the audio element's clock
@@ -463,7 +468,10 @@ export class Text3D {
       const progress = elapsed / line.duration;
 
       if (progress > 1) {
-        toRemove.push(i);
+        this.group.remove(line.mesh);
+        line.texture.dispose();
+        (line.mesh.material as THREE.SpriteMaterial).dispose();
+        this.lines.splice(i, 1);
         continue;
       }
 
@@ -501,15 +509,6 @@ export class Text3D {
       opacity = Math.min(opacity, 0.85);
 
       (line.mesh.material as THREE.SpriteMaterial).opacity = opacity;
-    }
-
-    for (let i = toRemove.length - 1; i >= 0; i--) {
-      const idx = toRemove[i];
-      const line = this.lines[idx];
-      this.group.remove(line.mesh);
-      line.texture.dispose();
-      (line.mesh.material as THREE.SpriteMaterial).dispose();
-      this.lines.splice(idx, 1);
     }
 
     // ── Update static slots (prompts) ──

@@ -1,4 +1,5 @@
 import type { SessionConfig } from '../session';
+import { generatedTexts, stageDurations, stageInteractions } from './relax-texts';
 
 export const relax: SessionConfig = {
   id: 'relax',
@@ -23,117 +24,76 @@ export const relax: SessionConfig = {
     lfoSpeed: 0.08,
     filterCutoff: 600,
     warmth: 0.7,
-    backgroundTrack: 'audio/relax/ambient.mp3',
-    backgroundVolume: 0.25,
   },
   stages: [
     {
-      // Stage 1: Teach breathing first — interaction runs immediately,
-      // no text until it completes. Once 4 cycles sync, it dissolves
-      // and narration begins.
-      name: 'induction',
-      duration: 45,
-      intensity: 0.25,
-      texts: [
-        'you are watching the screen',
-        'notice your breath\nmoving in and out',
-        'you can feel\nyour body in the chair',
-        'your eyes are open\nand that is fine',
-        'notice the shapes\nas they move',
-        'you are here\nright now',
-      ],
-      textInterval: 7,
+      name: 'settle',
+      duration: stageDurations['settle'] ?? 45,
+      intensity: 0.2,
+      texts: generatedTexts['settle'] ?? [],
+      textInterval: 10,
       breathCycle: 8,
-      breathPattern: { inhale: 4, exhale: 4 }, // simple equal breathing to learn
-      spiralSpeed: 1.0,
+      breathPattern: { inhale: 4, exhale: 4 },
+      spiralSpeed: 0.8,
       interactions: [
-        {
-          type: 'breath-sync',
-          triggerAt: 0,
-          duration: 30,
-        },
+        { type: 'breath-sync', triggerAt: 0, duration: 30 },
       ],
     },
     {
-      // Stage 2: Pure narration — breathing slows, slight hold on inhale
-      name: 'deepening',
-      duration: 50,
-      intensity: 0.5,
-      texts: [
-        'and as you notice\nyou begin to relax',
-        'each breath carries you\na little deeper',
-        'the more you watch\nthe more you let go',
-        'your shoulders dropping\njust a little',
-        'that heaviness\nis comfort',
-        'sinking gently\nwith each exhale',
-      ],
-      textInterval: 8,
+      name: 'induction',
+      duration: stageDurations['induction'] ?? 50,
+      intensity: 0.3,
+      texts: generatedTexts['induction'] ?? [],
+      textInterval: 9,
       breathCycle: 9,
-      breathPattern: { inhale: 4, holdIn: 1, exhale: 4 }, // gentle hold at top
+      breathPattern: { inhale: 4, holdIn: 1, exhale: 4 },
       spiralSpeed: 0.85,
     },
     {
-      // Stage 3: Deep trance — 4-7-8 breathing (calming)
-      name: 'trance',
-      duration: 60,
-      intensity: 0.75,
-      texts: [
-        'you might notice\nhow comfortable this feels',
-        'perhaps deeper\nthan you expected',
-        'and that is perfectly fine',
-        'your unconscious mind\nknows what to do',
-        'there is nothing\nyou need to figure out',
-        'just allow this\nto happen',
-        'deeper now\nwithout even trying',
-      ],
+      name: 'deepening',
+      duration: stageDurations['deepening'] ?? 60,
+      intensity: 0.55,
+      texts: generatedTexts['deepening'] ?? [],
       textInterval: 9,
       breathCycle: 10,
-      breathPattern: { inhale: 4, holdIn: 7, exhale: 8 }, // 4-7-8 calming pattern
-      spiralSpeed: 0.65,
-      fractionationDip: 0.35,
+      breathPattern: { inhale: 4, holdIn: 2, exhale: 6 },
+      spiralSpeed: 0.7,
+      fractionationDip: 0.3,
+      interactions: [
+        { type: 'gate', triggerAt: 50, duration: 20, data: { text: 'would you like to go deeper?' } },
+      ],
     },
     {
-      // Stage 4: One deliberate gate — a conscious choice point.
-      // Everything stops, user decides, then sinks into deep.
+      name: 'trance',
+      duration: stageDurations['trance'] ?? 70,
+      intensity: 0.8,
+      texts: generatedTexts['trance'] ?? [],
+      textInterval: 9,
+      breathCycle: 11,
+      breathPattern: { inhale: 4, holdIn: 3, exhale: 8 },
+      spiralSpeed: 0.55,
+      fractionationDip: 0.4,
+    },
+    {
       name: 'deep',
-      duration: 70,
+      duration: stageDurations['deep'] ?? 60,
       intensity: 0.95,
-      texts: [
-        'pure stillness',
-        'complete peace',
-        'nothing to do',
-        'nowhere to be',
-        'just this',
-        'floating',
-        'safe',
-      ],
+      texts: generatedTexts['deep'] ?? [],
       textInterval: 12,
       breathCycle: 12,
-      breathPattern: { inhale: 4, holdIn: 4, exhale: 4, holdOut: 4 }, // box breathing — deep calm
-      spiralSpeed: 0.4,
+      breathPattern: { inhale: 4, holdIn: 4, exhale: 8, holdOut: 4 },
+      spiralSpeed: 0.3,
       fractionationDip: 0.55,
-      interactions: [
-        {
-          type: 'gate',
-          triggerAt: 0,      // right at the boundary — one pause
-          duration: 30,
-          data: { text: 'do you want to go deeper?' },
-        },
-      ],
     },
     {
       name: 'emergence',
-      duration: 30,
-      intensity: 0.35,
-      texts: [
-        'gently now\nbeginning to return',
-        'carrying this calm\nwith you',
-        'feeling refreshed\nand clear',
-        'whenever you are ready\nopen your eyes fully',
-      ],
+      duration: stageDurations['emergence'] ?? 40,
+      intensity: 0.3,
+      texts: generatedTexts['emergence'] ?? [],
       textInterval: 8,
       breathCycle: 8,
-      spiralSpeed: 1.0,
+      breathPattern: { inhale: 4, exhale: 4 },
+      spiralSpeed: 0.9,
     },
   ],
   photoWarning: true,
