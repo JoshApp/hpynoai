@@ -1,0 +1,394 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  font-family: 'Georgia', serif;
+  color: #c8a0ff;
+  cursor: none;
+}
+
+#app {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+/* ── Canvas ── */
+#scene {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+/* ── Breathing Guide ── */
+#breath-guide {
+  position: fixed;
+  bottom: 3rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 2s ease;
+}
+
+#breath-guide.visible {
+  opacity: 1;
+}
+
+#breath-circle {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid rgba(200, 160, 255, 0.3);
+  animation: breathe 7s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  0%, 100% { transform: scale(1); opacity: 0.3; }
+  50%      { transform: scale(2.5); opacity: 0.7; }
+}
+
+@keyframes spatial-pulse {
+  0%, 100% { text-shadow: 0 0 10px rgba(128, 96, 170, 0.2); }
+  50% { text-shadow: 0 0 25px rgba(128, 96, 170, 0.5); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { text-shadow: 0 0 40px rgba(200, 160, 255, 0.3); }
+  50%      { text-shadow: 0 0 60px rgba(200, 160, 255, 0.5); }
+}
+
+/* ── Dev Panel ── */
+#dev-panel {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 9999;
+  width: 260px;
+  background: rgba(10, 8, 16, 0.88);
+  border: 1px solid rgba(200, 160, 255, 0.2);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 11px;
+  color: #c0b0e0;
+  pointer-events: auto;
+  display: none;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  user-select: none;
+}
+
+#dev-panel.visible {
+  display: block;
+}
+
+#dev-panel .dev-header {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: #ff6b6b;
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(200, 160, 255, 0.1);
+}
+
+#dev-panel .dev-stats div {
+  line-height: 1.6;
+}
+
+#dev-panel .dev-stats span {
+  color: #a8e6cf;
+}
+
+#dev-panel .dev-section {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(200, 160, 255, 0.08);
+}
+
+#dev-panel .dev-label {
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  color: #887aaa;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+#dev-panel .dev-stage-btns,
+#dev-panel .dev-speed-btns {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+#dev-panel button {
+  background: rgba(200, 160, 255, 0.08);
+  border: 1px solid rgba(200, 160, 255, 0.15);
+  color: #c0b0e0;
+  font-family: inherit;
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+#dev-panel button:hover {
+  background: rgba(200, 160, 255, 0.18);
+  border-color: rgba(200, 160, 255, 0.35);
+}
+
+#dev-panel button.active {
+  background: rgba(200, 160, 255, 0.25);
+  border-color: rgba(200, 160, 255, 0.5);
+  color: #e0d0ff;
+}
+
+#dev-panel .dev-row {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+#dev-panel .dev-btn-wide {
+  width: 100%;
+  padding: 5px 8px;
+}
+
+#dev-panel input[type="range"] {
+  width: 100%;
+  height: 14px;
+  margin: 4px 0;
+  accent-color: #c8a0ff;
+  cursor: pointer;
+}
+
+
+/* ── Settings Panel ── */
+#settings-panel {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 9998;
+  width: 280px;
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+  background: rgba(10, 8, 16, 0.92);
+  border: 1px solid rgba(200, 160, 255, 0.15);
+  border-radius: 6px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 11px;
+  color: #c0b0e0;
+  pointer-events: auto;
+  display: none;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  user-select: none;
+}
+
+#settings-panel.visible {
+  display: block;
+}
+
+#settings-panel::-webkit-scrollbar {
+  width: 4px;
+}
+
+#settings-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#settings-panel::-webkit-scrollbar-thumb {
+  background: rgba(200, 160, 255, 0.15);
+  border-radius: 2px;
+}
+
+#settings-panel .settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid rgba(200, 160, 255, 0.1);
+  position: sticky;
+  top: 0;
+  background: rgba(10, 8, 16, 0.95);
+  z-index: 1;
+}
+
+#settings-panel .settings-header span {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: #c8a0ff;
+}
+
+#settings-panel #settings-close {
+  background: none;
+  border: none;
+  color: #887aaa;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+#settings-panel #settings-close:hover {
+  color: #c8a0ff;
+}
+
+#settings-panel .settings-body {
+  padding: 4px 12px 12px;
+}
+
+#settings-panel .settings-group {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(200, 160, 255, 0.06);
+}
+
+#settings-panel .settings-group:first-child {
+  margin-top: 4px;
+  padding-top: 0;
+  border-top: none;
+}
+
+#settings-panel .settings-group-title {
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  color: #887aaa;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+#settings-panel .settings-row {
+  margin-bottom: 6px;
+}
+
+#settings-panel .settings-row label {
+  display: block;
+  font-size: 10px;
+  color: #a090c0;
+  margin-bottom: 2px;
+}
+
+#settings-panel .settings-slider-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#settings-panel .settings-slider-wrap input[type="range"] {
+  flex: 1;
+  height: 14px;
+  accent-color: #c8a0ff;
+  cursor: pointer;
+  touch-action: none;
+}
+
+#settings-panel .settings-val {
+  min-width: 38px;
+  text-align: right;
+  font-size: 10px;
+  color: #a8e6cf;
+  font-variant-numeric: tabular-nums;
+}
+
+#settings-panel .settings-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+#settings-panel .settings-toggle-row label {
+  display: inline;
+  margin-bottom: 0;
+}
+
+#settings-panel .settings-toggle-row input[type="checkbox"] {
+  accent-color: #c8a0ff;
+  cursor: pointer;
+  width: 14px;
+  height: 14px;
+}
+
+#settings-panel .settings-btn-reset {
+  width: 100%;
+  padding: 6px 8px;
+  background: rgba(200, 160, 255, 0.06);
+  border: 1px solid rgba(200, 160, 255, 0.12);
+  color: #887aaa;
+  font-family: inherit;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+#settings-panel .settings-btn-reset:hover {
+  background: rgba(200, 160, 255, 0.12);
+  border-color: rgba(200, 160, 255, 0.25);
+  color: #c0b0e0;
+}
+
+#settings-panel .settings-btn-calibrate {
+  width: 100%;
+  padding: 8px 8px;
+  background: rgba(168, 230, 207, 0.08);
+  border: 1px solid rgba(168, 230, 207, 0.2);
+  color: #a8e6cf;
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+#settings-panel .settings-btn-calibrate:hover {
+  background: rgba(168, 230, 207, 0.15);
+  border-color: rgba(168, 230, 207, 0.4);
+}
+
+/* ── Mute Button ── */
+#settings-mute-btn {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 9998;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(10, 8, 16, 0.6);
+  border: 1px solid rgba(200, 160, 255, 0.15);
+  color: #c0b0e0;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  transition: background 0.2s, border-color 0.2s, opacity 0.3s;
+  opacity: 0.5;
+  padding: 0;
+  line-height: 1;
+}
+
+#settings-mute-btn:hover {
+  opacity: 1;
+  background: rgba(10, 8, 16, 0.8);
+  border-color: rgba(200, 160, 255, 0.35);
+}

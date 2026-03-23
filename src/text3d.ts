@@ -1,0 +1,462 @@
+import * as THREE from 'three';
+
+/**
+ * 3D text — two modes:
+ *
+ * show():        Floating karaoke — lines spawn far in the tunnel and drift
+ *                toward you with word-by-word reveal. For narration/suggestions.
+ *
+ * showInstant():  Static two-line display — text appears immediately close to
+ *                 camera with full opacity. For gates/prompts.
+ */
+
+export interface Text3DSettings {
+  startZ: number;
+  endZ: number;
+  scale: number;
+}
+
+// ── Floating line (karaoke narration) ──
+interface FloatingLine {
+  mesh: THREE.Sprite;
+  canvas: HTMLCanvasElement;
+  ctx: CanvasRenderingContext2D;
+  texture: THREE.CanvasTexture;
+  words: string[];
+  startTime: number;
+  duration: number;
+  startZ: number;
+  endZ: number;
+  baseScale: number;
+  aspect: number;
+  revealPerWord: number;
+}
+
+// ── Static slot (instant prompts) ──
+interface TextSlot {
+  sprite: THREE.Sprite;
+  canvas: HTMLCanvasElement;
+  texture: THREE.CanvasTexture;
+  opacity: number;
+  targetOpacity: number;
+  expireTime: number;
+}
+
+const FONT_SIZE = 48;
+const FONT = `300 ${FONT_SIZE}px Georgia, serif`;
+const SLOT_FADE_SPEED = 2.5;
+const SLOT_LINE_SPACING = 0.12;
+
+export class Text3D {
+  private group: THREE.Group;
+  private textColor = '#c8a0ff';
+  private glowColor = 'rgba(200, 160, 255, 0.4)';
+  private breathPhase = 0;
+  private _settings: Text3DSettings = { startZ: -3, endZ: -0.3, scale: 1 };
+
+  // Floating lines (narration)
+  private lines: FloatingLine[] = [];
+
+  // Static slots (prompts) — upper (0) and lower (1)
+  private slots: [TextSlot | null, TextSlot | null] = [null, null];
+
+  constructor() {
+    this.group = new THREE.Group();
+  }
+
+  setSettings(s: Text3DSettings): void {
+    this._settings = s;
+  }
+
+  get mesh(): THREE.Group {
+    return this.group;
+  }
+
+  setColors(textColor: string, glowColor: string): void {
+    this.textColor = textColor;
+    this.glowColor = glowColor;
+  }
+
+  // ════════════════════════════════════════════════════════
+  // Floating karaoke (narration)
+  // ════════════════════════════════════════════════════════
+
+  show(text: string, duration = 8): void {
+    this.fadeOutExistingLines();
+
+    const rawLines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+    let displayLines: string[];
+    if (rawLines.length === 1) {
+      const words = rawLines[0].split(/\s+/);
+      displayLines = [];
+      const wordsPerLine = Math.max(3, Math.ceil(words.length / 2));
+      for (let i = 0; i < words.length; i += wordsPerLine) {
+        displayLines.push(words.slice(i, i + wordsPerLine).join(' '));
+      }
+    } else {
+      displayLines = rawLines;
+    }
+
+    const totalWords = displayLines.reduce((sum, l) => sum + l.split(/\s+/).length, 0);
+    const revealTime = duration * 0.4;
+    const revealPerWord = revealTime / Math.max(totalWords, 1);
+
+    const lineSpacing = 0.12;
+    const totalHeight = (displayLines.length - 1) * lineSpacing;
+    let wordOffset = 0;
+
+    for (let li = 0; li < displayLines.length; li++) {
+      const lineText = displayLines[li];
+      const words = lineText.split(/\s+/);
+      const { canvas, ctx, texture, aspect } = this.createTexture(words.join(' '));
+
+      const material = new THREE.SpriteMaterial({
+        map: texture,
+        transparent: true,
+        opacity: 0,
+        depthTest: false,
+        blending: THREE.AdditiveBlending,
+      });
+
+      const sprite = new THREE.Sprite(material);
+      const baseScale = 0.25 * this._settings.scale;
+      sprite.scale.set(baseScale * aspect, baseScale, 1);
+
+      const startZ = this._settings.startZ;
+      const y = (totalHeight / 2) - li * lineSpacing;
+      sprite.position.set(0, y, startZ);
+
+      this.group.add(sprite);
+      this.lines.push({
+        mesh: sprite,
+        canvas,
+        ctx,
+        texture,
+        words,
+        startTime: performance.now() / 1000 + wordOffset * revealPerWord,
+        duration,
+        startZ,
+        endZ: this._settings.endZ,
+        baseScale,
+        aspect,
+        revealPerWord,
+      });
+
+      wordOffset += words.length;
+    }
+  }
+
+  private fadeOutExistingLines(): void {
+    const now = performance.now() / 1000;
+    for (const line of this.lines) {
+      const elapsed = now - line.startTime;
+      if (elapsed < 0) {
+        line.duration = 0;
+      } else {
+        const remaining = line.duration - elapsed;
+        if (remaining > 0.5) {
+          line.duration = elapsed + 0.5;
+        }
+      }
+    }
+  }
+
+  // ════════════════════════════════════════════════════════
+  // Instant static text (prompts/gates)
+  // ════════════════════════════════════════════════════════
+
+  showInstant(text: string, duration = 15): void {
+    this.clear();
+
+    const rawLines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    let displayLines: string[];
+    if (rawLines.length === 1) {
+      const words = rawLines[0].split(/\s+/);
+      if (words.length > 4) {
+        const mid = Math.ceil(words.length / 2);
+        displayLines = [words.slice(0, mid).join(' '), words.slice(mid).join(' ')];
+      } else {
+        displayLines = [rawLines[0]];
+      }
+    } else {
+      displayLines = rawLines.slice(0, 2);
+    }
+
+    const now = performance.now() / 1000;
+
+    if (displayLines.length === 2) {
+      this.slots[0] = this.createSlot(displayLines[0], now + duration);
+      this.slots[1] = this.createSlot(displayLines[1], now + duration);
+    } else {
+      this.slots[0] = null;
+      this.slots[1] = this.createSlot(displayLines[0], now + duration);
+    }
+
+    this.repositionSlots();
+  }
+
+  private createSlot(text: string, expireTime: number): TextSlot {
+    const { canvas, ctx, texture, aspect } = this.createTexture(text);
+    this.renderTextFull(ctx, canvas, text);
+    texture.needsUpdate = true;
+
+    const material = new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      opacity: 0.85,
+      depthTest: false,
+      blending: THREE.AdditiveBlending,
+    });
+
+    const sprite = new THREE.Sprite(material);
+    const scale = 0.3 * this._settings.scale;
+    sprite.scale.set(scale * aspect, scale, 1);
+    sprite.position.z = this._settings.endZ - 0.3;
+
+    this.group.add(sprite);
+
+    return { sprite, canvas, texture, opacity: 0.85, targetOpacity: 0.85, expireTime };
+  }
+
+  private repositionSlots(): void {
+    const z = this._settings.endZ - 0.3;
+    const hasTwo = this.slots[0] !== null && this.slots[1] !== null;
+    const offset = hasTwo ? SLOT_LINE_SPACING / 2 : 0;
+
+    if (this.slots[0]) this.slots[0].sprite.position.set(0, offset, z);
+    if (this.slots[1]) this.slots[1].sprite.position.set(0, hasTwo ? -offset : 0, z);
+  }
+
+  private removeSlot(index: 0 | 1): void {
+    const slot = this.slots[index];
+    if (!slot) return;
+    this.group.remove(slot.sprite);
+    slot.texture.dispose();
+    (slot.sprite.material as THREE.SpriteMaterial).dispose();
+    this.slots[index] = null;
+  }
+
+  // ════════════════════════════════════════════════════════
+  // Shared helpers
+  // ════════════════════════════════════════════════════════
+
+  private createTexture(text: string): {
+    canvas: HTMLCanvasElement;
+    ctx: CanvasRenderingContext2D;
+    texture: THREE.CanvasTexture;
+    aspect: number;
+  } {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d')!;
+    ctx.font = FONT;
+
+    const metrics = ctx.measureText(text);
+    const pad = FONT_SIZE * 0.6;
+    canvas.width = Math.ceil(metrics.width + pad * 2);
+    canvas.height = Math.ceil(FONT_SIZE * 2 + pad * 2);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+
+    return { canvas, ctx, texture, aspect: canvas.width / canvas.height };
+  }
+
+  /** Render full text at once (for instant/prompts) */
+  private renderTextFull(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, text: string): void {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = FONT;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 0.5;
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.lineWidth = 3;
+    ctx.lineJoin = 'round';
+    ctx.strokeText(text, cx, cy);
+
+    ctx.shadowColor = this.glowColor;
+    ctx.shadowBlur = 20;
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = this.textColor;
+    ctx.fillText(text, cx, cy);
+    ctx.globalAlpha = 0.3;
+    ctx.fillText(text, cx, cy);
+
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+  }
+
+  /** Redraw a floating line with karaoke word reveal */
+  private redrawLineKaraoke(line: FloatingLine, revealProgress: number): void {
+    const { canvas, ctx, words } = line;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = FONT;
+    ctx.textBaseline = 'middle';
+
+    const cy = canvas.height / 2;
+    const padding = FONT_SIZE * 0.6;
+    const spaceWidth = ctx.measureText(' ').width;
+    let x = padding;
+
+    for (let i = 0; i < words.length; i++) {
+      const word = words[i];
+      const wordWidth = ctx.measureText(word).width;
+
+      // Wider reveal window (1.5 words) for smoother blending between words
+      const rawReveal = (revealProgress - i) / 1.5;
+      const wordReveal = Math.max(0, Math.min(1, rawReveal));
+
+      if (wordReveal > 0) {
+        // Smooth cubic ease for a softer, more gradual appearance
+        const alpha = wordReveal * wordReveal * (3 - 2 * wordReveal); // smoothstep
+
+        // Dark outline — fades in with word
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = alpha * 0.4;
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.lineWidth = 3;
+        ctx.lineJoin = 'round';
+        ctx.strokeText(word, x, cy);
+
+        // Glow builds gradually — starts wide and soft, tightens as word solidifies
+        ctx.shadowColor = this.glowColor;
+        ctx.shadowBlur = 25 - alpha * 10; // wider blur when fading in, tighter when solid
+        ctx.globalAlpha = alpha * 0.8;
+        ctx.fillStyle = this.textColor;
+        ctx.fillText(word, x, cy);
+
+        // Extra soft glow pass
+        ctx.globalAlpha = (1 - alpha) * 0.4; // stronger glow when word is still appearing
+        ctx.shadowBlur = 30;
+        ctx.fillText(word, x, cy);
+      }
+
+      x += wordWidth + spaceWidth;
+    }
+
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+    line.texture.needsUpdate = true;
+  }
+
+  // ════════════════════════════════════════════════════════
+  // Update (called every frame)
+  // ════════════════════════════════════════════════════════
+
+  update(_intensity: number, breathPhase?: number): void {
+    if (breathPhase !== undefined) this.breathPhase = breathPhase;
+    const now = performance.now() / 1000;
+    const breathPulse = Math.sin(this.breathPhase) * 0.5 + 0.5;
+
+    // ── Update floating lines (narration) ──
+    const toRemove: number[] = [];
+
+    for (let i = 0; i < this.lines.length; i++) {
+      const line = this.lines[i];
+      const elapsed = now - line.startTime;
+
+      if (elapsed < 0) {
+        (line.mesh.material as THREE.SpriteMaterial).opacity = 0;
+        continue;
+      }
+
+      const progress = elapsed / line.duration;
+
+      if (progress > 1) {
+        toRemove.push(i);
+        continue;
+      }
+
+      // Z: float from far to near
+      const z = line.startZ + (line.endZ - line.startZ) * this.easeInOut(progress);
+      line.mesh.position.z = z;
+
+      // Scale grows as it approaches
+      const scaleBoost = 1.0 + progress * 0.3;
+      const scale = line.baseScale * scaleBoost;
+      line.mesh.scale.set(scale * line.aspect, scale, 1);
+
+      // Karaoke word reveal
+      const revealProgress = elapsed / line.revealPerWord;
+      this.redrawLineKaraoke(line, revealProgress);
+
+      // Opacity envelope
+      let opacity: number;
+      if (progress < 0.08) {
+        opacity = progress / 0.08;
+      } else if (progress > 0.8) {
+        opacity = (1 - progress) / 0.2;
+      } else {
+        opacity = 1;
+      }
+
+      opacity *= 0.6 + breathPulse * 0.3;
+      opacity = Math.min(opacity, 0.85);
+
+      (line.mesh.material as THREE.SpriteMaterial).opacity = opacity;
+    }
+
+    for (let i = toRemove.length - 1; i >= 0; i--) {
+      const idx = toRemove[i];
+      const line = this.lines[idx];
+      this.group.remove(line.mesh);
+      line.texture.dispose();
+      (line.mesh.material as THREE.SpriteMaterial).dispose();
+      this.lines.splice(idx, 1);
+    }
+
+    // ── Update static slots (prompts) ──
+    const dt = 1 / 60;
+    for (let i = 0; i < 2; i++) {
+      const slot = this.slots[i as 0 | 1];
+      if (!slot) continue;
+
+      if (now >= slot.expireTime && slot.targetOpacity > 0) {
+        slot.targetOpacity = 0;
+      }
+
+      if (slot.opacity < slot.targetOpacity) {
+        slot.opacity = Math.min(slot.targetOpacity, slot.opacity + SLOT_FADE_SPEED * dt);
+      } else if (slot.opacity > slot.targetOpacity) {
+        slot.opacity = Math.max(slot.targetOpacity, slot.opacity - SLOT_FADE_SPEED * dt);
+      }
+
+      if (slot.opacity <= 0.01 && slot.targetOpacity === 0) {
+        this.removeSlot(i as 0 | 1);
+        continue;
+      }
+
+      const breathMod = 0.7 + breathPulse * 0.3;
+      (slot.sprite.material as THREE.SpriteMaterial).opacity = slot.opacity * breathMod;
+    }
+  }
+
+  clear(): void {
+    // Clear floating lines
+    for (const line of this.lines) {
+      this.group.remove(line.mesh);
+      line.texture.dispose();
+      (line.mesh.material as THREE.SpriteMaterial).dispose();
+    }
+    this.lines = [];
+
+    // Clear static slots
+    this.removeSlot(0);
+    this.removeSlot(1);
+  }
+
+  private easeInOut(t: number): number {
+    return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+  }
+
+  private easeOut(t: number): number {
+    return 1 - (1 - t) * (1 - t);
+  }
+}
