@@ -42,6 +42,7 @@ export interface HotState {
   // Subsystems
   audio?: AudioEngine;
   ambient?: AmbientEngine;
+  presence?: import('./presence').Presence;
   particles?: ParticleField;
   text3d?: Text3D;
   breath?: BreathController;

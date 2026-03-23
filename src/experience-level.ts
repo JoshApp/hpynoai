@@ -29,7 +29,10 @@ export function interactionAllowed(type: string, level: ExperienceLevel): boolea
       return levelIncludes(level, 'watch');
 
     case 'breath-sync':
-      return levelIncludes(level, 'breathe');
+      // Breathing guide runs at ALL levels — it's guided narration, not interaction
+      // At 'listen'/'watch': voice guides breathing, no sync required
+      // At 'breathe'+: adds interactive sync
+      return true;
 
     case 'hum-sync':
     case 'affirm':

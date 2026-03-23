@@ -11,6 +11,7 @@ import type { MicSignals } from './microphone';
 import type { BreathController, BreathStage } from './breath';
 import { Text3D } from './text3d';
 import type { NarrationEngine } from './narration';
+import { BreathingGuide } from './breathing-guide';
 import { isTouchDevice, pointerNDC, tapLabel } from './touch';
 
 /** Shader-readable state for breath-sync and hum-sync effects */
@@ -156,6 +157,12 @@ export class InteractionManager {
 
   setMicSignals(getter: () => MicSignals): void {
     this.micSignalsGetter = getter;
+  }
+
+  private presenceControl: { breatheMode: () => void; sessionMode: () => void } | null = null;
+
+  setPresenceControl(ctrl: { breatheMode: () => void; sessionMode: () => void }): void {
+    this.presenceControl = ctrl;
   }
 
   get shaderState(): InteractionShaderState {
@@ -689,46 +696,58 @@ export class InteractionManager {
   // Progress dots show completed cycles.
 
   private async startBreathSync(): Promise<void> {
-    // Intro — use pre-generated audio if available
+    // Play shared intro clip
     this.text3d.show('let\u2019s breathe together', 4);
-    if (this.narration.hasClip('breath_intro')) {
-      await this.narration.playClip('breath_intro');
-    }
-    await this.sleep(1500);
-    if (!this.active) return;
-
-    this.text3d.show('breathe in when the tunnel expands\nbreathe out when it contracts', 6);
-    if (this.narration.hasClip('breath_instructions')) {
-      await this.narration.playClip('breath_instructions');
-    }
-    await this.sleep(1500);
+    await this.playSharedClip('breathing_intro');
+    await this.sleep(800);
     if (!this.active) return;
 
     this.text3d.clear();
 
-    // Now start the breathing guide — wait for next inhale start so it's synced
-    // Wait until breath value is near 0 (exhale trough) so the ring appears
-    // right as a fresh inhale begins
-    await this.waitForBreathValley();
+    // Activate breath-sync shader effects + bring wisp closer
+    this._shaderState.breathSyncActive = 1;
+    this.presenceControl?.breatheMode();
+
+    // Run the breathing guide — voice + wisp + tunnel guide the breaths
+    const guide = new BreathingGuide(this.text3d, this.breath);
+    await guide.run({
+      breaths: 4,
+      showText: true,
+      showCount: true,
+    }, 'gentle');
+
     if (!this.active) return;
 
-    this.breathSyncReady = true;
-    this._shaderState.breathSyncActive = 1;
+    // Post-breathing acknowledgment
+    await this.playSharedClip('breathing_good');
+    await this.sleep(500);
 
-    this.createQteRing();
+    // Done — return wisp to session mode
+    this._shaderState.breathSyncActive = 0;
+    this.presenceControl?.sessionMode();
+    this.resolve();
+  }
 
-    if (this.qteSprite) {
-      this.qteSprite.scale.set(0.8, 0.8, 1);
-      this.qteSprite.position.set(0, 0, -0.7);
+  /** Play a clip from the shared audio folder */
+  private async playSharedClip(name: string): Promise<void> {
+    try {
+      const resp = await fetch('audio/shared/manifest.json');
+      if (!resp.ok) return;
+      const manifest = await resp.json();
+      const clip = manifest.clips?.[name];
+      if (!clip) return;
+
+      return new Promise<void>(resolve => {
+        const audio = new Audio(clip.file);
+        audio.volume = 0.8;
+        audio.onended = () => resolve();
+        audio.onerror = () => resolve();
+        audio.play().catch(() => resolve());
+        setTimeout(() => resolve(), (clip.duration + 2) * 1000); // safety timeout
+      });
+    } catch {
+      // No shared audio available — continue silently
     }
-
-    // Touch/click for mobile
-    const onDown = () => { this.breathSyncState.isHolding = true; };
-    const onUp = () => { this.breathSyncState.isHolding = false; };
-    this.canvas.addEventListener('mousedown', onDown);
-    this.canvas.addEventListener('touchstart', onDown, { passive: true });
-    window.addEventListener('mouseup', onUp);
-    window.addEventListener('touchend', onUp);
   }
 
   /** Wait until the breath is at its lowest point (exhale trough) so the ring

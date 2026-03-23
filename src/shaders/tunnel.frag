@@ -226,8 +226,8 @@ void main() {
   // Pulse rings — ripples from center (not at r≈0)
   float pulseSpd   = 2.0 + uAudioBass * 3.0;
   float pulseRings = sin(r * 20.0 - uTime * pulseSpd) * 0.5 + 0.5;
-  pulseRings *= exp(-r * 3.0) * (1.0 - exp(-r * 8.0)) * uIntensity * 0.15;
-  pulseRings *= 1.0 + uAudioEnergy * 0.3;
+  pulseRings *= exp(-r * 3.0) * (1.0 - exp(-r * 8.0)) * uIntensity * 0.08;
+  pulseRings *= 1.0 + uAudioEnergy * 0.15;
   wall += uColor2 * pulseRings;
 
   // ────────────────────────────────────────────────────────────

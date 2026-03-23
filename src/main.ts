@@ -16,6 +16,7 @@ import { runAutoCalibration, autoCalibrationFrameHook } from './calibration-auto
 import { GuidedCalibration } from './calibration-guided';
 import { BreathController, type BreathStage } from './breath';
 import { AmbientEngine } from './ambient';
+import { Presence } from './presence';
 import { hotState } from './hot-state';
 import { appState, setPhase, setSessionInfo } from './app-state';
 import { acquireWakeLock, releaseWakeLock, registerMediaSession, clearMediaSession, startSilentAudioKeepAlive, stopSilentAudioKeepAlive } from './wakelock';
@@ -248,6 +249,13 @@ hotState.audio = audio;
 const ambient = hotState.ambient ?? new AmbientEngine();
 hotState.ambient = ambient;
 
+const presence = hotState.presence ?? (() => {
+  const p = new Presence();
+  scene.add(p.mesh);
+  return p;
+})();
+hotState.presence = presence;
+
 const mic = hotState.mic ?? new MicrophoneEngine();
 hotState.mic = mic;
 
@@ -294,6 +302,7 @@ function applyTheme(session: SessionConfig): void {
   breathCircle.style.borderColor = theme.breatheColor;
   text3d.setColors(theme.textColor, theme.textGlow);
   tunnelUniforms.uTunnelShape.value = theme.tunnelShape ?? 0;
+  presence.setColors(theme.accentColor);
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -338,6 +347,10 @@ hotState.stageManager = stageManager;
 // ── Interactions ──
 const interactions = new InteractionManager(breath, overlayScene, camera, canvas, text3d, narration);
 interactions.setMicSignals(() => mic.signals);
+interactions.setPresenceControl({
+  breatheMode: () => { presence.setSize(2.5); presence.setMode('breathe'); },
+  sessionMode: () => { presence.setSessionMode(); },
+});
 hotState.interactions = interactions;
 
 stageManager.setInteractionHandler(async (interaction: Interaction) => {
@@ -468,6 +481,7 @@ function startSession(session: SessionConfig): void {
   narration.loadManifest(`audio/${session.id}/manifest.json`).catch(() => {}).finally(() => {
     isRunning = true;
     stageManager.start();
+    presence.setSessionMode(); // settle → breathe after 3s
     animate();
   });
 
@@ -555,6 +569,7 @@ function animateBackground(): void {
     selector.update(time);
   }
   if (guidedCal) guidedCal.update(time);
+  presence.updateIdle(time, breath.value);
   autoCalibrationFrameHook?.();
 
   // Transition: update state and sync fade overlay
@@ -652,6 +667,16 @@ function animate(): void {
 
   ambient.update();
 
+  // Update presence entity — reacts to voice, audio, breath
+  presence.update(
+    time,
+    breath.value,
+    narration.state.voiceEnergy,
+    audioBands?.energy ?? 0,
+    audioBands?.bass ?? 0,
+    intensity,
+  );
+
   const iState = interactions.shaderState;
   tunnelUniforms.uBreathSyncActive.value = iState.breathSyncActive;
   tunnelUniforms.uBreathSyncFill.value = iState.breathSyncFill;
@@ -728,6 +753,7 @@ function endExperience(): void {
     interactions.clear();
     narration.stop();
     text3d.clear();
+    presence.hide();
     activeSession = null;
 
     bootSelector();
@@ -829,6 +855,15 @@ function bootSelector(): void {
   selector = new SessionSelector(sessions, startSession, overlayScene, camera, canvas);
   hotState.selector = selector;
 
+  selector.setExperienceLevelControl((level) => {
+    settings.updateBatch({ experienceLevel: level });
+  });
+
+  // Presence in menu mode — follows focused session orb
+  presence.setMenuMode();
+  selector.setPresenceControl((x, y, z) => {
+    presence.followTo(x, y, z);
+  });
   selector.setThemeControl((colors) => {
     targetColors.c1 = colors.c1;
     targetColors.c2 = colors.c2;
@@ -836,10 +871,7 @@ function bootSelector(): void {
     targetColors.c4 = colors.c4;
     targetColors.particle = colors.particle;
     targetColors.shape = colors.shape;
-  });
-
-  selector.setExperienceLevelControl((level) => {
-    settings.updateBatch({ experienceLevel: level });
+    presence.setColors(colors.c3 as [number, number, number]);
   });
 
   animateBackground();

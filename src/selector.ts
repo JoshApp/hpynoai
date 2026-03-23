@@ -25,6 +25,7 @@ export class SessionSelector {
   private orbSprites: THREE.Sprite[] = [];
   private orbLabels: THREE.Sprite[] = [];
   private descSprite: THREE.Sprite | null = null;
+  private promptSprite: THREE.Sprite | null = null;
   private allSprites: THREE.Sprite[] = [];
   private keyHandler: ((e: KeyboardEvent) => void) | null = null;
   private clickHandler: ((e: MouseEvent) => void) | null = null;
@@ -37,6 +38,7 @@ export class SessionSelector {
     particle: [number, number, number]; shape: number;
   }) => void) | null = null;
   private _setExperienceLevel: ((level: ExperienceLevel) => void) | null = null;
+  private _setPresenceTarget: ((x: number, y: number, z: number) => void) | null = null;
 
   constructor(
     sessions: SessionConfig[],
@@ -63,6 +65,10 @@ export class SessionSelector {
     this._setExperienceLevel = setter;
   }
 
+  setPresenceControl(setter: (x: number, y: number, z: number) => void): void {
+    this._setPresenceTarget = setter;
+  }
+
   setDepth(z: number): void {
     this.group.position.z = z;
   }
@@ -76,8 +82,12 @@ export class SessionSelector {
     if (this.disposed) return;
     const n = this.orbSprites.length;
     if (n === 0) {
-      // No orbs yet — don't run carousel or description logic
+      // No orbs yet — don't run carousel or description logic, but pulse the CTA
       this.prevSelectedIndex = this.selectedIndex;
+      if (this.promptSprite) {
+        const pulse = 0.4 + Math.sin(time * 2.0) * 0.25;
+        (this.promptSprite.material as THREE.SpriteMaterial).opacity = pulse;
+      }
       return;
     }
 
@@ -107,12 +117,12 @@ export class SessionSelector {
       orb.position.y += (targetY - orb.position.y) * lerp;
 
       // Orb scale: focused breathes bigger
-      const orbTarget = focused ? 0.16 + breathPulse * 0.04 : Math.max(0.05, 0.11 - absDiff * 0.02);
+      const orbTarget = focused ? 0.26 + breathPulse * 0.06 : Math.max(0.08, 0.18 - absDiff * 0.04);
       orb.scale.setScalar(orb.scale.x + (orbTarget - orb.scale.x) * lerp);
 
-      // Orb opacity
+      // Orb opacity — focused orb fades out (wisp absorbs it), others stay visible
       const orbMat = orb.material as THREE.SpriteMaterial;
-      const orbAlpha = focused ? 0.9 : Math.max(0.15, 0.6 - absDiff * 0.2);
+      const orbAlpha = focused ? 0.08 : Math.max(0.15, 0.5 - absDiff * 0.15);
       orbMat.opacity += (orbAlpha - orbMat.opacity) * lerp;
 
       // Label follows orb, below it
@@ -126,6 +136,18 @@ export class SessionSelector {
       const labelMat = label.material as THREE.SpriteMaterial;
       const labelAlpha = focused ? 0.9 : Math.max(0.1, 0.5 - absDiff * 0.2);
       labelMat.opacity += (labelAlpha - labelMat.opacity) * lerp;
+    }
+
+    // Move presence to focused orb position
+    if (this.orbSprites.length > 0 && this._setPresenceTarget) {
+      const focusedOrb = this.orbSprites[this.selectedIndex];
+      if (focusedOrb) {
+        this._setPresenceTarget(
+          focusedOrb.position.x,
+          focusedOrb.position.y + 0.02,
+          focusedOrb.position.z - 0.1,
+        );
+      }
     }
 
     // Theme preview on selection change
@@ -166,33 +188,44 @@ export class SessionSelector {
   // ══════════════════════════════════════════
 
   private async startSequence(): Promise<void> {
-    // ── Title + tagline + prompt — fast, together ──
-    await this.sleep(500);
+    // ── Title screen — text arranged around the wisp ──
+    // The wisp is the centerpiece at y≈0, z≈-1.5
+    // Title sits above it, tagline + prompt below
+    await this.sleep(400);
     if (this.disposed) return;
 
-    const title = this.addSprite('H P Y N O', { height: 0.14, fontSize: 80, color: '#c8a0ff', glow: 'rgba(200,160,255,0.4)' }, 0, 0.12, -0.2);
-    await this.animateIn(title, 1200);
+    // Title — large, commanding, above the wisp
+    const title = this.addSprite('H P Y N O', {
+      height: 0.18, fontSize: 96, color: '#d4b8ff', glow: 'rgba(200,160,255,0.5)',
+    }, 0, 0.30, -0.15);
+    await this.animateIn(title, 1400);
     if (this.disposed) return;
 
-    const tagline = this.addSprite('immersive hypnosis', { height: 0.05, fontSize: 32, color: '#9070bb', glow: 'rgba(144,112,187,0.3)' }, 0, -0.02, -0.1);
-    this.animateIn(tagline, 800);
+    // Tagline — tight below the wisp
+    const tagline = this.addSprite('immersive hypnosis', {
+      height: 0.06, fontSize: 38, color: '#b89ee0', glow: 'rgba(184,158,224,0.4)',
+    }, 0, -0.15, -0.06);
+    this.animateIn(tagline, 1000);
 
     await this.sleep(600);
     if (this.disposed) return;
 
+    // CTA — large, prominent, pulsing
     const isTouchDevice = 'ontouchstart' in window;
     const prompt = this.addSprite(
       isTouchDevice ? 'tap to enter' : 'press space',
-      { height: 0.045, fontSize: 28, color: '#c8a0ff', glow: 'rgba(200,160,255,0.35)' },
-      0, -0.14, -0.05,
+      { height: 0.06, fontSize: 38, color: '#e0c8ff', glow: 'rgba(224,200,255,0.5)' },
+      0, -0.26, -0.02,
     );
-    await this.animateIn(prompt, 600);
+    this.promptSprite = prompt;
+    await this.animateIn(prompt, 800);
     if (this.disposed) return;
 
     await this.waitForInput();
     if (this.disposed) return;
 
-    // ── Transition ──
+    // ── Transition — stop prompt pulse, fade everything out ──
+    this.promptSprite = null;
     this.animateOut(title, 600);
     this.animateOut(tagline, 500);
     this.animateOut(prompt, 400);
@@ -220,7 +253,7 @@ export class SessionSelector {
       const s = this.sessions[i];
       const [r, g, b] = s.theme.accentColor;
 
-      const orb = createOrbSprite(r, g, b, 0.12);
+      const orb = createOrbSprite(r, g, b, 0.22);
       orb.position.set(0, -0.05, 0);
       this.group.add(orb);
       this.orbSprites.push(orb);
