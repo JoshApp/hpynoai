@@ -23,6 +23,8 @@ export const relax: SessionConfig = {
     lfoSpeed: 0.08,
     filterCutoff: 600,
     warmth: 0.7,
+    backgroundTrack: 'audio/relax/ambient.mp3',
+    backgroundVolume: 0.25,
   },
   stages: [
     {

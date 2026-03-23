@@ -249,9 +249,9 @@ export class GuidedCalibration {
         e.preventDefault();
         e.stopPropagation();
 
-        if (e.code === 'ArrowLeft' || e.code === 'ArrowDown') {
+        if (e.code === 'ArrowLeft' || e.code === 'ArrowDown' || e.code === 'KeyA' || e.code === 'KeyS') {
           opts.onLeft();
-        } else if (e.code === 'ArrowRight' || e.code === 'ArrowUp') {
+        } else if (e.code === 'ArrowRight' || e.code === 'ArrowUp' || e.code === 'KeyD' || e.code === 'KeyW') {
           opts.onRight();
         } else if (e.code === 'Space' || e.code === 'Enter') {
           window.removeEventListener('keydown', handler, true);

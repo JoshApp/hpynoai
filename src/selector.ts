@@ -85,8 +85,8 @@ export class SessionSelector {
   }
 
   private async startSequence(): Promise<void> {
-    // Phase 1: Void — just tunnel
-    await this.sleep(2500);
+    // Phase 1: Brief void
+    await this.sleep(800);
     if (this.disposed) return;
 
     // Phase 2: Title floats in
@@ -95,41 +95,35 @@ export class SessionSelector {
     title.scale.set(0, 0, 1);
     this.group.add(title);
     this.allSprites.push(title);
-    await this.animateIn(title, 0.8, 2000);
+    await this.animateIn(title, 0.8, 1000);
     if (this.disposed) return;
 
-    await this.sleep(2000);
-    if (this.disposed) return;
-
-    // Phase 3: "press space" prompt
+    // Phase 3: "press space" prompt appears alongside title
     const prompt = this.makeTextSprite('press space', 36, '#8060aa', 'rgba(128,96,170,0.3)');
     prompt.position.set(0, 0.05, -1.8);
     prompt.scale.set(0, 0, 1);
     this.group.add(prompt);
     this.allSprites.push(prompt);
-    await this.animateIn(prompt, 0.35, 1500);
+    await this.animateIn(prompt, 0.35, 800);
     if (this.disposed) return;
 
     await this.waitForSpace();
     if (this.disposed) return;
 
     // Space pressed — title recedes, prompt fades
-    this.animateOut(prompt, 800);
-    this.animateOut(title, 1200);
+    this.animateOut(prompt, 500);
+    this.animateOut(title, 600);
 
-    await this.sleep(1400);
+    await this.sleep(600);
     if (this.disposed) return;
 
-    // Phase 4: Question floats in
+    // Phase 4: Question + orbs appear together
     const question = this.makeTextSprite('what do you seek', 48, '#a080cc', 'rgba(160,128,204,0.3)');
     question.position.set(0, 0.35, -1.8);
     question.scale.set(0, 0, 1);
     this.group.add(question);
     this.allSprites.push(question);
-    await this.animateIn(question, 0.6, 1500);
-    if (this.disposed) return;
-
-    await this.sleep(1000);
+    await this.animateIn(question, 0.6, 800);
     if (this.disposed) return;
 
     // Phase 5: Orbs appear
@@ -165,10 +159,10 @@ export class SessionSelector {
       this.allSprites.push(label);
 
       // Stagger appearance
-      await this.sleep(400);
+      await this.sleep(150);
       if (this.disposed) return;
-      this.animateIn(orb, 0.12, 800);
-      this.animateIn(label, 0.3, 800);
+      this.animateIn(orb, 0.12, 500);
+      this.animateIn(label, 0.3, 500);
     }
 
     this.selectedIndex = 0;
@@ -208,23 +202,49 @@ export class SessionSelector {
     // Phase 7: Content warning
     if (session.contentWarning) {
       chosen.visible = false;
-      const warning = this.makeTextSprite(session.contentWarning, 32, '#cc8090', 'rgba(200,80,100,0.3)');
-      warning.position.set(0, 0.1, -2);
-      warning.scale.set(0, 0, 1);
-      this.group.add(warning);
-      this.allSprites.push(warning);
-      await this.animateIn(warning, 0.5, 1500);
 
-      const confirm = this.makeTextSprite('press space to enter', 28, '#8060aa', 'rgba(128,96,170,0.3)');
-      confirm.position.set(0, -0.15, -2);
+      // Split by explicit newlines first, then by word count
+      const rawLines = session.contentWarning.split('\n').map(l => l.trim()).filter(l => l);
+      const wLines: string[] = [];
+      for (const rawLine of rawLines) {
+        const words = rawLine.split(/\s+/);
+        if (words.length <= 6) {
+          wLines.push(rawLine);
+        } else {
+          for (let i = 0; i < words.length; i += 6) {
+            wLines.push(words.slice(i, i + 6).join(' '));
+          }
+        }
+      }
+
+      const lineSpacing = 0.12;
+      const totalH = (wLines.length - 1) * lineSpacing;
+
+      // Show all lines at once — no stagger delay
+      for (let li = 0; li < wLines.length; li++) {
+        const line = this.makeTextSprite(wLines[li], 40, '#cc8090', 'rgba(200,80,100,0.3)');
+        const y = 0.15 + totalH / 2 - li * lineSpacing;
+        line.position.set(0, y, -1.8);
+        line.scale.set(0, 0, 1);
+        this.group.add(line);
+        this.allSprites.push(line);
+        this.animateIn(line, 0.6, 400); // fast, parallel
+      }
+
+      await this.sleep(200);
+
+      const confirm = this.makeTextSprite('press space to enter', 32, '#8060aa', 'rgba(128,96,170,0.3)');
+      confirm.position.set(0, 0.15 - totalH / 2 - lineSpacing * 1.5, -1.8);
       confirm.scale.set(0, 0, 1);
       this.group.add(confirm);
       this.allSprites.push(confirm);
-      await this.animateIn(confirm, 0.35, 1000);
+      await this.animateIn(confirm, 0.5, 400);
 
       await this.waitForSpace();
-      this.animateOut(warning, 600);
-      this.animateOut(confirm, 600);
+      // Fade out all warning lines + confirm
+      for (const s of this.allSprites) {
+        this.animateOut(s, 600);
+      }
       await this.sleep(600);
     }
 
@@ -370,9 +390,9 @@ export class SessionSelector {
       // Keyboard
       const keyHandler = (e: KeyboardEvent) => {
         e.preventDefault();
-        if (e.code === 'ArrowLeft' || e.code === 'ArrowUp') {
+        if (e.code === 'ArrowLeft' || e.code === 'ArrowUp' || e.code === 'KeyA' || e.code === 'KeyW') {
           this.selectedIndex = (this.selectedIndex - 1 + this.sessions.length) % this.sessions.length;
-        } else if (e.code === 'ArrowRight' || e.code === 'ArrowDown') {
+        } else if (e.code === 'ArrowRight' || e.code === 'ArrowDown' || e.code === 'KeyD' || e.code === 'KeyS') {
           this.selectedIndex = (this.selectedIndex + 1) % this.sessions.length;
         } else if (e.code === 'Space' || e.code === 'Enter') {
           cleanup();

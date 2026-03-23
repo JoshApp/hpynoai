@@ -1,2 +1,7 @@
 node_modules
 dist
+.env
+
+# Generated audio (regenerate with: python3 scripts/generate-session.py)
+public/audio/
+voice-tests/

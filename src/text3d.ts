@@ -17,17 +17,27 @@ export interface Text3DSettings {
 }
 
 // ── Floating line (karaoke narration) ──
+interface WordTiming {
+  word: string;
+  start: number;  // seconds from line start
+  end: number;
+}
+
 interface FloatingLine {
   mesh: THREE.Sprite;
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
   texture: THREE.CanvasTexture;
   words: string[];
+  wordTimings: WordTiming[] | null;
   startTime: number;
   duration: number;
   startZ: number;
   endZ: number;
+  baseY: number;
   baseScale: number;
+  audioRef: HTMLAudioElement | null;  // if set, sync karaoke to audio.currentTime
+  audioLineStart: number;             // offset in audio where this line starts
   aspect: number;
   revealPerWord: number;
 }
@@ -81,7 +91,7 @@ export class Text3D {
   // Floating karaoke (narration)
   // ════════════════════════════════════════════════════════
 
-  show(text: string, duration = 8): void {
+  show(text: string, duration = 8, wordTimings?: Array<{ word: string; start: number; end: number }>, audioRef?: HTMLAudioElement | null, audioLineStart?: number): void {
     this.fadeOutExistingLines();
 
     const rawLines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
@@ -99,7 +109,8 @@ export class Text3D {
     }
 
     const totalWords = displayLines.reduce((sum, l) => sum + l.split(/\s+/).length, 0);
-    const revealTime = duration * 0.4;
+    // If we have word timestamps, use the total audio duration for reveal timing
+    const revealTime = wordTimings ? (wordTimings[wordTimings.length - 1]?.end ?? duration * 0.4) : duration * 0.4;
     const revealPerWord = revealTime / Math.max(totalWords, 1);
 
     const lineSpacing = 0.12;
@@ -110,6 +121,12 @@ export class Text3D {
       const lineText = displayLines[li];
       const words = lineText.split(/\s+/);
       const { canvas, ctx, texture, aspect } = this.createTexture(words.join(' '));
+
+      // Extract word timings for this display line
+      let lineWordTimings: WordTiming[] | null = null;
+      if (wordTimings) {
+        lineWordTimings = wordTimings.slice(wordOffset, wordOffset + words.length);
+      }
 
       const material = new THREE.SpriteMaterial({
         map: texture,
@@ -134,13 +151,17 @@ export class Text3D {
         ctx,
         texture,
         words,
-        startTime: performance.now() / 1000 + wordOffset * revealPerWord,
+        wordTimings: lineWordTimings,
+        startTime: performance.now() / 1000,
         duration,
         startZ,
         endZ: this._settings.endZ,
+        baseY: y,
         baseScale,
         aspect,
         revealPerWord,
+        audioRef: audioRef ?? null,
+        audioLineStart: audioLineStart ?? 0,
       });
 
       wordOffset += words.length;
@@ -223,9 +244,10 @@ export class Text3D {
     const z = this._settings.endZ - 0.3;
     const hasTwo = this.slots[0] !== null && this.slots[1] !== null;
     const offset = hasTwo ? SLOT_LINE_SPACING / 2 : 0;
+    const breathY = (Math.sin(this.breathPhase) * 0.5 + 0.5 - 0.5) * 0.025;
 
-    if (this.slots[0]) this.slots[0].sprite.position.set(0, offset, z);
-    if (this.slots[1]) this.slots[1].sprite.position.set(0, hasTwo ? -offset : 0, z);
+    if (this.slots[0]) this.slots[0].sprite.position.set(0, offset + breathY, z);
+    if (this.slots[1]) this.slots[1].sprite.position.set(0, (hasTwo ? -offset : 0) + breathY, z);
   }
 
   private removeSlot(index: 0 | 1): void {
@@ -346,6 +368,70 @@ export class Text3D {
     line.texture.needsUpdate = true;
   }
 
+  /** Karaoke reveal synced to Whisper word timestamps */
+  private redrawLineTimestamped(line: FloatingLine, elapsed: number): void {
+    const { canvas, ctx, words, wordTimings } = line;
+    if (!wordTimings) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = FONT;
+    ctx.textBaseline = 'middle';
+
+    const cy = canvas.height / 2;
+    const padding = FONT_SIZE * 0.6;
+    const spaceWidth = ctx.measureText(' ').width;
+    let x = padding;
+
+    for (let i = 0; i < words.length; i++) {
+      const word = words[i];
+      const wordWidth = ctx.measureText(word).width;
+      const timing = wordTimings[i];
+
+      let alpha = 0;
+      if (timing) {
+        // Word reveal based on actual speech timing
+        if (elapsed >= timing.end) {
+          alpha = 1; // fully revealed
+        } else if (elapsed >= timing.start) {
+          // Fading in during the word's duration
+          const wordDur = Math.max(timing.end - timing.start, 0.1);
+          alpha = (elapsed - timing.start) / wordDur;
+        }
+        // Smoothstep for softer appearance
+        alpha = alpha * alpha * (3 - 2 * alpha);
+      }
+
+      if (alpha > 0) {
+        // Dark outline
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = alpha * 0.4;
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.lineWidth = 3;
+        ctx.lineJoin = 'round';
+        ctx.strokeText(word, x, cy);
+
+        // Glow + fill
+        ctx.shadowColor = this.glowColor;
+        ctx.shadowBlur = 25 - alpha * 10;
+        ctx.globalAlpha = alpha * 0.8;
+        ctx.fillStyle = this.textColor;
+        ctx.fillText(word, x, cy);
+
+        // Soft glow while appearing
+        ctx.globalAlpha = (1 - alpha) * 0.4;
+        ctx.shadowBlur = 30;
+        ctx.fillText(word, x, cy);
+      }
+
+      x += wordWidth + spaceWidth;
+    }
+
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+    line.texture.needsUpdate = true;
+  }
+
   // ════════════════════════════════════════════════════════
   // Update (called every frame)
   // ════════════════════════════════════════════════════════
@@ -360,7 +446,14 @@ export class Text3D {
 
     for (let i = 0; i < this.lines.length; i++) {
       const line = this.lines[i];
-      const elapsed = now - line.startTime;
+
+      // For audio-synced lines, elapsed comes from the audio element's clock
+      let elapsed: number;
+      if (line.audioRef && line.wordTimings) {
+        elapsed = line.audioRef.currentTime - line.audioLineStart;
+      } else {
+        elapsed = now - line.startTime;
+      }
 
       if (elapsed < 0) {
         (line.mesh.material as THREE.SpriteMaterial).opacity = 0;
@@ -378,14 +471,21 @@ export class Text3D {
       const z = line.startZ + (line.endZ - line.startZ) * this.easeInOut(progress);
       line.mesh.position.z = z;
 
+      // Y: gentle lift on inhale, sink on exhale (from stored base position)
+      line.mesh.position.y = line.baseY + (breathPulse - 0.5) * 0.03;
+
       // Scale grows as it approaches
       const scaleBoost = 1.0 + progress * 0.3;
       const scale = line.baseScale * scaleBoost;
       line.mesh.scale.set(scale * line.aspect, scale, 1);
 
-      // Karaoke word reveal
-      const revealProgress = elapsed / line.revealPerWord;
-      this.redrawLineKaraoke(line, revealProgress);
+      // Karaoke word reveal — use Whisper timestamps if available
+      if (line.wordTimings && line.wordTimings.length > 0) {
+        this.redrawLineTimestamped(line, elapsed);
+      } else {
+        const revealProgress = elapsed / line.revealPerWord;
+        this.redrawLineKaraoke(line, revealProgress);
+      }
 
       // Opacity envelope
       let opacity: number;
@@ -435,11 +535,38 @@ export class Text3D {
 
       const breathMod = 0.7 + breathPulse * 0.3;
       (slot.sprite.material as THREE.SpriteMaterial).opacity = slot.opacity * breathMod;
+
     }
   }
 
+  /** Fade out all text over ~0.5s, then remove. */
+  fadeOut(): void {
+    // Floating lines — shorten their remaining duration
+    const now = performance.now() / 1000;
+    for (const line of this.lines) {
+      const elapsed = now - line.startTime;
+      if (elapsed < 0) {
+        line.duration = 0;
+      } else {
+        const remaining = line.duration - elapsed;
+        if (remaining > 0.5) {
+          line.duration = elapsed + 0.5;
+        }
+      }
+    }
+
+    // Static slots — fade to 0
+    for (let i = 0; i < 2; i++) {
+      const slot = this.slots[i as 0 | 1];
+      if (slot) {
+        slot.targetOpacity = 0;
+        slot.expireTime = 0;
+      }
+    }
+  }
+
+  /** Immediately remove all text (no fade). */
   clear(): void {
-    // Clear floating lines
     for (const line of this.lines) {
       this.group.remove(line.mesh);
       line.texture.dispose();
@@ -447,7 +574,6 @@ export class Text3D {
     }
     this.lines = [];
 
-    // Clear static slots
     this.removeSlot(0);
     this.removeSlot(1);
   }

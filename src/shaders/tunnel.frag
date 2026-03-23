@@ -8,6 +8,7 @@ uniform float uBreathePhase;
 uniform float uBreathValue;  // 0-1 direct from BreathController (supports holds)
 uniform float uBreathStage;  // 0=inhale, 1=hold-in, 2=exhale, 3=hold-out
 uniform float uSpiralSpeed;
+uniform float uSpiralAngle;  // accumulated rotation (no jumps on speed change)
 uniform float uTunnelSpeed;
 uniform float uTunnelWidth;
 uniform float uBreathExpansion;
@@ -61,17 +62,16 @@ void main() {
   float aspect = uResolution.x / uResolution.y;
   uv.x *= aspect;
 
-  // ── Tunnel path — curves simulated via rotation + asymmetric shading ──
-  // Center stays fixed, but the tunnel FEELS like it's curving
-  float pathTime = uTime * 0.15;
+  // ── Tunnel path — curves simulated via asymmetric shading ──
+  // Very gentle, NOT intensity-dependent — prevents rotation jumps on intensity changes
+  float pathTime = uTime * 0.08; // slower path evolution
   vec2 curveDir = vec2(
-    sin(pathTime * 1.0) + sin(pathTime * 2.3) * 0.5,
-    cos(pathTime * 0.7) + sin(pathTime * 1.8) * 0.4
+    sin(pathTime * 1.0) + sin(pathTime * 2.3) * 0.3,
+    cos(pathTime * 0.7) + sin(pathTime * 1.8) * 0.25
   );
-  // Normalize and scale by intensity (more curves when deeper)
   float curveMag = length(curveDir);
   curveDir = curveMag > 0.01 ? curveDir / curveMag : vec2(0.0);
-  float curveAmount = min(curveMag * 0.15, 0.15) * (0.3 + uIntensity * 0.7);
+  float curveAmount = min(curveMag * 0.08, 0.08); // fixed amount, no intensity scaling
 
   // Mouse adds subtle steering feel
   uv += uMouse * 0.04 * uIntensity;
@@ -114,19 +114,19 @@ void main() {
   // ── Breathing ──
   float br = breathe();
 
-  // ── Tube bulge — the tunnel widens/narrows at a mid-section ──
-  // Like a tube that breathes — a physical expansion at the breathing band
-  float bulgeCenter = 0.22; // radial position of the bulge (matches glow band)
+  // ── Tube bulge — subtle tunnel breathing ──
+  float bulgeCenter = 0.20;
   float bulgeFalloff = exp(-pow((r - bulgeCenter) / 0.18, 2.0));
-  float bulgeAmount = (br - 0.5) * 0.15 * uBreathExpansion; // inhale pushes walls out
-  float bulgedR = r - bulgeFalloff * bulgeAmount; // displace inward = tunnel wider there
+  float bulgeAmount = (br - 0.5) * 0.10 * uBreathExpansion;
+  float bulgedR = r - bulgeFalloff * bulgeAmount;
 
-  // ── Tunnel depth mapping ──
+  // ── Tunnel depth mapping — deeper falloff for stronger 3D feel ──
   float scaledR = bulgedR / uTunnelWidth;
-  float depth = 0.4 / (max(scaledR, 0.01) + 0.05);
+  float depth = 0.5 / (max(scaledR, 0.01) + 0.03);
 
-  // Subtle back-and-forth with breath
-  float breathDepth = (br - 0.5) * 0.2 * uBreathExpansion;
+  // Very subtle depth shift — tube bulge handles the main breathing visual
+  // Large values here cause rings to race at high ringFreq
+  float breathDepth = (br - 0.5) * 0.03 * uBreathExpansion;
   depth += breathDepth;
 
   // Forward movement — constant base speed
@@ -137,25 +137,25 @@ void main() {
   float texU = angle / TAU + 0.5; // 0-1 around
   float texV = z; // along the tunnel
 
-  // ── Spiral twist — uses raw depth (pre-bulge) so breathing doesn't cause spin bursts ──
+  // ── Spiral twist — accumulated angle + fixed depth twist (no intensity dependency) ──
   float rawDepth = 0.4 / (r / uTunnelWidth + 0.05);
-  float twist = uTime * uSpiralSpeed * 0.5 + rawDepth * 0.8 * uIntensity;
+  float twist = uSpiralAngle + rawDepth * 0.3;
   float twistedAngle = angle + twist;
   float texUTwisted = twistedAngle / TAU + 0.5;
 
-  // ── Ring segments — organic mode makes these softer, like ridges ──
-  float ringFreq = mix(12.0, 6.0, uTunnelShape); // fewer, broader ridges when organic
+  // ── Ring segments — more defined, stronger 3D illusion ──
+  float ringFreq = mix(14.0, 7.0, uTunnelShape); // more rings = deeper tunnel feel
   float rings = sin(z * ringFreq) * 0.5 + 0.5;
-  float ringSharpLo = mix(0.3, 0.15, uTunnelShape);
-  float ringSharpHi = mix(0.7, 0.85, uTunnelShape);
+  float ringSharpLo = mix(0.25, 0.1, uTunnelShape); // sharper ring edges
+  float ringSharpHi = mix(0.65, 0.8, uTunnelShape);
   rings = smoothstep(ringSharpLo, ringSharpHi, rings);
 
   // Bass makes rings pulse
-  float ringPulse = 1.0 + uAudioBass * 0.4;
+  float ringPulse = 1.0 + uAudioBass * 0.5;
   rings *= ringPulse;
 
-  // ── Segment lines — organic mode reduces/removes geometric segments ──
-  float segments = mix(8.0 + uIntensity * 8.0, 3.0, uTunnelShape);
+  // ── Segment lines — fixed count to prevent rotation artifacts on intensity changes ──
+  float segments = mix(12.0, 3.0, uTunnelShape);
   float segLines = abs(sin(twistedAngle * segments));
   float segThreshold = mix(0.92, 0.98, uTunnelShape); // thinner in organic mode
   segLines = smoothstep(segThreshold, 0.99, segLines);
@@ -182,13 +182,13 @@ void main() {
   // Mid frequencies shift the color pattern
   wallColor = mix(wallColor, uColor2, uAudioMid * 0.2);
 
-  // Ring highlights — bright accent color on ring edges
-  vec3 ringColor = uColor3 * 1.5;
-  ringColor += uColor2 * uAudioHigh * 0.5; // high freq brightens rings
-  wallColor = mix(wallColor, ringColor, rings * 0.4 * uIntensity);
+  // Ring highlights — strong accent glow on ring edges for 3D definition
+  vec3 ringColor = uColor3 * 1.8;
+  ringColor += uColor2 * uAudioHigh * 0.6;
+  wallColor = mix(wallColor, ringColor, rings * 0.55 * uIntensity);
 
-  // Segment lines — subtle geometric structure
-  wallColor += uColor3 * segLines * 0.3 * uIntensity;
+  // Segment lines — geometric structure
+  wallColor += uColor3 * segLines * 0.35 * uIntensity;
 
   // Wall noise organic variation
   wallColor *= 1.0 + wallNoise;
@@ -196,9 +196,9 @@ void main() {
   // Voice energy warms walls when narrator speaks
   wallColor += uColor3 * uVoiceEnergy * 0.15;
 
-  // ── Depth shading — edges (close to viewer) slightly darker ──
-  float depthShade = smoothstep(0.0, 1.5, depth);
-  wallColor *= 0.5 + 0.5 * depthShade;
+  // ── Depth shading — stronger contrast between near and far walls ──
+  float depthShade = smoothstep(0.0, 2.0, depth);
+  wallColor *= 0.35 + 0.65 * depthShade;
 
   // ── Curve shading — asymmetric brightness sells the turning illusion ──
   // The side we're "turning toward" gets brighter (wall appears closer)
@@ -210,22 +210,23 @@ void main() {
   float fog = exp(-depth * 0.08);
   wallColor = mix(wallColor, uColor4 * 0.3, 1.0 - fog);
 
-  // ── Center glow — bright light at the end of the tunnel ──
-  // This is computed separately and blended over everything
-  float centerFalloff = exp(-r * 3.5);
-  float centerGlow = centerFalloff * (0.8 + uIntensity * 0.2);
-  centerGlow *= 0.7 + br * 0.3;
-  centerGlow += exp(-r * 6.0) * uVoiceEnergy * 0.3;
-  vec3 glowColor = mix(uColor3, vec3(1.0), 0.7);
+  // ── Center glow — hypnotic pull toward the center ──
+  // Steady center brightness — breath modulates gently, no strobing
+  float centerFalloff = exp(-r * 4.0);
+  float centerGlow = centerFalloff * (0.85 + uIntensity * 0.15);
+  centerGlow *= 0.8 + br * 0.15; // very gentle breath modulation (no strobe)
+  centerGlow += exp(-r * 7.0) * uVoiceEnergy * 0.2;
+  vec3 glowColor = mix(uColor3, vec3(1.0), 0.6);
 
-  // Blend: at center (r→0), glow dominates; at edges, walls dominate
+  // Blend: center pulls you in
   wallColor = mix(wallColor, glowColor, centerGlow);
 
-  // ── Pulsing rings emanating from center — audio reactive ──
-  float pulseRingSpeed = 3.0 + uAudioBass * 4.0;
-  float pulseRings = sin(r * 25.0 - uTime * pulseRingSpeed) * 0.5 + 0.5;
-  pulseRings *= exp(-r * 2.5) * uIntensity * 0.15;
-  pulseRings *= 1.0 + uAudioEnergy * 0.5;
+  // ── Hypnotic pulse rings — avoid center to prevent strobe ──
+  float pulseRingSpeed = 2.0 + uAudioBass * 3.0;
+  float pulseRings = sin(r * 20.0 - uTime * pulseRingSpeed) * 0.5 + 0.5;
+  // Start rings further from center (r * 3.0 falloff) so they don't flash at r≈0
+  pulseRings *= exp(-r * 3.0) * (1.0 - exp(-r * 8.0)) * uIntensity * 0.18;
+  pulseRings *= 1.0 + uAudioEnergy * 0.4;
   wallColor += uColor2 * pulseRings;
 
   // ── Chromatic aberration ──
@@ -233,66 +234,51 @@ void main() {
   wallColor.r *= 1.0 + r * aberration * 8.0;
   wallColor.b *= 1.0 - r * aberration * 4.0;
 
-  // ── Breathing glow band — stays in place, width pulses ──
-  // Fixed center position — the band doesn't move, it breathes in place
-  float bandCenter = 0.22;
-  // Fixed width band — color shifts with breath instead of going dark
-  float bandWidth = 0.1;
-  float bandMask = exp(-pow((r - bandCenter) / bandWidth, 2.0));
-
-  // Each breath phase has its own color signature
-  vec3 inhaleCol = uColor3 * 1.2;                       // bright accent — expanding
-  vec3 holdInCol = mix(uColor3, vec3(1.0), 0.3);        // warm white — held open
-  vec3 exhaleCol = uColor2 * 0.9;                       // secondary — releasing
-  vec3 holdOutCol = mix(uColor1, uColor4, 0.3) * 0.8;   // deep primary — stillness
-
-  // Blend between stages smoothly using breath value as interpolant
-  vec3 bandColor;
-  if (uBreathStage < 0.5) {
-    bandColor = mix(exhaleCol, inhaleCol, br);       // inhaling
-  } else if (uBreathStage < 1.5) {
-    bandColor = holdInCol;                            // holding full
-  } else if (uBreathStage < 2.5) {
-    bandColor = mix(inhaleCol, exhaleCol, 1.0 - br); // exhaling
-  } else {
-    bandColor = holdOutCol;                           // holding empty
-  }
-
-  float bandStrength = 0.2 + br * 0.08 * uBreathExpansion;
-  wallColor += bandColor * bandMask * bandStrength;
-
-  // ── Breath-sync interaction — enhances the breathing band ──
+  // ── Breath-sync interaction (applied to wall before vignette) ──
   if (uBreathSyncActive > 0.5) {
-    // When in sync, the band glows much brighter
-    wallColor += uColor3 * bandMask * uBreathSyncFill * 0.5;
-    // Whole tunnel subtly brightens when synced
-    wallColor *= 1.0 + uBreathSyncFill * br * 0.15;
-    // Progress makes the band permanently brighter
-    wallColor += uColor3 * bandMask * uBreathSyncProgress * 0.3;
+    float syncBandMask = exp(-pow((r - 0.18) / 0.12, 2.0));
+    wallColor += uColor3 * syncBandMask * uBreathSyncFill * 0.4;
+    wallColor *= 1.0 + uBreathSyncFill * br * 0.12;
+    wallColor += uColor3 * syncBandMask * uBreathSyncProgress * 0.2;
   }
 
-  // ── Darkness frame — always present, breathes slightly ──
-  // The darkness never fully retreats — it frames the experience
+  // ── Darkness frame — always present, breathes noticeably ──
+  // The screen edges open on inhale (lighter, warmer) and close on exhale
+  // (darker, cooler). This is the primary subliminal breath indicator —
+  // perceived in peripheral vision without competing with center text.
   float vrx = (vUv.x - 0.5) * aspect;
   float vry = vUv.y - 0.5;
   float vignR = length(vec2(vrx, vry)) * 2.0;
 
-  // Inner edge breathes slightly — opens a little on inhale, closes on exhale
-  // But always stays as a visible dark frame
-  float vigInner = 0.28 - uIntensity * 0.15 + br * 0.05 * uBreathExpansion;
-  float vigOuter = 0.65 - uIntensity * 0.10 + br * 0.03 * uBreathExpansion;
+  // Inner edge breathes more prominently — opens on inhale, tightens on exhale
+  float breathOpen = br * uBreathExpansion;
+  float vigInner = 0.25 - uIntensity * 0.15 + breathOpen * 0.12;
+  float vigOuter = 0.60 - uIntensity * 0.10 + breathOpen * 0.08;
   float vigDark = smoothstep(vigInner, vigOuter, vignR);
-  vigDark = max(vigDark, 0.15); // darkness never fully disappears
+  vigDark = max(vigDark, 0.12);
   vigDark *= 0.5 + uIntensity * 0.45;
 
-  // Darken walls toward black at edges — feels like the tunnel itself narrows
+  // Darken walls toward black at edges
   wallColor *= 1.0 - vigDark;
+
+  // ── Peripheral breath color — warm tint on inhale, cool on exhale ──
+  // Only visible at the very edges, subliminal
+  float edgeMask = smoothstep(0.5, 0.9, vignR); // only outer edges
+  vec3 inhaleEdge = uColor3 * 0.15;   // warm accent
+  vec3 exhaleEdge = uColor4 * 0.08;   // cool dark
+  vec3 edgeTint = mix(exhaleEdge, inhaleEdge, br);
+  wallColor += edgeTint * edgeMask * uBreathExpansion;
 
   // ── Overall intensity scaling (keep minimum brightness for tunnel feel) ──
   wallColor *= 0.6 + 0.4 * uIntensity;
 
   // ── Audio energy overall brightness boost ──
   wallColor *= 1.0 + uAudioEnergy * 0.2;
+
+  // ── Ambient breathing warmth — very subtle, no flicker ──
+  // Just a gentle overall warmth that shifts with breath, not a visible band
+  vec3 breathTint = mix(uColor2 * 0.02, uColor3 * 0.04, br);
+  wallColor += breathTint * uBreathExpansion;
 
   gl_FragColor = vec4(wallColor, 1.0);
 }

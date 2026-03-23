@@ -10,6 +10,7 @@ import type { Interaction } from './session';
 import type { MicSignals } from './microphone';
 import type { BreathController, BreathStage } from './breath';
 import { Text3D } from './text3d';
+import type { NarrationEngine } from './narration';
 
 /** Shader-readable state for breath-sync and hum-sync effects */
 export interface InteractionShaderState {
@@ -39,6 +40,7 @@ export class InteractionManager {
   private camera: THREE.Camera;
   private canvas: HTMLCanvasElement;
   private text3d: Text3D;
+  private narration: NarrationEngine;
   private group: THREE.Group;
   private raycaster = new THREE.Raycaster();
   private pointer = new THREE.Vector2();
@@ -66,7 +68,8 @@ export class InteractionManager {
     lastNumberTime: 0,
   };
 
-  // Breath sync — floating orb rhythm game
+  // Breath sync
+  private breathSyncReady = false; // true once intro is done and ring is created
   private breathSyncState: {
     isHolding: boolean;
     goodCycles: number;
@@ -74,6 +77,9 @@ export class InteractionManager {
     syncAccuracy: number;
     lastBreathVal?: number;
     cycleStarted: boolean;
+    smoothVal: number;
+    lastStage: string;
+    labelOpacity: number;
   } = {
     isHolding: false,
     goodCycles: 0,
@@ -81,6 +87,9 @@ export class InteractionManager {
     syncAccuracy: 0,
     lastBreathVal: undefined,
     cycleStarted: false,
+    smoothVal: 0,
+    lastStage: '',
+    labelOpacity: 1,
   };
   private breathOrbs: Array<{
     mesh: THREE.Mesh;
@@ -118,12 +127,14 @@ export class InteractionManager {
     camera: THREE.Camera,
     canvas: HTMLCanvasElement,
     text3d: Text3D,
+    narration: NarrationEngine,
   ) {
     this.breath = breath;
     this.scene = scene;
     this.camera = camera;
     this.canvas = canvas;
     this.text3d = text3d;
+    this.narration = narration;
     this.group = new THREE.Group();
     this.scene.add(this.group);
     this.bindSpacebar();
@@ -152,6 +163,15 @@ export class InteractionManager {
   }
 
   private bindSpacebar(): void {
+    // Escape skips any active interaction
+    window.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.code === 'Escape' && this.active) {
+        e.preventDefault();
+        this.resolve();
+        return;
+      }
+    });
+
     window.addEventListener('keydown', (e: KeyboardEvent) => {
       if (e.code !== 'Space') return;
       e.preventDefault();
@@ -229,7 +249,9 @@ export class InteractionManager {
 
     switch (this.active.type) {
       case 'breath-sync':
-        this.updateBreathSync(breathValue ?? this.breath.value);
+        if (this.breathSyncReady) {
+          this.updateBreathSync(breathValue ?? this.breath.value);
+        }
         break;
       case 'countdown':
         this.updateCountdown(time);
@@ -285,8 +307,9 @@ export class InteractionManager {
     this.countdownSprite = null;
     this.breathOrbs = [];
     this.breathProgressOrbs = [];
+    this.breathSyncReady = false;
     if (this.breathOrbGeometry) { this.breathOrbGeometry.dispose(); this.breathOrbGeometry = null; }
-    this.breathSyncState = { isHolding: false, goodCycles: 0, lastPhaseWasInhale: false, syncAccuracy: 0, lastBreathVal: undefined, cycleStarted: false };
+    this.breathSyncState = { isHolding: false, goodCycles: 0, lastPhaseWasInhale: false, syncAccuracy: 0, lastBreathVal: undefined, cycleStarted: false, smoothVal: 0, lastStage: '', labelOpacity: 1 };
     this.countdownState = { current: 0, lastNumberTime: 0 };
     this.humSyncState = { humDuration: 0, targetDuration: 15, lastHumming: false };
     this.affirmState = { detected: false, waitStart: 0 };
@@ -302,6 +325,7 @@ export class InteractionManager {
 
   private resolve(): void {
     const cb = this.onComplete;
+    this.text3d.fadeOut(); // fade out any prompt text gracefully
     this.clear();
     if (cb) cb();
   }
@@ -335,7 +359,7 @@ export class InteractionManager {
     const start = performance.now();
     const fadeIn = () => {
       const t = Math.min(1, (performance.now() - start) / 600);
-      mat.opacity = t * 0.9;
+      mat.opacity = t * 0.75;
       if (t < 1) requestAnimationFrame(fadeIn);
     };
     requestAnimationFrame(fadeIn);
@@ -627,16 +651,38 @@ export class InteractionManager {
   // and a countdown of seconds remaining in that stage.
   // Progress dots show completed cycles.
 
-  private startBreathSync(): void {
+  private async startBreathSync(): Promise<void> {
+    // Intro — use pre-generated audio if available
+    this.text3d.show('let\u2019s breathe together', 4);
+    if (this.narration.hasClip('breath_intro')) {
+      await this.narration.playClip('breath_intro');
+    }
+    await this.sleep(1500);
+    if (!this.active) return;
+
+    this.text3d.show('breathe in when the tunnel expands\nbreathe out when it contracts', 6);
+    if (this.narration.hasClip('breath_instructions')) {
+      await this.narration.playClip('breath_instructions');
+    }
+    await this.sleep(1500);
+    if (!this.active) return;
+
+    this.text3d.clear();
+
+    // Now start the breathing guide — wait for next inhale start so it's synced
+    // Wait until breath value is near 0 (exhale trough) so the ring appears
+    // right as a fresh inhale begins
+    await this.waitForBreathValley();
+    if (!this.active) return;
+
+    this.breathSyncReady = true;
     this._shaderState.breathSyncActive = 1;
 
-    // Big centered QTE ring for the breathing guide
     this.createQteRing();
 
-    // Make it bigger and centered (not bottom-offset)
     if (this.qteSprite) {
       this.qteSprite.scale.set(0.8, 0.8, 1);
-      this.qteSprite.position.set(0, 0, -0.7); // dead center, close
+      this.qteSprite.position.set(0, 0, -0.7);
     }
 
     // Touch/click for mobile
@@ -646,6 +692,28 @@ export class InteractionManager {
     this.canvas.addEventListener('touchstart', onDown, { passive: true });
     window.addEventListener('mouseup', onUp);
     window.addEventListener('touchend', onUp);
+  }
+
+  /** Wait until the breath is at its lowest point (exhale trough) so the ring
+   *  starts perfectly synced with a fresh inhale. Times out after 10s. */
+  private waitForBreathValley(): Promise<void> {
+    return new Promise(resolve => {
+      const start = performance.now();
+      const check = () => {
+        if (!this.active) { resolve(); return; }
+        if (performance.now() - start > 10000) { resolve(); return; } // timeout
+        if (this.breath.value < 0.08 && this.breath.stage === 'inhale') {
+          resolve(); // fresh inhale just starting
+        } else {
+          requestAnimationFrame(check);
+        }
+      };
+      requestAnimationFrame(check);
+    });
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   private updateBreathSync(breathVal: number): void {
@@ -658,6 +726,32 @@ export class InteractionManager {
 
     this._shaderState.breathSyncFill = inSync ? breathVal : 0;
     this._shaderState.breathSyncProgress = this.breathSyncState.goodCycles / 4;
+
+    // ── Smooth the breath value for visuals (no sudden jumps) ──
+    const lerpSpeed = 0.06; // lower = smoother, higher = more responsive
+    this.breathSyncState.smoothVal += (breathVal - this.breathSyncState.smoothVal) * lerpSpeed;
+    const sv = this.breathSyncState.smoothVal;
+
+    // ── Detect stage change → brief label fade ──
+    if (stage !== this.breathSyncState.lastStage && this.breathSyncState.lastStage !== '') {
+      this.breathSyncState.labelOpacity = 0; // flash to 0, will fade back in
+    }
+    this.breathSyncState.lastStage = stage;
+    // Fade label back in
+    this.breathSyncState.labelOpacity = Math.min(1, this.breathSyncState.labelOpacity + 0.04);
+
+    // ── Move the prompt in Z with the smoothed breath ──
+    if (this.qteSprite) {
+      const farZ = -1.0;
+      const closeZ = -0.5;
+      const z = farZ + (closeZ - farZ) * sv;
+      this.qteSprite.position.z = z;
+
+      // Scale also breathes subtly
+      const baseScale = 0.75;
+      const breathScale = baseScale + sv * 0.15;
+      this.qteSprite.scale.set(breathScale, breathScale, 1);
+    }
 
     // ── Calculate seconds remaining in current breath stage ──
     const cycleProgress = this.breath.cycleProgress;
@@ -690,13 +784,14 @@ export class InteractionManager {
     const ringColor = '#c8a0ff';
 
     this.drawBreathGuide({
-      breathVal,
+      breathVal: sv,  // use smoothed value for visuals
       stageLabel,
       countdown,
       ringColor,
       fillColor,
       active: isHolding,
       inSync,
+      labelOpacity: this.breathSyncState.labelOpacity,
       goodCycles: this.breathSyncState.goodCycles,
     });
 
@@ -742,6 +837,7 @@ export class InteractionManager {
     active: boolean;
     inSync: boolean;
     goodCycles: number;
+    labelOpacity: number;
   }): void {
     if (!this.qteCtx || !this.qteCanvas || !this.qteTexture) return;
     const ctx = this.qteCtx;
@@ -756,65 +852,65 @@ export class InteractionManager {
 
     ctx.clearRect(0, 0, s, s);
 
-    // Outer glow
+    // Soft glow — present but controlled
     ctx.shadowColor = opts.fillColor;
-    ctx.shadowBlur = opts.active ? 30 : 15;
+    ctx.shadowBlur = 8;
 
-    // Background ring
+    // Background ring (always visible)
     ctx.beginPath();
     ctx.arc(cx, cy, breathR, 0, Math.PI * 2);
-    ctx.strokeStyle = `${opts.ringColor}22`;
+    ctx.strokeStyle = `${opts.ringColor}28`;
     ctx.lineWidth = lineW;
     ctx.stroke();
 
-    // Fill ring — opacity based on breath value
+    // Fill ring — tracks breath smoothly, capped so it never blows out
     ctx.beginPath();
     ctx.arc(cx, cy, breathR, 0, Math.PI * 2);
-    const fillAlpha = Math.round((0.15 + opts.breathVal * 0.35) * 255);
+    const fillAlpha = Math.round((0.12 + opts.breathVal * 0.20) * 255);
     ctx.strokeStyle = `${opts.fillColor}${fillAlpha.toString(16).padStart(2, '0')}`;
-    ctx.lineWidth = lineW + (opts.active ? 4 : 0);
+    ctx.lineWidth = lineW;
     ctx.stroke();
     ctx.shadowBlur = 0;
 
-    // Inner fill glow — subtle radial gradient that breathes
-    const innerAlpha = 0.03 + opts.breathVal * 0.08;
-    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, breathR * 0.9);
+    // Inner glow — soft but visible
+    const innerAlpha = 0.02 + opts.breathVal * 0.05;
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, breathR * 0.85);
     grad.addColorStop(0, `${opts.fillColor}${Math.round(innerAlpha * 255).toString(16).padStart(2, '0')}`);
     grad.addColorStop(1, 'transparent');
     ctx.beginPath();
-    ctx.arc(cx, cy, breathR * 0.9, 0, Math.PI * 2);
+    ctx.arc(cx, cy, breathR * 0.85, 0, Math.PI * 2);
     ctx.fillStyle = grad;
     ctx.fill();
 
-    // Sync indicator — thin bright ring when synced
+    // Sync indicator
     if (opts.inSync) {
       ctx.beginPath();
-      ctx.arc(cx, cy, breathR + lineW + 3, 0, Math.PI * 2);
-      ctx.strokeStyle = `${opts.fillColor}55`;
+      ctx.arc(cx, cy, breathR + lineW + 2, 0, Math.PI * 2);
+      ctx.strokeStyle = `${opts.fillColor}40`;
       ctx.lineWidth = 1.5;
       ctx.stroke();
     }
 
-    // ── Stage label (IN / HOLD / OUT) — large, centered ──
+    // ── Stage label (IN / HOLD / OUT) — large, centered, fades on transition ──
+    const la = opts.labelOpacity;
+    ctx.globalAlpha = la;
     ctx.font = `200 ${s * 0.14}px Georgia, serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+    ctx.strokeStyle = `rgba(0,0,0,${0.4 * la})`;
     ctx.lineWidth = 2;
     ctx.lineJoin = 'round';
     const labelY = cy - s * 0.03;
     ctx.strokeText(opts.stageLabel, cx, labelY);
-    ctx.shadowColor = `${opts.fillColor}66`;
-    ctx.shadowBlur = 15;
-    ctx.fillStyle = opts.fillColor;
+    ctx.fillStyle = `${opts.fillColor}cc`;
     ctx.fillText(opts.stageLabel, cx, labelY);
-    ctx.shadowBlur = 0;
 
     // ── Countdown seconds ── smaller, below the label
     ctx.font = `100 ${s * 0.09}px Georgia, serif`;
     const countY = cy + s * 0.06;
-    ctx.fillStyle = `${opts.fillColor}99`;
+    ctx.fillStyle = `${opts.fillColor}77`;
     ctx.fillText(String(opts.countdown), cx, countY);
+    ctx.globalAlpha = 1;
 
     // ── Progress dots (4 cycles needed) ──
     const dotR = s * 0.015;

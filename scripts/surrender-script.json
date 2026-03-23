@@ -1,0 +1,82 @@
+{
+  "voice": "zephyr",
+  "model": "gpro",
+  "session": "surrender",
+  "styles": {
+    "dominant": "slow and deliberate, dripping with desire, soft dominance",
+    "seductive": "slow, seductive, confident, low voice, intimate",
+    "commanding": "breathy, dominant, commanding yet gentle, hypnotic",
+    "whisper": "warm, sultry, close whisper, like speaking into someone's ear",
+    "trance": "calm hypnotic trance voice, sensual, slightly breathless"
+  },
+  "stages": [
+    {
+      "name": "invitation",
+      "lines": [
+        { "text": "you chose to be here. something about this draws you in.", "style": "seductive" },
+        { "text": "notice the warmth beginning. low in your body. spreading.", "style": "whisper" },
+        { "text": "you already know what you want. it's safe to want this.", "style": "seductive" },
+        { "text": "let yourself be curious. let yourself feel.", "style": "trance" },
+        { "text": "every breath pulls you a little deeper. a little closer.", "style": "whisper" },
+        { "text": "you don't have to do anything. just watch. just feel.", "style": "trance" },
+        { "text": "do you want to go deeper?", "style": "dominant" }
+      ]
+    },
+    {
+      "name": "surrender",
+      "lines": [
+        { "text": "good. you said yes. that pleases me.", "style": "dominant" },
+        { "text": "your body knows what to do. feel the warmth spreading.", "style": "whisper" },
+        { "text": "it feels good to let go. to stop thinking. to just obey.", "style": "dominant" },
+        { "text": "every breath makes you more receptive. more open. more mine.", "style": "commanding" },
+        { "text": "you don't need to resist. you don't want to resist.", "style": "dominant" },
+        { "text": "the pleasure builds when you stop trying. when you surrender.", "style": "seductive" },
+        { "text": "that's it. just like that. so good.", "style": "whisper" },
+        { "text": "feel my voice inside you. warm. commanding. impossible to ignore.", "style": "commanding" },
+        { "text": "your thoughts are slowing down. melting. dissolving into warmth.", "style": "trance" },
+        { "text": "do you want to surrender completely?", "style": "dominant" }
+      ]
+    },
+    {
+      "name": "devotion",
+      "lines": [
+        { "text": "you belong to this feeling now. let it take you.", "style": "dominant" },
+        { "text": "deeper. the pleasure grows with every breath you take.", "style": "commanding" },
+        { "text": "you love how this feels. you need how this feels.", "style": "seductive" },
+        { "text": "so easy to obey. so natural. like you were made for this.", "style": "dominant" },
+        { "text": "trust this feeling. trust my voice. let everything else fade.", "style": "trance" },
+        { "text": "your mind is soft and open. perfectly receptive. perfectly mine.", "style": "commanding" },
+        { "text": "feel the heat building. pulsing. spreading through every part of you.", "style": "whisper" },
+        { "text": "you were made for this. for surrender. for obedience. for pleasure.", "style": "dominant" },
+        { "text": "let the waves wash over you. deeper. and deeper. and deeper.", "style": "trance" },
+        { "text": "good. such a good subject. I'm so pleased with you.", "style": "seductive" }
+      ]
+    },
+    {
+      "name": "ecstasy",
+      "lines": [
+        { "text": "you belong to this moment completely. body and mind.", "style": "commanding" },
+        { "text": "pure surrender. pure pleasure. there is nothing else.", "style": "dominant" },
+        { "text": "feel it building. higher. hotter. you can't stop it now.", "style": "commanding" },
+        { "text": "deeper and deeper. wave after wave of bliss.", "style": "trance" },
+        { "text": "good. so good. you're exactly where you need to be.", "style": "whisper" },
+        { "text": "let it consume you. every thought. every sensation. mine.", "style": "dominant" },
+        { "text": "the pleasure is overwhelming now. let it crash over you.", "style": "commanding" },
+        { "text": "you are perfect like this. completely surrendered. completely lost.", "style": "seductive" },
+        { "text": "give in completely. there is nothing but this feeling.", "style": "dominant" },
+        { "text": "let go. now. completely. feel everything.", "style": "commanding" }
+      ]
+    },
+    {
+      "name": "afterglow",
+      "lines": [
+        { "text": "slowly now. gently. returning to yourself.", "style": "trance" },
+        { "text": "carrying this warmth with you. this feeling of surrender.", "style": "whisper" },
+        { "text": "you did so well. I'm very pleased with you.", "style": "seductive" },
+        { "text": "remember this feeling. how easy it was. how good it felt.", "style": "trance" },
+        { "text": "gentle now. soft. you are safe.", "style": "whisper" },
+        { "text": "you can come back whenever you want. I'll be here.", "style": "seductive" }
+      ]
+    }
+  ]
+}

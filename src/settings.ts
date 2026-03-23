@@ -37,6 +37,9 @@ export interface HpynoSettings {
   // Features
   ttsEnabled: boolean;
   micEnabled: boolean;
+
+  // API Keys
+  sunoApiKey: string;
 }
 
 const STORAGE_KEY = 'hpyno-settings';
@@ -50,7 +53,7 @@ const DEFAULTS: HpynoSettings = {
   tunnelWidth: 1,
   breathExpansion: 1,
   menuDepth: -1.5,
-  menuScale: 1,
+  menuScale: 1.8,
   narrationStartZ: -3,
   narrationEndZ: -0.3,
   narrationScale: 1,
@@ -63,6 +66,7 @@ const DEFAULTS: HpynoSettings = {
   muted: false,
   ttsEnabled: true,
   micEnabled: true,
+  sunoApiKey: '',
 };
 
 type SettingsListener = (settings: HpynoSettings) => void;

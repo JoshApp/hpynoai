@@ -23,6 +23,10 @@ export class AudioEngine {
   private profile: AudioProfile | null = null;
   private _analyzer: AudioAnalyzer | null = null;
 
+  /** Background ambient track */
+  private bgTrackSource: AudioBufferSourceNode | null = null;
+  private bgTrackGain: GainNode | null = null;
+
   /** External audio input node — connect TTS or other audio sources here */
   private externalInput: GainNode | null = null;
 
@@ -38,6 +42,11 @@ export class AudioEngine {
   /** Get the external input node — connect narration audio here so it flows through the analyzer */
   get externalInputNode(): GainNode | null {
     return this.externalInput;
+  }
+
+  /** Get the master gain node — connect ambient music here so it respects volume/mute */
+  get masterGainNode(): GainNode | null {
+    return this.masterGain;
   }
 
   async init(): Promise<void> {
@@ -139,6 +148,55 @@ export class AudioEngine {
     if (!this.isMuted) {
       this.masterGain.gain.linearRampToValueAtTime(this.preMuteGain, now + 8);
     }
+
+    // ── Background ambient track (if configured) ──
+    if (p.backgroundTrack) {
+      this.loadBackgroundTrack(p.backgroundTrack, p.backgroundVolume ?? 0.3);
+    }
+  }
+
+  /** Load and loop a background audio file */
+  private async loadBackgroundTrack(url: string, volume: number): Promise<void> {
+    if (!this.ctx || !this.masterGain) return;
+
+    try {
+      const response = await fetch(url);
+      if (!response.ok) return;
+      const arrayBuffer = await response.arrayBuffer();
+      const audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
+
+      // Stop any existing background track
+      this.stopBackgroundTrack();
+
+      this.bgTrackGain = this.ctx.createGain();
+      this.bgTrackGain.gain.value = 0;
+      this.bgTrackGain.connect(this.masterGain);
+
+      this.bgTrackSource = this.ctx.createBufferSource();
+      this.bgTrackSource.buffer = audioBuffer;
+      this.bgTrackSource.loop = true;
+
+      // Crossfade loop: set loop points slightly inward to avoid clicks
+      const margin = Math.min(0.5, audioBuffer.duration * 0.02);
+      this.bgTrackSource.loopStart = margin;
+      this.bgTrackSource.loopEnd = audioBuffer.duration - margin;
+
+      this.bgTrackSource.connect(this.bgTrackGain);
+      this.bgTrackSource.start();
+
+      // Fade in over 6 seconds
+      const now = this.ctx.currentTime;
+      this.bgTrackGain.gain.setValueAtTime(0, now);
+      this.bgTrackGain.gain.linearRampToValueAtTime(volume, now + 6);
+    } catch {
+      // Failed to load — continue without background track
+    }
+  }
+
+  private stopBackgroundTrack(): void {
+    try { this.bgTrackSource?.stop(); } catch {}
+    this.bgTrackSource = null;
+    this.bgTrackGain = null;
   }
 
   /** Set intensity 0–1, interpolates binaural beat across profile range */
@@ -169,6 +227,7 @@ export class AudioEngine {
     this.droneOsc1?.stop();
     this.droneOsc2?.stop();
     this.lfo?.stop();
+    this.stopBackgroundTrack();
     this.binauralLeft = null;
     this.binauralRight = null;
     this.droneOsc1 = null;

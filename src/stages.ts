@@ -28,6 +28,8 @@ export class StageManager {
   // Interaction tracking
   private triggeredInteractions = new Set<string>();
   private paused = false; // paused during gate interactions
+  private interactionActive = false; // true while an interaction is running
+  private pauseStartReal = 0; // real time when pause began
 
   constructor(
     stages: SessionStage[],
@@ -128,14 +130,69 @@ export class StageManager {
     return baseIntensity;
   }
 
-  /** Pause stage progression (for gate interactions) */
+  /** Pause stage progression (for interactions) */
   pause(): void {
     this.paused = true;
+    this.interactionActive = true;
+    this.pauseStartReal = performance.now() / 1000;
   }
 
   /** Resume stage progression */
   resume(): void {
+    // Subtract pause duration so the stage doesn't fast-forward
+    const pauseDuration = performance.now() / 1000 - this.pauseStartReal;
+    this.virtualTimeOffset -= pauseDuration;
+
     this.paused = false;
+    this.interactionActive = false;
+    this.lastRealTime = performance.now() / 1000;
+    // Reset text timer so text doesn't fire immediately after interaction ends
+    this.lastTextTime = this.virtualNow;
+  }
+
+  /** Immediately emit the next text line (used after interactions to avoid dead air) */
+  /** Advance to the next stage immediately */
+  advanceStage(): void {
+    if (this._currentIndex >= this._stages.length - 1) return;
+    this._currentIndex++;
+    const now = this.virtualNow;
+    this.stageStartTime = now;
+    this.textIndex = 0;
+    this.lastTextTime = now;
+    this.triggeredInteractions.clear();
+
+    const newStage = this.currentStage;
+    if (newStage.fractionationDip != null) {
+      this.fractionating = true;
+      this.fractionationStart = now;
+    }
+    this.onStageChange(newStage, this._currentIndex);
+  }
+
+  /** Force-trigger the next pending interaction for the current stage */
+  triggerPendingInteraction(): void {
+    if (!this.started || !this.onInteraction) return;
+    const stage = this.currentStage;
+    if (!stage.interactions) return;
+
+    for (const interaction of stage.interactions) {
+      const key = `${this._currentIndex}:${interaction.type}:${interaction.triggerAt}`;
+      if (!this.triggeredInteractions.has(key)) {
+        this.triggeredInteractions.add(key);
+        this.onInteraction(interaction);
+        return;
+      }
+    }
+  }
+
+  triggerNextText(): void {
+    if (!this.started) return;
+    const stage = this.currentStage;
+    if (stage.texts.length === 0) return;
+    const text = stage.texts[this.textIndex % stage.texts.length];
+    this.onText(text);
+    this.textIndex++;
+    this.lastTextTime = this.virtualNow;
   }
 
   update(): void {
@@ -155,19 +212,21 @@ export class StageManager {
     const elapsed = now - this.stageStartTime;
     const stage = this.currentStage;
 
-    // Check for interaction triggers
+    // Check for interaction triggers (before text — interactions take priority)
     if (stage.interactions && this.onInteraction) {
       for (const interaction of stage.interactions) {
         const key = `${this._currentIndex}:${interaction.type}:${interaction.triggerAt}`;
         if (!this.triggeredInteractions.has(key) && elapsed >= interaction.triggerAt) {
           this.triggeredInteractions.add(key);
           this.onInteraction(interaction);
+          // Interaction fired — skip text this frame and until interaction completes
+          return;
         }
       }
     }
 
-    // Show text suggestions at interval
-    if (now - this.lastTextTime >= stage.textInterval) {
+    // Show text suggestions at interval — but NEVER while an interaction is active
+    if (!this.interactionActive && stage.texts.length > 0 && now - this.lastTextTime >= stage.textInterval) {
       const text = stage.texts[this.textIndex % stage.texts.length];
       this.onText(text);
       this.textIndex++;
@@ -210,6 +269,7 @@ export class StageManager {
     this._currentIndex = index;
     this.fractionating = false;
     this.paused = false;
+    this.interactionActive = false;
     const now = this.virtualNow;
     this.stageStartTime = now;
     this.textIndex = 0;
@@ -228,6 +288,7 @@ export class StageManager {
     this.lastTextTime = this.stageStartTime;
     this.fractionating = false;
     this.paused = false;
+    this.interactionActive = false;
     this.triggeredInteractions.clear();
     this.started = true;
     this.onStageChange(this.currentStage, 0);

@@ -62,15 +62,28 @@ export class BreathController {
     return this._cycleProgress;
   }
 
-  /** Set a new breath pattern */
+  /** Set a new breath pattern — resets cycle to start from inhale */
   setPattern(pattern: Partial<BreathPattern>): void {
-    this._pattern = { ...this._pattern, ...pattern };
+    const newPattern = { ...this._pattern, ...pattern };
+    // Only reset if pattern actually changed
+    if (newPattern.inhale !== this._pattern.inhale ||
+        newPattern.holdIn !== this._pattern.holdIn ||
+        newPattern.exhale !== this._pattern.exhale ||
+        newPattern.holdOut !== this._pattern.holdOut) {
+      this._pattern = newPattern;
+      this.elapsed = 0; // restart from inhale
+    }
   }
 
   /** Set pattern from a simple cycle duration (equal inhale/exhale, no holds) */
   setSimpleCycle(durationSeconds: number): void {
     const half = durationSeconds / 2;
-    this._pattern = { inhale: half, holdIn: 0, exhale: half, holdOut: 0 };
+    const newPattern = { inhale: half, holdIn: 0, exhale: half, holdOut: 0 };
+    if (newPattern.inhale !== this._pattern.inhale ||
+        newPattern.exhale !== this._pattern.exhale) {
+      this._pattern = newPattern;
+      this.elapsed = 0;
+    }
   }
 
   /** Update — call every frame with current time */

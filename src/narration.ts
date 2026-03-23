@@ -51,6 +51,30 @@ const DEFAULT_CONFIG: NarrationConfig = {
   volume: 0.8,
 };
 
+/** Pre-generated audio manifest (from SexyVoice.ai or similar) */
+export interface WordTimestamp {
+  word: string;
+  start: number;
+  end: number;
+}
+
+export interface AudioManifest {
+  session: string;
+  stages: Array<{
+    name: string;
+    file?: string;       // full stage audio (continuous, no cuts)
+    duration?: number;
+    lines: Array<{
+      file?: string;     // per-line audio (legacy sliced mode)
+      text: string;
+      startTime?: number; // offset in stage audio where this line starts
+      endTime?: number;   // offset where it ends
+      duration: number;
+      words?: WordTimestamp[];
+    }>;
+  }>;
+}
+
 export class NarrationEngine {
   private config: NarrationConfig;
   private queue: NarrationLine[] = [];
@@ -63,20 +87,180 @@ export class NarrationEngine {
   private estimatedDuration = 0;
   private selectedVoice: SpeechSynthesisVoice | null = null;
   private voicesLoaded = false;
-  private onTextDisplay: ((text: string) => void) | null = null;
+  private onTextDisplay: ((text: string, words?: WordTimestamp[], audioStartTime?: number) => void) | null = null;
   private paused = false;
   private pauseTimer: ReturnType<typeof setTimeout> | null = null;
   private processingQueue = false;
   private warmedUp = false;
+
+  // Pre-generated audio playback
+  private manifest: AudioManifest | null = null;
+  private audioLookup: Map<string, { file: string; duration: number; words?: WordTimestamp[] }> = new Map();
+  private interactiveLookup: Map<string, { file: string; duration: number }> = new Map();
+  private currentAudio: HTMLAudioElement | null = null;
+
+  // Continuous stage playback (no slicing)
+  private stageAudio: HTMLAudioElement | null = null;
+  private stageLines: Array<{ text: string; startTime: number; endTime: number; words?: WordTimestamp[] }> = [];
+  private stageCurrentLine = -1;
+  private stagePlaybackActive = false;
+  private onStageEnded: (() => void) | null = null;
 
   constructor(config?: Partial<NarrationConfig>) {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.loadVoices();
   }
 
-  /** Set callback for when text should be displayed */
-  setTextHandler(handler: (text: string) => void): void {
+  /** Set callback for when text should be displayed (with optional word timestamps and audio sync time) */
+  setTextHandler(handler: (text: string, words?: WordTimestamp[], audioStartTime?: number) => void): void {
     this.onTextDisplay = handler;
+  }
+
+  /**
+   * Load a pre-generated audio manifest. When loaded, speak() will play
+   * audio files instead of browser TTS for any text that matches.
+   */
+  async loadManifest(url: string): Promise<void> {
+    try {
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      this.manifest = await resp.json();
+
+      // Build lookups
+      this.audioLookup.clear();
+      this.interactiveLookup.clear();
+      if (this.manifest) {
+        for (const stage of this.manifest.stages) {
+          for (const line of stage.lines) {
+            if (line.file) {
+              const key = line.text.trim().toLowerCase();
+              this.audioLookup.set(key, { file: line.file, duration: line.duration, words: line.words });
+            }
+          }
+        }
+        // Interactive lines (keyed by id)
+        const interactive = (this.manifest as unknown as Record<string, unknown>).interactive as
+          Array<{ id: string; file: string; duration: number }> | undefined;
+        if (interactive) {
+          for (const item of interactive) {
+            this.interactiveLookup.set(item.id, { file: item.file, duration: item.duration });
+          }
+        }
+      }
+      console.log(`[Narration] Loaded audio manifest: ${this.audioLookup.size} lines, ${this.interactiveLookup.size} interactive`);
+    } catch (e) {
+      console.warn('[Narration] Failed to load audio manifest:', e);
+      this.manifest = null;
+    }
+  }
+
+  /** Clear loaded manifest (revert to browser TTS) */
+  clearManifest(): void {
+    this.manifest = null;
+    this.audioLookup.clear();
+    this.interactiveLookup.clear();
+    this.stopStagePlayback();
+  }
+
+  /**
+   * Play a full stage as one continuous audio file.
+   * Text display updates are driven by timestamps — no slicing.
+   * Returns a promise that resolves when the stage audio finishes.
+   */
+  async playStage(stageName: string): Promise<void> {
+    if (!this.manifest) return;
+
+    const stage = this.manifest.stages.find(s => s.name === stageName);
+    if (!stage?.file) return;
+
+    this.stopStagePlayback();
+
+    // Build line timing data
+    this.stageLines = stage.lines.map(l => ({
+      text: l.text,
+      startTime: l.startTime ?? 0,
+      endTime: l.endTime ?? l.duration,
+      words: l.words,
+    }));
+    this.stageCurrentLine = -1;
+    this.stagePlaybackActive = true;
+
+    // Play the full stage audio
+    const audio = new Audio(stage.file);
+    audio.volume = this.config.volume;
+    this.stageAudio = audio;
+    this._isSpeaking = true;
+    this._active = true;
+    this.speechStartTime = performance.now() / 1000;
+    this.estimatedDuration = stage.duration ?? 0;
+
+    return new Promise<void>((resolve) => {
+      audio.onended = () => {
+        this.stagePlaybackActive = false;
+        this._isSpeaking = false;
+        this.stageAudio = null;
+        if (this.onStageEnded) this.onStageEnded();
+        resolve();
+      };
+      audio.onerror = () => {
+        this.stagePlaybackActive = false;
+        this._isSpeaking = false;
+        this.stageAudio = null;
+        resolve();
+      };
+      audio.play().catch(() => {
+        this.stagePlaybackActive = false;
+        resolve();
+      });
+    });
+  }
+
+  /** Check if a stage has continuous audio available */
+  hasStageAudio(stageName: string): boolean {
+    if (!this.manifest) return false;
+    const stage = this.manifest.stages.find(s => s.name === stageName);
+    return !!(stage?.file);
+  }
+
+  get isPlayingStage(): boolean {
+    return this.stagePlaybackActive;
+  }
+
+  /** Get the current stage audio element (for direct time sync) */
+  get stageAudioElement(): HTMLAudioElement | null {
+    return this.stageAudio;
+  }
+
+  /** Set callback for when stage audio finishes playing */
+  setStageEndedHandler(handler: () => void): void {
+    this.onStageEnded = handler;
+  }
+
+  /** Stop continuous stage playback */
+  stopStagePlayback(): void {
+    if (this.stageAudio) {
+      this.stageAudio.pause();
+      this.stageAudio = null;
+    }
+    this.stagePlaybackActive = false;
+    this.stageLines = [];
+    this.stageCurrentLine = -1;
+  }
+
+  /** Play an interactive audio clip by ID (e.g. "breath_intro", "gate_deeper").
+   *  Returns a promise that resolves when playback finishes. */
+  async playClip(id: string): Promise<void> {
+    const entry = this.interactiveLookup.get(id);
+    if (!entry) {
+      console.warn(`[Narration] Interactive clip not found: ${id}`);
+      return;
+    }
+    await this.playAudioFile(entry.file, entry.duration);
+  }
+
+  /** Check if a manifest with interactive clips is loaded */
+  hasClip(id: string): boolean {
+    return this.interactiveLookup.has(id);
   }
 
   /** Update config on the fly */
@@ -128,6 +312,11 @@ export class NarrationEngine {
       clearTimeout(this.pauseTimer);
       this.pauseTimer = null;
     }
+    if (this.currentAudio) {
+      this.currentAudio.pause();
+      this.currentAudio = null;
+    }
+    this.stopStagePlayback();
     window.speechSynthesis.cancel();
   }
 
@@ -149,8 +338,28 @@ export class NarrationEngine {
 
   /** Call every frame to update voice energy simulation */
   update(): void {
+    // Continuous stage playback — check audio time, trigger text changes
+    if (this.stagePlaybackActive && this.stageAudio) {
+      const t = this.stageAudio.currentTime;
+
+      // Find which line should be displayed based on current audio time
+      for (let i = 0; i < this.stageLines.length; i++) {
+        const line = this.stageLines[i];
+        if (t >= line.startTime && (i === this.stageLines.length - 1 || t < this.stageLines[i + 1].startTime)) {
+          if (i !== this.stageCurrentLine) {
+            this.stageCurrentLine = i;
+            if (this.onTextDisplay) {
+              // Pass the audio time when this line starts so text3d can sync to audio clock
+              this.onTextDisplay(line.text, line.words, line.startTime);
+            }
+          }
+          break;
+        }
+      }
+    }
+
     if (!this._isSpeaking) {
-      this._voiceEnergy *= 0.9; // decay
+      this._voiceEnergy *= 0.9;
       return;
     }
 
@@ -160,10 +369,8 @@ export class NarrationEngine {
       ? Math.min(1, elapsed / this.estimatedDuration)
       : 0;
 
-    // Simulate voice energy with natural speech rhythm
     const syllableRate = 4.5;
     const syllablePhase = elapsed * syllableRate * Math.PI * 2;
-
     const base = 0.5 + 0.3 * Math.sin(syllablePhase);
     const variation = 0.15 * Math.sin(syllablePhase * 0.7 + 1.3);
     const breathEnvelope = Math.sin(this._lineProgress * Math.PI);
@@ -221,19 +428,15 @@ export class NarrationEngine {
     }
 
     const english = voices.filter(v => v.lang.startsWith('en'));
-    const premium = english.find(v =>
-      v.name.toLowerCase().includes('natural') ||
-      v.name.toLowerCase().includes('premium') ||
-      v.name.toLowerCase().includes('enhanced')
-    );
-    const female = english.find(v =>
-      v.name.toLowerCase().includes('female') ||
-      v.name.toLowerCase().includes('samantha') ||
-      v.name.toLowerCase().includes('karen') ||
-      v.name.toLowerCase().includes('moira')
-    );
 
-    this.selectedVoice = premium ?? female ?? english[0] ?? voices[0] ?? null;
+    // Premium/natural voices first — these sound the most human
+    const premium = english.find(v => {
+      const name = v.name.toLowerCase();
+      return name.includes('natural') || name.includes('premium') || name.includes('enhanced');
+    });
+
+    // Fallback: any English voice
+    this.selectedVoice = premium ?? english[0] ?? voices[0] ?? null;
   }
 
   private async processQueue(): Promise<void> {
@@ -249,13 +452,19 @@ export class NarrationEngine {
       const line = this.queue.shift()!;
       this.currentLine = line;
 
-      // Display text
+      // Check for pre-generated audio file first
+      const audioEntry = this.audioLookup.get(line.text.trim().toLowerCase());
+
+      // Display text (with word timestamps if available for synced karaoke)
       if (this.onTextDisplay) {
-        this.onTextDisplay(line.text);
+        this.onTextDisplay(line.text, audioEntry?.words);
       }
 
-      // Voice it
-      if (this.config.voiceEnabled) {
+      if (audioEntry) {
+        // Play pre-generated audio file
+        await this.playAudioFile(audioEntry.file, audioEntry.duration);
+      } else if (this.config.voiceEnabled) {
+        // Fall back to browser TTS
         await this.speakLine(line);
       } else {
         // No voice — just wait based on estimated reading time
@@ -268,8 +477,9 @@ export class NarrationEngine {
         this._isSpeaking = false;
       }
 
-      // Pause between lines
-      const pauseDuration = (line.pause ?? 2) * 1000;
+      // Pause between lines — shorter for pre-generated audio (natural pauses baked in)
+      const defaultPause = audioEntry ? 0.3 : 2; // 300ms for audio files, 2s for TTS
+      const pauseDuration = (line.pause ?? defaultPause) * 1000;
       if (pauseDuration > 0) {
         await this.wait(pauseDuration);
       }
@@ -278,6 +488,47 @@ export class NarrationEngine {
     this.currentLine = null;
     this._active = false;
     this.processingQueue = false;
+  }
+
+  /** Play a pre-generated audio file and simulate voice energy */
+  private playAudioFile(file: string, duration: number): Promise<void> {
+    return new Promise<void>((resolve) => {
+      const audio = new Audio(file);
+      audio.volume = this.config.volume;
+      this.currentAudio = audio;
+
+      this._isSpeaking = true;
+      this.speechStartTime = performance.now() / 1000;
+      this.estimatedDuration = duration;
+
+      let resolved = false;
+      const done = () => {
+        if (resolved) return;
+        resolved = true;
+        this._isSpeaking = false;
+        this._voiceEnergy = 0;
+        this.currentAudio = null;
+        resolve();
+      };
+
+      audio.onended = done;
+      audio.onerror = () => {
+        console.warn(`[Narration] Failed to play audio: ${file}`);
+        done();
+      };
+
+      // Safety timeout
+      setTimeout(() => {
+        if (!resolved) {
+          console.warn('[Narration] Audio playback timed out');
+          audio.pause();
+          done();
+        }
+      }, (duration + 5) * 1000);
+
+      console.log(`[Narration] Playing: ${file} (${duration.toFixed(1)}s)`);
+      audio.play().catch(() => done());
+    });
   }
 
   private speakLine(line: NarrationLine): Promise<void> {

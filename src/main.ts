@@ -15,6 +15,7 @@ import { SettingsManager } from './settings';
 import { runAutoCalibration, autoCalibrationFrameHook } from './calibration-auto';
 import { GuidedCalibration } from './calibration-guided';
 import { BreathController, type BreathStage } from './breath';
+import { AmbientEngine } from './ambient';
 import tunnelVert from './shaders/tunnel.vert';
 
 function breathStageToFloat(stage: BreathStage): number {
@@ -40,6 +41,8 @@ const mouse = { x: 0, y: 0 };
 let isRunning = false;
 let intensityOverride: number | null = null;
 let shaderIntensityScale = 1.0;
+let spiralAngle = 0;
+let lastAnimTime = 0;
 let activeSession: SessionConfig | null = null;
 
 // ── Three.js Setup ──
@@ -60,6 +63,7 @@ const tunnelUniforms = {
   uBreathValue: { value: 0 },
   uBreathStage: { value: 0 },
   uSpiralSpeed: { value: 1.0 },
+  uSpiralAngle: { value: 0 },
   uTunnelSpeed: { value: 1.0 },
   uTunnelWidth: { value: 1.0 },
   uBreathExpansion: { value: 1.0 },
@@ -103,6 +107,7 @@ scene.add(text3d.mesh);
 
 // ── Audio ──
 const audio = new AudioEngine();
+const ambient = new AmbientEngine();
 
 // ── Microphone ──
 const mic = new MicrophoneEngine();
@@ -118,27 +123,37 @@ const narration = new NarrationEngine({
   pitch: 0.9,
   volume: settings.current.narrationVolume,
 });
-narration.setTextHandler((text) => showText(text));
+narration.setTextHandler((text, words, audioStartTime) => showText(text, words, audioStartTime));
 
 // ── Text Display — 3D floating words ──
-function showText(text: string): void {
-  // Update colors from active session theme
+function showText(text: string, words?: Array<{ word: string; start: number; end: number }>, audioStartTime?: number): void {
   if (activeSession) {
     text3d.setColors(activeSession.theme.textColor, activeSession.theme.textGlow);
   }
-  text3d.show(text, 8);
+  // For audio-synced text, pass a reference to the audio element so karaoke syncs to audio clock
+  const audioRef = narration.isPlayingStage ? narration.stageAudioElement : null;
+  text3d.show(text, 8, words, audioRef, audioStartTime);
 }
 
 // ── Stage Manager ──
 const stageManager = new StageManager(
   sessions[0].stages,
   (text) => {
-    // Route stage text through narration engine for TTS voicing
+    // If this stage has continuous audio, it handles text display via timestamps.
+    // Never fire TTS alongside continuous audio.
+    if (narration.isPlayingStage || narration.hasStageAudio(stageManager.currentStage.name)) return;
     narration.speak(text);
   },
   (stage: SessionStage, _index: number) => {
     console.log(`Stage: ${stage.name}`);
     audio.setIntensity(stage.intensity);
+
+    // Start continuous stage audio if available.
+    // stopStagePlayback first to ensure clean state.
+    narration.stopStagePlayback();
+    if (narration.hasStageAudio(stage.name)) {
+      narration.playStage(stage.name);
+    }
 
     // Update breath controller from stage config
     if (stage.breathPattern) {
@@ -169,25 +184,51 @@ const interactions = new InteractionManager(
   camera,
   canvas,
   text3d,
+  narration,
 );
 
 // Wire mic signals into interactions
 interactions.setMicSignals(() => mic.signals);
 
-// Wire interaction triggers — interactions and narration NEVER overlap.
-// When an interaction starts, narration pauses and text clears.
-// When it ends, narration resumes. One thing at a time.
+// Wire interaction triggers.
+// Simple rule: stop everything → run interaction → advance to next stage.
+// The next stage's onStageChange handler starts its audio (if it has any).
 stageManager.setInteractionHandler(async (interaction: Interaction) => {
-  // Clear narration text and pause stage progression
+  // Stop all narration/audio/text
   text3d.clear();
   narration.stop();
   stageManager.pause();
 
-  // Run the interaction (user is fully focused on this)
+  // Run the interaction
   await interactions.start(interaction);
 
-  // Resume narration flow
+  // Breath-sync transition
+  if (interaction.type === 'breath-sync') {
+    text3d.show('continue breathing\njust like that', 5);
+    if (narration.hasClip('breath_continue')) {
+      await narration.playClip('breath_continue');
+    }
+    await new Promise(r => setTimeout(r, 1500));
+    text3d.fadeOut();
+  }
+
+  // Advance to next stage first (while still paused), then resume.
+  // This prevents the old stage from briefly running and firing stale text.
+  stageManager.advanceStage();
   stageManager.resume();
+});
+
+// When stage audio finishes — clear text, then trigger interaction or advance
+narration.setStageEndedHandler(() => {
+  text3d.fadeOut();
+  const stage = stageManager.currentStage;
+  if (stage.interactions && stage.interactions.length > 0) {
+    stageManager.triggerPendingInteraction();
+  } else {
+    // No interaction — advance to next stage immediately
+    // (don't wait for the duration timer, the audio was the content)
+    stageManager.advanceStage();
+  }
 });
 
 // ── Dev Mode ──
@@ -242,6 +283,13 @@ function animateBackground(): void {
   const time = performance.now() / 1000;
   const s = settings.current;
 
+  const rawDt = lastAnimTime > 0 ? time - lastAnimTime : 1 / 60;
+  const dt = Math.min(rawDt, 0.1); // cap at 100ms
+  lastAnimTime = time;
+
+  // Accumulate spiral rotation (no jumps on speed change)
+  spiralAngle += dt * 0.5 * s.spiralSpeedMult * 0.5;
+
   breath.update(time);
   tunnelUniforms.uTime.value = time;
   tunnelUniforms.uIntensity.value = 0.12;
@@ -249,6 +297,7 @@ function animateBackground(): void {
   tunnelUniforms.uBreathValue.value = breath.value;
   tunnelUniforms.uBreathStage.value = breathStageToFloat(breath.stage);
   tunnelUniforms.uSpiralSpeed.value = 0.5 * s.spiralSpeedMult;
+  tunnelUniforms.uSpiralAngle.value = spiralAngle;
   tunnelUniforms.uTunnelSpeed.value = s.tunnelSpeed;
   tunnelUniforms.uTunnelWidth.value = s.tunnelWidth;
   tunnelUniforms.uBreathExpansion.value = s.breathExpansion;
@@ -281,12 +330,34 @@ function startSession(session: SessionConfig): void {
 
   document.documentElement.requestFullscreen().catch(() => {});
 
+  // Load pre-generated voice manifest if available for this session
+  narration.clearManifest();
+  narration.loadManifest(`audio/${session.id}/manifest.json`).catch(() => {
+    // No manifest — will fall back to browser TTS
+  });
+
   // Warm up TTS from user gesture context — Chrome requires this
   narration.warmup();
 
   // Start audio and mic in parallel
   audio.init().then(() => {
     audio.start(session.audio);
+
+    // Start ambient music layer — connects to the same audio graph
+    if (audio.context && audio.externalInputNode) {
+      const rootNotes: Record<string, number> = {
+        relax: 48,   // C3
+        sleep: 45,   // A2
+        focus: 52,   // E3
+        surrender: 50, // D3
+      };
+      ambient.start(audio.context, audio.masterGainNode!, breath, {
+        rootNote: rootNotes[session.id] ?? 48,
+        warmth: session.audio.warmth,
+        tempo: 5,
+        reverbDecay: 4,
+      });
+    }
   });
   if (settings.current.micEnabled) {
     mic.start(); // request mic access — gracefully degrades if denied
@@ -378,6 +449,12 @@ function animate(): void {
     audioBands = analyzer.update();
   }
 
+  // Accumulate spiral rotation — clamp dt to prevent frame-spike jumps
+  const rawDt = lastAnimTime > 0 ? time - lastAnimTime : 1 / 60;
+  const dt = Math.min(rawDt, 0.1); // cap at 100ms — prevents GC/fullscreen spikes
+  lastAnimTime = time;
+  spiralAngle += dt * stageManager.spiralSpeed * settings.current.spiralSpeedMult * 0.5;
+
   // Update shader uniforms
   tunnelUniforms.uTime.value = time;
   tunnelUniforms.uIntensity.value = intensity * shaderIntensityScale;
@@ -389,6 +466,7 @@ function animate(): void {
   tunnelUniforms.uBreathValue.value = breath.value;
   tunnelUniforms.uBreathStage.value = breathStageToFloat(breath.stage);
   tunnelUniforms.uSpiralSpeed.value = stageManager.spiralSpeed * settings.current.spiralSpeedMult;
+  tunnelUniforms.uSpiralAngle.value = spiralAngle;
   tunnelUniforms.uTunnelSpeed.value = settings.current.tunnelSpeed;
   tunnelUniforms.uTunnelWidth.value = settings.current.tunnelWidth;
   tunnelUniforms.uBreathExpansion.value = settings.current.breathExpansion;
@@ -423,8 +501,10 @@ function animate(): void {
   // Update interactions
   interactions.setDepth(s.interactionDepth);
   interactions.setScale(s.interactionScale);
-  const breathValue = Math.sin(breathPhase) * 0.5 + 0.5; // same as shader breathe()
-  interactions.update(time, intensity, breathValue);
+  interactions.update(time, intensity, breath.value);
+
+  // Update ambient music — breath-reactive filters
+  ambient.update();
 
   // Push interaction shader state
   const iState = interactions.shaderState;
@@ -459,6 +539,7 @@ function animate(): void {
 function endExperience(): void {
   isRunning = false;
   audio.fadeOut(6);
+  ambient.stop();
   interactions.clear();
   narration.stop();
 

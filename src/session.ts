@@ -39,6 +39,11 @@ export interface AudioProfile {
   filterCutoff: number;
   // Overall warmth/brightness 0-1
   warmth: number;
+  // Optional background ambient track (URL or path to audio file)
+  // Loaded and looped under the binaural beats
+  backgroundTrack?: string;
+  // Volume for the background track (0-1, default 0.3)
+  backgroundVolume?: number;
 }
 
 // An interaction the user performs during a stage

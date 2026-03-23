@@ -1,0 +1,147 @@
+# HPYNO Surrender Session — Full Script v2
+# Voice: zephyr | Model: gpro
+# Style: very slow, deliberate, hypnotic, soft dominance, pauses between phrases
+#
+# Format:
+#   [STAGE: name] — new stage (one continuous audio generation)
+#   [SLICE] — cut point for individual narration lines
+#   [GATE: text] — interactive gate (generated separately)
+#   [PAUSE] — deliberate long pause
+#   Everything else is narration text
+#
+# Pacing: use ... for pauses, . for breath beats, line breaks for phrasing
+
+[STAGE: invitation]
+you chose to be here...
+something about this... draws you in.
+[SLICE]
+notice the warmth... beginning...
+low in your body...
+spreading.
+[SLICE]
+you already know... what you want...
+it is safe... to want this.
+[SLICE]
+let yourself... be curious...
+let yourself... feel.
+[SLICE]
+every breath... pulls you... a little deeper...
+a little closer.
+[SLICE]
+you don't have to do anything...
+just watch... just feel.
+[PAUSE]
+[GATE: do you want to go deeper?]
+
+[STAGE: surrender]
+good... you said yes...
+that pleases me.
+[SLICE]
+your body knows... what to do...
+feel the warmth... spreading.
+[SLICE]
+it feels good... to let go...
+to stop thinking...
+to just... obey.
+[SLICE]
+every breath... makes you more receptive...
+more open... more mine.
+[SLICE]
+you don't need to resist...
+you don't want... to resist.
+[SLICE]
+the pleasure builds... when you stop trying...
+when you... surrender.
+[SLICE]
+that's it... just like that...
+so good.
+[SLICE]
+feel my voice... inside you...
+warm... commanding...
+impossible to ignore.
+[SLICE]
+your thoughts... are slowing down...
+melting... dissolving... into warmth.
+[PAUSE]
+[GATE: do you want to surrender completely?]
+
+[STAGE: devotion]
+you belong... to this feeling now...
+let it... take you.
+[SLICE]
+deeper...
+the pleasure grows... with every breath... you take.
+[SLICE]
+you love... how this feels...
+you need... how this feels.
+[SLICE]
+so easy to obey... so natural...
+like you were made... for this.
+[SLICE]
+trust this feeling... trust my voice...
+let everything else... fade.
+[SLICE]
+your mind... is soft and open...
+perfectly receptive... perfectly mine.
+[SLICE]
+feel the heat... building... pulsing...
+spreading through every part of you.
+[SLICE]
+you were made for this...
+for surrender... for obedience... for pleasure.
+[SLICE]
+let the waves... wash over you...
+deeper... and deeper... and deeper.
+[SLICE]
+good... such a good subject...
+I'm so pleased... with you.
+
+[STAGE: ecstasy]
+you belong... to this moment... completely...
+body... and mind.
+[SLICE]
+pure surrender... pure pleasure...
+there is nothing else.
+[SLICE]
+feel it building... higher... hotter...
+you can't stop it now.
+[SLICE]
+deeper... and deeper...
+wave after wave... of bliss.
+[SLICE]
+good... so good...
+you're exactly where you need to be.
+[SLICE]
+let it consume you...
+every thought... every sensation... mine.
+[SLICE]
+the pleasure is overwhelming now...
+let it... crash over you.
+[SLICE]
+you are perfect... like this...
+completely surrendered... completely lost.
+[SLICE]
+give in... completely...
+there is nothing... but this feeling.
+[SLICE]
+let go... now... completely...
+feel... everything.
+
+[STAGE: afterglow]
+slowly now... gently...
+returning... to yourself.
+[SLICE]
+carrying this warmth... with you...
+this feeling... of surrender.
+[SLICE]
+you did so well...
+I'm very pleased... with you.
+[SLICE]
+remember this feeling...
+how easy it was... how good it felt.
+[SLICE]
+gentle now... soft...
+you are safe.
+[SLICE]
+you can come back... whenever you want...
+I'll be here.
