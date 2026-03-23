@@ -10,6 +10,7 @@ import type { AudioEngine } from './audio';
 import type { Text3D } from './text3d';
 import { SpriteText } from './sprite-text';
 import { isTouchDevice } from './touch';
+import type { EventBus } from './events';
 
 interface CalibrationDeps {
   scene: THREE.Scene;
@@ -18,6 +19,7 @@ interface CalibrationDeps {
   settings: SettingsManager;
   audio: AudioEngine;
   text3d: Text3D;
+  bus: EventBus;
 }
 
 export class GuidedCalibration {
@@ -26,7 +28,6 @@ export class GuidedCalibration {
   private sprites: THREE.Sprite[] = [];
   private _active = false;
   private cancelled = false;
-  private keyHandler: ((e: KeyboardEvent) => void) | null = null;
   private testOsc: OscillatorNode | null = null;
   private testGain: GainNode | null = null;
   private testCtx: AudioContext | null = null;
@@ -242,47 +243,14 @@ export class GuidedCalibration {
     onRight: () => void;
   }): Promise<void> {
     return new Promise((resolve) => {
-      const cleanup = () => {
-        window.removeEventListener('keydown', handler, true);
-        this.deps.canvas.removeEventListener('touchstart', touchHandler);
-        this.deps.canvas.removeEventListener('click', clickHandler);
-        this.keyHandler = null;
-      };
+      const bus = this.deps.bus;
+      const subs: Array<() => void> = [];
+      const cleanup = () => { for (const u of subs) u(); };
 
-      const handler = (e: KeyboardEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (e.code === 'ArrowLeft' || e.code === 'ArrowDown' || e.code === 'KeyA' || e.code === 'KeyS') {
-          opts.onLeft();
-        } else if (e.code === 'ArrowRight' || e.code === 'ArrowUp' || e.code === 'KeyD' || e.code === 'KeyW') {
-          opts.onRight();
-        } else if (e.code === 'Space' || e.code === 'Enter') {
-          cleanup(); resolve();
-        } else if (e.code === 'Escape') {
-          cleanup(); this.cancelled = true; resolve();
-        }
-      };
-
-      const touchHandler = (e: TouchEvent) => {
-        if (e.touches.length === 0) return;
-        e.preventDefault();
-        const x = e.touches[0].clientX / window.innerWidth;
-        if (x < 0.33) { opts.onLeft(); }
-        else if (x > 0.66) { opts.onRight(); }
-        else { cleanup(); resolve(); }
-      };
-
-      const clickHandler = (e: MouseEvent) => {
-        const x = e.clientX / window.innerWidth;
-        if (x < 0.33) { opts.onLeft(); }
-        else if (x > 0.66) { opts.onRight(); }
-        else { cleanup(); resolve(); }
-      };
-
-      this.keyHandler = handler;
-      window.addEventListener('keydown', handler, true);
-      this.deps.canvas.addEventListener('touchstart', touchHandler, { passive: false });
-      this.deps.canvas.addEventListener('click', clickHandler);
+      subs.push(bus.on('input:left', () => opts.onLeft()));
+      subs.push(bus.on('input:right', () => opts.onRight()));
+      subs.push(bus.on('input:confirm', () => { cleanup(); resolve(); }));
+      subs.push(bus.on('input:back', () => { cleanup(); this.cancelled = true; resolve(); }));
     });
   }
 
@@ -370,10 +338,6 @@ export class GuidedCalibration {
 
   private cleanup(): void {
     this._active = false;
-    if (this.keyHandler) {
-      window.removeEventListener('keydown', this.keyHandler, true);
-      this.keyHandler = null;
-    }
     this.stopTestTone();
     for (const sprite of this.sprites) {
       this.group.remove(sprite);

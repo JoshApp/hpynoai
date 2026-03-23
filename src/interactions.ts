@@ -12,7 +12,8 @@ import type { BreathController, BreathStage } from './breath';
 import { Text3D } from './text3d';
 import type { NarrationEngine } from './narration';
 import { BreathingGuide } from './breathing-guide';
-import { isTouchDevice, pointerNDC, tapLabel } from './touch';
+import { isTouchDevice, tapLabel } from './touch';
+import type { EventBus } from './events';
 
 /** Shader-readable state for breath-sync and hum-sync effects */
 export interface InteractionShaderState {
@@ -44,9 +45,8 @@ export class InteractionManager {
   private text3d: Text3D;
   private narration: NarrationEngine;
   private group: THREE.Group;
-  private raycaster = new THREE.Raycaster();
-  private pointer = new THREE.Vector2();
-  private clickHandler: ((e: MouseEvent) => void) | null = null;
+  private bus: EventBus | null = null;
+  private busUnsubs: Array<() => void> = [];
 
   // QTE prompt sprite (the main ring/button — used by gates/countdown/hum/affirm)
   private qteSprite: THREE.Sprite | null = null;
@@ -155,13 +155,22 @@ export class InteractionManager {
     this.group.scale.set(s, s, 1);
   }
 
+  /** Connect to event bus — enables bus-driven input */
+  setBus(bus: EventBus): void {
+    // Clean up previous subs
+    for (const u of this.busUnsubs) u();
+    this.busUnsubs = [];
+    this.bus = bus;
+    this.bindBusInput();
+  }
+
   setMicSignals(getter: () => MicSignals): void {
     this.micSignalsGetter = getter;
   }
 
-  private presenceControl: { breatheMode: () => void; sessionMode: () => void } | null = null;
+  private presenceControl: { breatheMode: () => void; sessionMode: () => void; getPresence: () => import('./presence').Presence | null } | null = null;
 
-  setPresenceControl(ctrl: { breatheMode: () => void; sessionMode: () => void }): void {
+  setPresenceControl(ctrl: { breatheMode: () => void; sessionMode: () => void; getPresence: () => import('./presence').Presence | null }): void {
     this.presenceControl = ctrl;
   }
 
@@ -174,79 +183,48 @@ export class InteractionManager {
   }
 
   private bindSpacebar(): void {
-    // Escape skips any active interaction
-    window.addEventListener('keydown', (e: KeyboardEvent) => {
-      if (e.code === 'Escape' && this.active) {
-        e.preventDefault();
-        this.resolve();
-        return;
-      }
-    });
+    // Legacy fallback — does nothing if bus is connected (bindBusInput handles it)
+  }
 
-    window.addEventListener('keydown', (e: KeyboardEvent) => {
-      if (e.code !== 'Space') return;
-      e.preventDefault();
+  /** Bus-driven input — replaces all the old DOM listeners in bindSpacebar */
+  private bindBusInput(): void {
+    if (!this.bus) return;
+
+    // Back = skip interaction
+    this.busUnsubs.push(this.bus.on('input:back', () => {
+      if (this.active) this.resolve();
+    }));
+
+    // Confirm = resolve gate/focus/affirm; also triggers hold-start for breath-sync
+    this.busUnsubs.push(this.bus.on('input:confirm', () => {
       if (!this.active) return;
-      if (this.spaceHeld) return;
-      this.spaceHeld = true;
-
       switch (this.active.type) {
         case 'focus-target':
-          this.resolve();
-          break;
-        case 'breath-sync':
-          this.breathSyncState.isHolding = true;
-          break;
         case 'gate':
         case 'voice-gate':
           this.resolve();
-          break;
-        case 'hum-sync':
-          this.humSyncState.lastHumming = true;
           break;
         case 'affirm':
           if (!this.affirmState.detected) this.affirmState.detected = true;
           break;
       }
-    });
+    }));
 
-    window.addEventListener('keyup', (e: KeyboardEvent) => {
-      if (e.code !== 'Space') return;
-      e.preventDefault();
+    // Hold start = breath-sync inhale, hum-sync activate
+    this.busUnsubs.push(this.bus.on('input:hold-start', () => {
+      if (!this.active) return;
+      this.spaceHeld = true;
+      if (this.active.type === 'breath-sync') this.breathSyncState.isHolding = true;
+      if (this.active.type === 'hum-sync') this.humSyncState.lastHumming = true;
+    }));
+
+    // Hold end = breath-sync exhale, hum-sync deactivate
+    this.busUnsubs.push(this.bus.on('input:hold-end', () => {
       this.spaceHeld = false;
       if (!this.active) return;
       if (this.active.type === 'breath-sync') this.breathSyncState.isHolding = false;
       if (this.active.type === 'hum-sync') this.humSyncState.lastHumming = false;
-    });
-
-    // Touch equivalents — tap acts like space for gate/affirm/focus,
-    // touch-hold acts like space-hold for hum-sync
-    // (breath-sync touch is handled in startBreathSync separately)
-    this.canvas.addEventListener('touchstart', (e: TouchEvent) => {
-      if (!this.active) return;
-      e.preventDefault();
-
-      switch (this.active.type) {
-        case 'focus-target':
-          this.resolve();
-          break;
-        case 'gate':
-        case 'voice-gate':
-          this.resolve();
-          break;
-        case 'hum-sync':
-          this.humSyncState.lastHumming = true;
-          break;
-        case 'affirm':
-          if (!this.affirmState.detected) this.affirmState.detected = true;
-          break;
-      }
-    }, { passive: false });
-
-    this.canvas.addEventListener('touchend', () => {
-      if (!this.active) return;
-      if (this.active.type === 'hum-sync') this.humSyncState.lastHumming = false;
-    });
+    }));
   }
 
   start(interaction: Interaction): Promise<void> {
@@ -330,11 +308,6 @@ export class InteractionManager {
       } else if (child instanceof THREE.Mesh) {
         (child.material as THREE.Material).dispose();
       }
-    }
-
-    if (this.clickHandler) {
-      this.canvas.removeEventListener('click', this.clickHandler);
-      this.clickHandler = null;
     }
 
     this.active = null;
@@ -696,35 +669,35 @@ export class InteractionManager {
   // Progress dots show completed cycles.
 
   private async startBreathSync(): Promise<void> {
-    // Play shared intro clip
-    this.text3d.show('let\u2019s breathe together', 4);
+    // Intro — same depth as breathing text (below wisp)
+    this.text3d.setSlotDepth(-1.0);
+    this.text3d.showInstant('let\u2019s breathe together', 6);
     await this.playSharedClip('breathing_intro');
-    await this.sleep(800);
-    if (!this.active) return;
-
-    this.text3d.clear();
-
-    // Activate breath-sync shader effects + bring wisp closer
-    this._shaderState.breathSyncActive = 1;
-    this.presenceControl?.breatheMode();
-
-    // Run the breathing guide — voice + wisp + tunnel guide the breaths
-    const guide = new BreathingGuide(this.text3d, this.breath);
-    await guide.run({
-      breaths: 4,
-      showText: true,
-      showCount: true,
-    }, 'gentle');
-
-    if (!this.active) return;
-
-    // Post-breathing acknowledgment
-    await this.playSharedClip('breathing_good');
     await this.sleep(500);
+    if (!this.active) return;
 
-    // Done — return wisp to session mode
+    this.text3d.fadeOut();
+    this.text3d.clearSlotDepth();
+
+    // Activate breath-sync shader effects
+    this._shaderState.breathSyncActive = 1;
+
+    // Breathing guide owns wisp + text + timing
+    const p = this.presenceControl?.getPresence() ?? undefined;
+    const guide = new BreathingGuide(this.text3d, this.breath, p);
+    await guide.run({ breaths: 4, showText: true });
+
+    if (!this.active) return;
+
+    // Outro — same depth as breathing text
+    this.text3d.setSlotDepth(-1.0);
+    this.text3d.showInstant('continue breathing\njust like that', 6);
+    this.playSharedClip('breathing_good');
+    await this.sleep(3000);
+
+    this.text3d.fadeOut();
+    this.text3d.clearSlotDepth();
     this._shaderState.breathSyncActive = 0;
-    this.presenceControl?.sessionMode();
     this.resolve();
   }
 
@@ -1018,19 +991,8 @@ export class InteractionManager {
     this.text3d.showInstant(questionText, 30);
 
     this.createQteRing();
-
-    // Also make the ring clickable via raycasting
     this.gateButton = this.qteSprite;
-    this.clickHandler = (e: MouseEvent) => {
-      this.pointer.x = (e.clientX / this.canvas.clientWidth) * 2 - 1;
-      this.pointer.y = -(e.clientY / this.canvas.clientHeight) * 2 + 1;
-      this.raycaster.setFromCamera(this.pointer, this.camera);
-      if (this.qteSprite) {
-        const hits = this.raycaster.intersectObject(this.qteSprite);
-        if (hits.length > 0) this.resolve();
-      }
-    };
-    this.canvas.addEventListener('click', this.clickHandler);
+    // Click/tap handled by bus input:confirm → resolve in bindBusInput
   }
 
   private updateGate(): void {
@@ -1057,18 +1019,8 @@ export class InteractionManager {
       }
     }, 1500);
 
-    // Click fallback
     this.gateButton = this.qteSprite;
-    this.clickHandler = (e: MouseEvent) => {
-      this.pointer.x = (e.clientX / this.canvas.clientWidth) * 2 - 1;
-      this.pointer.y = -(e.clientY / this.canvas.clientHeight) * 2 + 1;
-      this.raycaster.setFromCamera(this.pointer, this.camera);
-      if (this.qteSprite) {
-        const hits = this.raycaster.intersectObject(this.qteSprite);
-        if (hits.length > 0) this.resolve();
-      }
-    };
-    this.canvas.addEventListener('click', this.clickHandler);
+    // Click/tap handled by bus input:confirm → resolve in bindBusInput
   }
 
   private updateVoiceGate(): void {

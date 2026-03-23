@@ -1,46 +1,42 @@
 import * as THREE from 'three';
 import { AudioEngine } from './audio';
 import { StageManager } from './stages';
-import { ParticleField } from './particles';
 import { DevMode } from './devmode';
 import { InteractionManager } from './interactions';
 import { SessionSelector } from './selector';
 import { sessions } from './sessions/index';
 import { MicrophoneEngine } from './microphone';
 import { NarrationEngine } from './narration';
-import type { AudioBands } from './audio-analyzer';
 import type { SessionConfig, SessionStage, Interaction } from './session';
 import { Text3D } from './text3d';
 import { SettingsManager } from './settings';
 import { runAutoCalibration, autoCalibrationFrameHook } from './calibration-auto';
 import { GuidedCalibration } from './calibration-guided';
-import { BreathController, type BreathStage } from './breath';
+import { BreathController } from './breath';
 import { AmbientEngine } from './ambient';
 import { Presence } from './presence';
 import { hotState } from './hot-state';
 import { appState, setPhase, setSessionInfo } from './app-state';
+import { EventBus } from './events';
+import { StateMachine } from './state-machine';
 import { acquireWakeLock, releaseWakeLock, registerMediaSession, clearMediaSession, startSilentAudioKeepAlive, stopSilentAudioKeepAlive } from './wakelock';
 import { FeedbackWarp } from './feedback';
-import { FogLayers } from './fog-layers';
-import { DepthParticles } from './depth-particles';
+import { RenderPipeline, type FrameState } from './render-pipeline';
 import { GpuParticles } from './gpu-particles';
+import { InputController } from './input';
 import { TransitionManager } from './transition';
 import tunnelVert from './shaders/tunnel.vert';
 import tunnelFrag from './shaders/tunnel.frag';
+import { checkWebGL, installGlobalErrorHandler } from './error-boundary';
+import { registerServiceWorker } from './sw-register';
+import { LoadingIndicator } from './loading';
 
-function breathStageToFloat(stage: BreathStage): number {
-  switch (stage) {
-    case 'inhale': return 0;
-    case 'hold-in': return 1;
-    case 'exhale': return 2;
-    case 'hold-out': return 3;
-  }
-}
-
-// ── Reusable temp objects for per-frame lerps (avoid GC pressure) ──
-const _tmpVec2 = new THREE.Vector2();
-const _tmpVec3 = new THREE.Vector3();
-const _tmpColor = new THREE.Color();
+// ══════════════════════════════════════════════════════════════════════
+// ERROR BOUNDARIES — check before anything else
+// ══════════════════════════════════════════════════════════════════════
+installGlobalErrorHandler();
+registerServiceWorker();
+if (!checkWebGL()) throw new Error('WebGL not available');
 
 // ══════════════════════════════════════════════════════════════════════
 // HMR CLEANUP — cancel old frames and remove old listeners
@@ -59,6 +55,20 @@ function onCleanup(fn: () => void): void {
 }
 
 const isHMR = !!hotState.renderer;
+
+// ══════════════════════════════════════════════════════════════════════
+// EVENT BUS + STATE MACHINE
+// ══════════════════════════════════════════════════════════════════════
+const bus = hotState.eventBus ?? new EventBus();
+hotState.eventBus = bus;
+bus.clear(); // wipe stale listeners from previous HMR cycle
+onCleanup(() => bus.clear());
+
+const machine = hotState.stateMachine ?? new StateMachine(
+  isHMR ? (appState.phase === 'session' ? 'session' : 'boot') : 'boot'
+);
+hotState.stateMachine = machine;
+machine.setBus(bus);
 
 // ══════════════════════════════════════════════════════════════════════
 // DOM ELEMENTS
@@ -121,6 +131,10 @@ if (hotState.tunnelMaterial) {
     tunnelMaterial.needsUpdate = true;
     console.log('[HMR] Shader updated');
   }
+  // Ensure new uniforms exist on reused material
+  if (!tunnelMaterial.uniforms.uPresencePos) {
+    tunnelMaterial.uniforms.uPresencePos = { value: new THREE.Vector3(0, 0, -1.5) };
+  }
 } else {
   tunnelMaterial = new THREE.ShaderMaterial({
     vertexShader: tunnelVert,
@@ -151,6 +165,7 @@ if (hotState.tunnelMaterial) {
       uBreathSyncActive: { value: 0 },
       uBreathSyncFill: { value: 0 },
       uBreathSyncProgress: { value: 0 },
+      uPresencePos: { value: new THREE.Vector3(0, 0, -1.5) },
     },
   });
   tunnelPlane = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), tunnelMaterial);
@@ -160,37 +175,16 @@ hotState.tunnelMaterial = tunnelMaterial;
 hotState.tunnelPlane = tunnelPlane;
 const tunnelUniforms = tunnelMaterial.uniforms;
 
-// ── Scene objects ──
-const particles = hotState.particles ?? (() => {
-  const p = new ParticleField(200);
-  scene.add(p.mesh);
-  return p;
-})();
-hotState.particles = particles;
-
-// ── Depth particles (3-layer parallax) ──
-const depthParticles = hotState.depthParticles ?? (() => {
-  const dp = new DepthParticles();
-  scene.add(dp.group);
-  return dp;
-})();
-hotState.depthParticles = depthParticles;
-
-// ── GPU particles (zero CPU cost — all animation in vertex shader) ──
+// ── Particles (GPU-driven, zero CPU cost) ──
+// GPU particles — hidden for now, energy shimmer baked into tunnel shader instead
 const gpuParticles = hotState.gpuParticles ?? (() => {
   const gp = new GpuParticles(250);
-  scene.add(gp.mesh);
+  // scene.add(gp.mesh); — disabled: round particles look like light explosions
   return gp;
 })();
 hotState.gpuParticles = gpuParticles;
-
-// ── Fog layers (volumetric atmosphere — now also baked into tunnel shader) ──
-const fogLayers = hotState.fogLayers ?? (() => {
-  const fl = new FogLayers();
-  fl.addTo(scene);
-  return fl;
-})();
-hotState.fogLayers = fogLayers;
+gpuParticles.mesh.visible = false;
+// Note: fog is baked into tunnel.frag — no separate fog layer needed
 
 // ── Feedback warp (Milkdrop-style frame accumulation) ──
 const feedback = hotState.feedback ?? new FeedbackWarp(
@@ -213,6 +207,8 @@ const compositeCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 // ── Overlay scene — UI elements rendered AFTER feedback (no blur) ──
 const overlayScene = hotState.overlayScene ?? new THREE.Scene();
 hotState.overlayScene = overlayScene;
+
+const loading = new LoadingIndicator(overlayScene);
 
 const text3d = hotState.text3d ?? (() => {
   const t = new Text3D();
@@ -242,19 +238,29 @@ const fadeOverlay = hotState.fadeOverlay ?? (() => {
 })();
 hotState.fadeOverlay = fadeOverlay;
 
-// ── Audio/mic ──
-const audio = hotState.audio ?? new AudioEngine();
-hotState.audio = audio;
-
-const ambient = hotState.ambient ?? new AmbientEngine();
-hotState.ambient = ambient;
-
+// ── Presence (before render pipeline — it depends on it) ──
 const presence = hotState.presence ?? (() => {
   const p = new Presence();
   scene.add(p.mesh);
   return p;
 })();
 hotState.presence = presence;
+presence.connectBus(bus);
+
+// ── Render Pipeline ──
+const renderPipeline = new RenderPipeline({
+  renderer, scene, overlayScene, camera,
+  tunnelUniforms: tunnelMaterial.uniforms,
+  feedback, compositeQuad, compositeScene, compositeCamera,
+  fadeOverlay, gpuParticles, presence,
+});
+
+// ── Audio/mic ──
+const audio = hotState.audio ?? new AudioEngine();
+hotState.audio = audio;
+
+const ambient = hotState.ambient ?? new AmbientEngine();
+hotState.ambient = ambient;
 
 const mic = hotState.mic ?? new MicrophoneEngine();
 hotState.mic = mic;
@@ -275,7 +281,13 @@ const narration = hotState.narration ?? new NarrationEngine({
   volume: settings.current.narrationVolume,
 });
 hotState.narration = narration;
-narration.setTextHandler((text, words, audioStartTime) => showText(text, words, audioStartTime));
+narration.setTextHandler((text, words, audioStartTime) => {
+  bus.emit('narration:line', { text, words, audioStartTime });
+});
+
+bus.on('narration:line', ({ text, words, audioStartTime }) => {
+  showText(text, words, audioStartTime);
+});
 
 // ══════════════════════════════════════════════════════════════════════
 // HELPERS
@@ -289,20 +301,9 @@ function showText(text: string, words?: Array<{ word: string; start: number; end
 }
 
 function applyTheme(session: SessionConfig): void {
-  const { theme } = session;
-  tunnelUniforms.uColor1.value.set(...theme.primaryColor);
-  tunnelUniforms.uColor2.value.set(...theme.secondaryColor);
-  tunnelUniforms.uColor3.value.set(...theme.accentColor);
-  tunnelUniforms.uColor4.value.set(...theme.bgColor);
-  const pMat = particles.mesh.material as THREE.PointsMaterial;
-  pMat.color.setRGB(...theme.particleColor);
-  depthParticles.setColor(...theme.particleColor);
-  gpuParticles.setColor(...theme.particleColor);
-  fogLayers.setColors(theme.primaryColor, theme.accentColor, theme.bgColor);
-  breathCircle.style.borderColor = theme.breatheColor;
-  text3d.setColors(theme.textColor, theme.textGlow);
-  tunnelUniforms.uTunnelShape.value = theme.tunnelShape ?? 0;
-  presence.setColors(theme.accentColor);
+  renderPipeline.applyTheme(session.theme);
+  breathCircle.style.borderColor = session.theme.breatheColor;
+  text3d.setColors(session.theme.textColor, session.theme.textGlow);
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -311,85 +312,100 @@ function applyTheme(session: SessionConfig): void {
 const prevStageIndex = hotState.stageManager?.currentIndex;
 const stageManager = new StageManager(
   activeSession?.stages ?? sessions[0].stages,
-  (text) => {
-    if (narration.isPlayingStage || narration.hasStageAudio(stageManager.currentStage.name)) return;
-    narration.speak(text);
-  },
-  (stage: SessionStage, _index: number) => {
-    console.log(`Stage: ${stage.name}`);
-    audio.setIntensity(stage.intensity);
-    narration.stopStagePlayback();
-    if (narration.hasStageAudio(stage.name)) {
-      narration.playStage(stage.name);
-    }
-    if (stage.breathPattern) {
-      breath.setPattern({
-        inhale: stage.breathPattern.inhale,
-        holdIn: stage.breathPattern.holdIn ?? 0,
-        exhale: stage.breathPattern.exhale,
-        holdOut: stage.breathPattern.holdOut ?? 0,
-      });
-    } else {
-      breath.setSimpleCycle(stage.breathCycle);
-    }
-    breathCircle.style.animationDuration = `${breath.cycleDuration}s`;
-    if (_index === 0) {
-      breathGuide.classList.add('visible');
-    } else if (_index === 1) {
-      setTimeout(() => breathGuide.classList.remove('visible'), 5000);
-    }
-    // Track stage in app state
-    setSessionInfo(activeSession?.id ?? '', _index);
+  // onText → emit to bus
+  (text) => bus.emit('stage:text', { text }),
+  // onStageChange → emit to bus
+  (stage: SessionStage, index: number) => {
+    bus.emit('stage:changed', { stage, index, total: stageManager.stageCount ?? 0 });
   },
 );
 hotState.stageManager = stageManager;
 
+// ── Stage event subscribers ──
+bus.on('stage:text', ({ text }) => {
+  if (narration.isPlayingStage || narration.hasStageAudio(stageManager.currentStage.name)) return;
+  narration.speak(text);
+});
+
+bus.on('stage:changed', ({ stage, index }) => {
+  console.log(`Stage: ${stage.name}`);
+  audio.setIntensity(stage.intensity);
+  narration.stopStagePlayback();
+  if (narration.hasStageAudio(stage.name)) {
+    narration.playStage(stage.name);
+  }
+  if (stage.breathPattern) {
+    breath.setPattern({
+      inhale: stage.breathPattern.inhale,
+      holdIn: stage.breathPattern.holdIn ?? 0,
+      exhale: stage.breathPattern.exhale,
+      holdOut: stage.breathPattern.holdOut ?? 0,
+    });
+  } else {
+    breath.setSimpleCycle(stage.breathCycle);
+  }
+  breathCircle.style.animationDuration = `${breath.cycleDuration}s`;
+  if (index === 0) {
+    breathGuide.classList.add('visible');
+  } else if (index === 1) {
+    setTimeout(() => breathGuide.classList.remove('visible'), 5000);
+  }
+  setSessionInfo(activeSession?.id ?? '', index);
+});
+
 // ── Interactions ──
 const interactions = new InteractionManager(breath, overlayScene, camera, canvas, text3d, narration);
 interactions.setMicSignals(() => mic.signals);
+interactions.setBus(bus);
 interactions.setPresenceControl({
-  breatheMode: () => { presence.setSize(2.5); presence.setMode('breathe'); },
+  breatheMode: () => {
+    presence.transitionTo('breathe', {
+      size: 3.0,
+      basePos: new THREE.Vector3(0, 0, -1.0),
+      duration: 1.5,
+    });
+  },
   sessionMode: () => { presence.setSessionMode(); },
+  getPresence: () => presence,
 });
 hotState.interactions = interactions;
 
-stageManager.setInteractionHandler(async (interaction: Interaction) => {
-  const epoch = sessionEpoch;
+// Interaction handler: emit to bus, async logic lives in subscriber
+stageManager.setInteractionHandler((interaction: Interaction) => {
+  bus.emit('interaction:trigger', { interaction });
+});
 
-  // Check experience level — skip interactions the level doesn't include
+bus.on('interaction:trigger', async ({ interaction }) => {
+  const epoch = machine.epoch;
+
   const { interactionAllowed } = await import('./experience-level');
   const level = settings.current.experienceLevel;
-  if (!interactionAllowed(interaction.type, level)) {
-    // At 'listen' level, auto-skip all interactions silently
-    return;
-  }
+  if (!interactionAllowed(interaction.type, level)) return;
 
   text3d.clear();
   narration.stop();
   stageManager.pause();
   await interactions.start(interaction);
-  // Bail if session ended or HMR fired while we were awaiting
-  if (epoch !== sessionEpoch || !isRunning) return;
-  if (interaction.type === 'breath-sync') {
-    text3d.show('continue breathing\njust like that', 5);
-    if (narration.hasClip('breath_continue')) {
-      await narration.playClip('breath_continue');
-    }
-    if (epoch !== sessionEpoch || !isRunning) return;
-    await new Promise(r => setTimeout(r, 1500));
-    if (epoch !== sessionEpoch || !isRunning) return;
-    text3d.fadeOut();
-  }
+
+  if (!machine.guard(epoch)) return; // session changed while awaiting
+
+  // Breath-sync handler already shows "continue breathing" text + clip
+  // Just advance the stage
   stageManager.advanceStage();
   stageManager.resume();
+  bus.emit('interaction:complete', { type: interaction.type });
 });
 
+// Narration stage-ended handler: emit to bus
 let lastStageEndTime = 0;
 narration.setStageEndedHandler(() => {
-  // Guard: ignore if session changed or not running
-  if (!isRunning) return;
+  bus.emit('narration:stage-ended', { stageName: stageManager.currentStage.name });
+});
+
+bus.on('narration:stage-ended', () => {
+  if (!machine.is('session')) return;
   if (stageManager.isComplete) return;
-  // Debounce: don't advance more than once per second (prevents rapid-fire loops)
+
   const now = performance.now();
   if (now - lastStageEndTime < 1000) return;
   lastStageEndTime = now;
@@ -425,6 +441,10 @@ hotState.devMode = devMode;
 
 // ── Settings reactivity ──
 settings.onChange((s) => {
+  bus.emit('settings:changed', { settings: s });
+});
+
+bus.on('settings:changed', ({ settings: s }) => {
   audio.setMuted(s.muted);
   audio.setMasterVolume(s.masterVolume);
   narration.setConfig({ voiceEnabled: s.ttsEnabled, volume: s.narrationVolume });
@@ -438,7 +458,7 @@ settings.onCalibrate(() => {
   if (guidedCal) return;
   settings.hide();
   if (isRunning) stageManager.pause();
-  guidedCal = new GuidedCalibration({ scene: overlayScene, camera, canvas, settings, audio, text3d });
+  guidedCal = new GuidedCalibration({ scene: overlayScene, camera, canvas, settings, audio, text3d, bus });
   guidedCal.run().then(() => {
     guidedCal = null;
     if (isRunning) stageManager.resume();
@@ -467,6 +487,8 @@ function startSession(session: SessionConfig): void {
   activeSession = session;
   setPhase('session');
   setSessionInfo(session.id, 0);
+  machine.transition('transitioning', { sessionId: session.id });
+  bus.emit('session:starting', { session });
 
   stageManager.setStages(session.stages);
   applyTheme(session);
@@ -478,10 +500,13 @@ function startSession(session: SessionConfig): void {
 
   // Load manifest before starting — so stage audio is available from frame 1
   narration.clearManifest();
+  const doneLoading = loading.start('preparing session');
   narration.loadManifest(`audio/${session.id}/manifest.json`).catch(() => {}).finally(() => {
+    doneLoading();
     isRunning = true;
+    machine.transition('session');
+    bus.emit('session:started', { session });
     stageManager.start();
-    presence.setSessionMode(); // settle → breathe after 3s
     animate();
   });
 
@@ -526,71 +551,32 @@ function animateBackground(): void {
   lastAnimTime = time;
 
   spiralAngle += dt * 0.5 * s.spiralSpeedMult * 0.5;
-
   breath.update(time);
-  tunnelUniforms.uTime.value = time;
-  tunnelUniforms.uIntensity.value = 0.12;
-  tunnelUniforms.uBreathePhase.value = breath.phase;
-  tunnelUniforms.uBreathValue.value = breath.value;
-  tunnelUniforms.uBreathStage.value = breathStageToFloat(breath.stage);
-  tunnelUniforms.uSpiralSpeed.value = 0.5 * s.spiralSpeedMult;
-  tunnelUniforms.uSpiralAngle.value = spiralAngle;
-  tunnelUniforms.uTunnelSpeed.value = s.tunnelSpeed;
-  tunnelUniforms.uTunnelWidth.value = s.tunnelWidth;
-  tunnelUniforms.uBreathExpansion.value = s.breathExpansion;
 
-  camera.position.z = s.cameraZ;
-  if (camera.fov !== s.cameraFOV) {
-    camera.fov = s.cameraFOV;
-    camera.updateProjectionMatrix();
-  }
-
-  // Lerp tunnel colors — reuse temp objects instead of allocating
-  const lerpSpeed = 0.03;
-  const u = tunnelUniforms;
-  u.uColor1.value.lerp(_tmpVec3.set(...targetColors.c1), lerpSpeed);
-  u.uColor2.value.lerp(_tmpVec3.set(...targetColors.c2), lerpSpeed);
-  u.uColor3.value.lerp(_tmpVec3.set(...targetColors.c3), lerpSpeed);
-  u.uColor4.value.lerp(_tmpVec3.set(...targetColors.c4), lerpSpeed);
-  u.uTunnelShape.value += (targetColors.shape - u.uTunnelShape.value) * lerpSpeed;
-  const pMat = particles.mesh.material as THREE.PointsMaterial;
-  const tc = targetColors.particle;
-  pMat.color.lerp(_tmpColor.setRGB(tc[0], tc[1], tc[2]), lerpSpeed);
-  depthParticles.setColor(tc[0], tc[1], tc[2]);
-  gpuParticles.setColor(tc[0], tc[1], tc[2]);
-
-  particles.update(0.1, time, s.particleOpacity, s.particleSize);
-  depthParticles.update(0.1, time, s.particleOpacity, s.particleSize);
-  gpuParticles.update(time, 0.1, s.particleOpacity, s.particleSize);
-  fogLayers.update(time, breath.value, 0.12);
+  // Update subsystems
   if (selector) {
     selector.setDepth(s.menuDepth);
     selector.setScale(s.menuScale);
     selector.update(time);
   }
   if (guidedCal) guidedCal.update(time);
-  presence.updateIdle(time, breath.value);
+  loading.update(time);
   autoCalibrationFrameHook?.();
-
-  // Transition: update state and sync fade overlay
   transition.update();
-  (fadeOverlay.material as THREE.MeshBasicMaterial).opacity = transition.state.fadeAmount;
-  fadeOverlay.visible = transition.state.fadeAmount > 0.001;
 
-  // Feedback warp pipeline: render tunnel/particles/fog → feedback composite → display
-  const bgIntensity = 0.12 * transition.state.intensityMult;
-  renderer.setRenderTarget(feedback.tunnelTarget);
-  renderer.render(scene, camera);
-  renderer.setRenderTarget(null);
-
-  const compositeTex = feedback.render(renderer, time, bgIntensity);
-  (compositeQuad.material as THREE.MeshBasicMaterial).map = compositeTex;
-  renderer.render(compositeScene, compositeCamera);
-
-  // Overlay: text, selector, interactions — rendered sharp on top (no feedback blur)
-  renderer.autoClear = false;
-  renderer.render(overlayScene, camera);
-  renderer.autoClear = true;
+  // Build frame state and render
+  const frame: FrameState = {
+    time, dt, settings: s,
+    breathPhase: breath.phase, breathValue: breath.value, breathStage: breath.stage,
+    intensity: 0.12, spiralAngle, spiralSpeed: 0.5,
+    mouseX: mouse.x, mouseY: mouse.y,
+    audioBands: null, voiceEnergy: 0, micBoost: 0,
+    breathSyncActive: 0, breathSyncFill: 0, breathSyncProgress: 0,
+    fadeAmount: transition.state.fadeAmount,
+    intensityMult: transition.state.intensityMult,
+    targetColors,
+  };
+  renderPipeline.renderBackground(frame);
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -603,193 +589,105 @@ function animate(): void {
   const time = performance.now() / 1000;
   const s = settings.current;
 
+  // Update subsystems
   stageManager.update();
   mic.update();
   narration.update();
   const intensity = intensityOverride ?? stageManager.intensity;
 
   const micSig = mic.signals;
-  if (micSig.active) {
-    breath.setFromMic(micSig.breathPhase);
-  }
+  if (micSig.active) breath.setFromMic(micSig.breathPhase);
   breath.update(time);
-  const breathPhase = breath.phase;
 
-  const analyzer = audio.analyzer;
-  let audioBands: AudioBands | null = null;
-  if (analyzer) {
-    audioBands = analyzer.update();
-  }
+  const audioBands = audio.analyzer?.update() ?? null;
 
   const rawDt = lastAnimTime > 0 ? time - lastAnimTime : 1 / 60;
   const dt = Math.min(rawDt, 0.1);
   lastAnimTime = time;
   spiralAngle += dt * stageManager.spiralSpeed * s.spiralSpeedMult * 0.5;
 
-  tunnelUniforms.uTime.value = time;
-  tunnelUniforms.uIntensity.value = intensity * shaderIntensityScale;
-  // Lerp mouse — reuse temp vector
-  tunnelUniforms.uMouse.value.lerp(_tmpVec2.set(mouse.x, mouse.y), 0.02);
-  tunnelUniforms.uBreathePhase.value = breathPhase;
-  tunnelUniforms.uBreathValue.value = breath.value;
-  tunnelUniforms.uBreathStage.value = breathStageToFloat(breath.stage);
-  tunnelUniforms.uSpiralSpeed.value = stageManager.spiralSpeed * s.spiralSpeedMult;
-  tunnelUniforms.uSpiralAngle.value = spiralAngle;
-  tunnelUniforms.uTunnelSpeed.value = s.tunnelSpeed;
-  tunnelUniforms.uTunnelWidth.value = s.tunnelWidth;
-  tunnelUniforms.uBreathExpansion.value = s.breathExpansion;
-
-  if (audioBands) {
-    tunnelUniforms.uAudioEnergy.value = audioBands.energy;
-    tunnelUniforms.uAudioBass.value = audioBands.bass;
-    tunnelUniforms.uAudioMid.value = audioBands.mid;
-    tunnelUniforms.uAudioHigh.value = audioBands.high;
-  }
-
-  tunnelUniforms.uVoiceEnergy.value = narration.state.voiceEnergy;
-
-  let micBoost = 0;
-  if (micSig.active && micSig.isHumming) {
-    micBoost = micSig.volume * 0.3;
-  }
-  tunnelUniforms.uIntensity.value += micBoost;
-
-  particles.update(intensity, time, s.particleOpacity, s.particleSize);
-  depthParticles.update(intensity, time, s.particleOpacity, s.particleSize);
-  gpuParticles.update(time, intensity, s.particleOpacity, s.particleSize);
-  fogLayers.update(time, breath.value, intensity);
+  // Update scene objects
   text3d.setSettings({ startZ: s.narrationStartZ, endZ: s.narrationEndZ, scale: s.narrationScale });
-  text3d.update(intensity, breathPhase);
-
+  text3d.update(intensity, breath.phase);
   interactions.setDepth(s.interactionDepth);
   interactions.setScale(s.interactionScale);
   interactions.update(time, intensity, breath.value);
-
   ambient.update();
-
-  // Update presence entity — reacts to voice, audio, breath
-  presence.update(
-    time,
-    breath.value,
-    narration.state.voiceEnergy,
-    audioBands?.energy ?? 0,
-    audioBands?.bass ?? 0,
-    intensity,
-  );
-
-  const iState = interactions.shaderState;
-  tunnelUniforms.uBreathSyncActive.value = iState.breathSyncActive;
-  tunnelUniforms.uBreathSyncFill.value = iState.breathSyncFill;
-  tunnelUniforms.uBreathSyncProgress.value = iState.breathSyncProgress;
-
-  camera.position.z = s.cameraZ;
-  if (camera.fov !== s.cameraFOV) {
-    camera.fov = s.cameraFOV;
-    camera.updateProjectionMatrix();
-  }
-
-  camera.position.x = Math.sin(time * 0.1) * 0.02 * intensity * s.cameraSway;
-  camera.position.y = Math.cos(time * 0.13) * 0.02 * intensity * s.cameraSway;
-  camera.lookAt(0, 0, 0);
-
   if (guidedCal) guidedCal.update(time);
-
-  // Transition: update state and sync fade overlay
   transition.update();
-  (fadeOverlay.material as THREE.MeshBasicMaterial).opacity = transition.state.fadeAmount;
-  fadeOverlay.visible = transition.state.fadeAmount > 0.001;
-
-  // Apply transition intensity multiplier
-  const renderIntensity = intensity * transition.state.intensityMult;
-
-  // Feedback warp pipeline: render scene → feedback composite → display
-  renderer.setRenderTarget(feedback.tunnelTarget);
-  renderer.render(scene, camera);
-  renderer.setRenderTarget(null);
-
-  feedback.setParams({
-    zoom: 0.004 + renderIntensity * 0.006,
-    rotation: 0.0005 + renderIntensity * 0.001,
-  });
-
-  const compositeTex = feedback.render(renderer, time, renderIntensity);
-  (compositeQuad.material as THREE.MeshBasicMaterial).map = compositeTex;
-  renderer.render(compositeScene, compositeCamera);
-
-  // Overlay: text, interactions — rendered sharp on top (no feedback blur)
-  renderer.autoClear = false;
-  renderer.render(overlayScene, camera);
-  renderer.autoClear = true;
-
   devMode.update();
 
-  // Track stage for HMR
-  appState.stageIndex = stageManager.currentIndex;
+  // Build frame state and render
+  const iState = interactions.shaderState;
+  let micBoost = 0;
+  if (micSig.active && micSig.isHumming) micBoost = micSig.volume * 0.3;
 
-  if (stageManager.isComplete) {
-    endExperience();
-  }
+  const frame: FrameState = {
+    time, dt, settings: s,
+    breathPhase: breath.phase, breathValue: breath.value, breathStage: breath.stage,
+    intensity: intensity * shaderIntensityScale, spiralAngle,
+    spiralSpeed: stageManager.spiralSpeed,
+    mouseX: mouse.x, mouseY: mouse.y,
+    audioBands, voiceEnergy: narration.state.voiceEnergy, micBoost,
+    breathSyncActive: iState.breathSyncActive,
+    breathSyncFill: iState.breathSyncFill,
+    breathSyncProgress: iState.breathSyncProgress,
+    fadeAmount: transition.state.fadeAmount,
+    intensityMult: transition.state.intensityMult,
+  };
+  renderPipeline.renderSession(frame);
+
+  appState.stageIndex = stageManager.currentIndex;
+  if (stageManager.isComplete) endExperience();
 }
 
 // ══════════════════════════════════════════════════════════════════════
 // END EXPERIENCE — fade through tunnel, return to selector
 // ══════════════════════════════════════════════════════════════════════
-function endExperience(): void {
-  if (transition.isActive) return; // Already transitioning
+/** Shared cleanup for any session → selector transition */
+function cleanupSession(audioFadeSec: number): void {
+  sessionEpoch++;
+  isRunning = false;
+  setPhase('selector');
+  machine.transition('selector');
+  bus.emit('session:ended', {});
 
-  // Show farewell text before fading
-  showText('welcome back');
+  // Release platform locks
+  releaseWakeLock();
+  clearMediaSession();
+  stopSilentAudioKeepAlive();
 
-  transition.run(() => {
-    // ── At the darkest moment: clean up session, boot selector ──
-    sessionEpoch++;
-    isRunning = false;
-    setPhase('selector');
-    releaseWakeLock();
-    clearMediaSession();
-    stopSilentAudioKeepAlive();
-    audio.fadeOut(2);
-    ambient.stop();
-    interactions.clear();
-    narration.stop();
-    text3d.clear();
-    presence.hide();
-    activeSession = null;
+  // Stop all active systems
+  audio.fadeOut(audioFadeSec);
+  ambient.stop();
+  interactions.clear();
+  narration.stop();
+  text3d.clear();
+  activeSession = null;
+  breathGuide.classList.remove('visible');
 
-    bootSelector();
-  }, { fadeOutMs: 3000, holdMs: 500, fadeInMs: 2000 });
+  // Exit fullscreen
+  const doc = document as Document & { webkitFullscreenElement?: Element; webkitExitFullscreen?: () => void };
+  if (doc.fullscreenElement || doc.webkitFullscreenElement) {
+    (doc.exitFullscreen?.() ?? doc.webkitExitFullscreen?.())?.catch?.(() => {});
+  }
+
+  bootSelector();
 }
 
-/**
- * Return to menu from a running session (Escape key).
- * Faster transition than end-of-experience.
- */
+function endExperience(): void {
+  if (transition.isActive) return;
+  showText('welcome back');
+  machine.transition('ending');
+  bus.emit('session:ending', {});
+  transition.run(() => cleanupSession(2), { fadeOutMs: 3000, holdMs: 500, fadeInMs: 2000 });
+}
+
 function returnToMenu(): void {
   if (transition.isActive) return;
-
-  transition.run(() => {
-    sessionEpoch++;
-    isRunning = false;
-    setPhase('selector');
-    releaseWakeLock();
-    clearMediaSession();
-    stopSilentAudioKeepAlive();
-    audio.fadeOut(1);
-    ambient.stop();
-    interactions.clear();
-    narration.stop();
-    text3d.clear();
-    activeSession = null;
-    breathGuide.classList.remove('visible');
-
-    // Exit fullscreen
-    const doc = document as Document & { webkitFullscreenElement?: Element; webkitExitFullscreen?: () => void };
-    if (doc.fullscreenElement || doc.webkitFullscreenElement) {
-      (doc.exitFullscreen?.() ?? doc.webkitExitFullscreen?.())?.catch?.(() => {});
-    }
-
-    bootSelector();
-  }, { fadeOutMs: 1200, holdMs: 300, fadeInMs: 1500 });
+  machine.transition('ending');
+  bus.emit('session:ending', {});
+  transition.run(() => cleanupSession(1), { fadeOutMs: 1200, holdMs: 300, fadeInMs: 1500 });
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -852,17 +750,19 @@ function bootSelector(): void {
   hotState.selector?.dispose?.();
   hotState.selector = undefined;
 
-  selector = new SessionSelector(sessions, startSession, overlayScene, camera, canvas);
+  selector = new SessionSelector(sessions, startSession, overlayScene, camera, canvas, bus);
   hotState.selector = selector;
 
   selector.setExperienceLevelControl((level) => {
     settings.updateBatch({ experienceLevel: level });
   });
 
-  // Presence in menu mode — follows focused session orb
-  presence.setMenuMode();
+  // Tell presence to enter menu mode via bus
+  bus.emit('selector:ready', {});
   selector.setPresenceControl((x, y, z) => {
     presence.followTo(x, y, z);
+  }, () => {
+    presence.pulse();
   });
   selector.setThemeControl((colors) => {
     targetColors.c1 = colors.c1;
@@ -871,6 +771,7 @@ function bootSelector(): void {
     targetColors.c4 = colors.c4;
     targetColors.particle = colors.particle;
     targetColors.shape = colors.shape;
+    // Presence color follows the accent color of the hovered session
     presence.setColors(colors.c3 as [number, number, number]);
   });
 
@@ -878,31 +779,24 @@ function bootSelector(): void {
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// INPUT — registered once, cleaned up on HMR
+// INPUT CONTROLLER — centralized input, emits semantic events on bus
 // ══════════════════════════════════════════════════════════════════════
-const onMouseMove = (e: MouseEvent) => {
-  mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-};
-const onTouchMove = (e: TouchEvent) => {
-  if (e.touches.length > 0) {
-    const t = e.touches[0];
-    mouse.x = (t.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(t.clientY / window.innerHeight) * 2 + 1;
-  }
-};
-const onKeyDown = (e: KeyboardEvent) => {
-  if (e.code === 'Escape' && isRunning && !transition.isActive) {
+hotState.inputController?.dispose();
+const input = new InputController(bus, canvas);
+hotState.inputController = input;
+onCleanup(() => input.dispose());
+
+// Sync pointer into mouse object (used by shader uniform lerp)
+bus.on('input:pointer-move', ({ x, y }) => {
+  mouse.x = x;
+  mouse.y = y;
+});
+
+// Escape → return to menu
+bus.on('input:back', () => {
+  if (machine.is('session') && !transition.isActive) {
     returnToMenu();
   }
-};
-document.addEventListener('mousemove', onMouseMove);
-document.addEventListener('touchmove', onTouchMove, { passive: true });
-document.addEventListener('keydown', onKeyDown);
-onCleanup(() => {
-  document.removeEventListener('mousemove', onMouseMove);
-  document.removeEventListener('touchmove', onTouchMove);
-  document.removeEventListener('keydown', onKeyDown);
 });
 
 function handleResize(): void {
@@ -913,7 +807,6 @@ function handleResize(): void {
   camera.updateProjectionMatrix();
   tunnelUniforms.uResolution.value.set(w, h);
   feedback.resize(w, h);
-  fogLayers.resize(w, h);
 }
 window.addEventListener('resize', handleResize);
 const onOrientationChange = () => setTimeout(handleResize, 100);
@@ -922,6 +815,23 @@ onCleanup(() => {
   window.removeEventListener('resize', handleResize);
   window.removeEventListener('orientationchange', onOrientationChange);
 });
+
+// ══════════════════════════════════════════════════════════════════════
+// VISIBILITY — handle tab away / tab back gracefully
+// ══════════════════════════════════════════════════════════════════════
+const onVisibilityChange = () => {
+  if (!document.hidden) {
+    // Tab back — reset timing to prevent huge delta spikes
+    lastAnimTime = 0;
+    // Resume audio context if it was suspended
+    if (audio.context?.state === 'suspended') {
+      audio.context.resume().catch(() => {});
+    }
+    console.log('[Visibility] Resumed');
+  }
+};
+document.addEventListener('visibilitychange', onVisibilityChange);
+onCleanup(() => document.removeEventListener('visibilitychange', onVisibilityChange));
 
 // ══════════════════════════════════════════════════════════════════════
 // GO

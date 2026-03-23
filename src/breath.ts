@@ -95,7 +95,10 @@ export class BreathController {
 
     const dt = time - this.lastTime;
     this.lastTime = time;
-    this.elapsed += dt;
+    // Don't advance elapsed during forced mode (prevents clock drift)
+    if (!this._forced) {
+      this.elapsed += dt;
+    }
 
     const total = this.cycleDuration;
     if (total <= 0) return;
@@ -126,13 +129,41 @@ export class BreathController {
       value = 0;
     }
 
-    // Smooth with cosine interpolation for natural feel
-    this._value = this.smoothStep(value);
+    if (this._forced) {
+      // Breathing guide controls value directly — skip internal computation
+      this._value = this._forceValue;
+      this._phase = this._value * Math.PI; // approximate phase for shader
+      return;
+    } else {
+      // Normal: cosine interpolation
+      this._value = this.smoothStep(value);
+    }
 
-    // Convert to phase in radians (shader expects sin(phase)*0.5+0.5 = value)
-    // So phase = asin((value - 0.5) * 2) but that's discontinuous
-    // Instead, map cycle progress to 0..2PI so shader breathe() works
     this._phase = this._cycleProgress * Math.PI * 2;
+  }
+
+  private _forced = false;
+  private _forceValue = 0;
+
+  /** Force a specific breath stage AND value (0-1).
+   *  Used by audio-driven breathing guide for smooth control. */
+  forceStage(stage: BreathStage, value?: number): void {
+    this._forced = true;
+    this._stage = stage;
+    if (value !== undefined) {
+      this._forceValue = value;
+    }
+  }
+
+  /** Set the forced value directly (called every frame by breathing guide) */
+  forceValue(value: number): void {
+    this._forced = true;
+    this._forceValue = value;
+  }
+
+  /** Release forced control, let the internal clock resume */
+  releaseForce(): void {
+    this._forced = false;
   }
 
   /** Override with mic-detected breath */

@@ -41,6 +41,7 @@ uniform float uVoiceEnergy;
 uniform float uBreathSyncActive;
 uniform float uBreathSyncFill;
 uniform float uBreathSyncProgress;
+uniform vec3  uPresencePos;  // world position of the presence wisp
 
 varying vec2 vUv;
 
@@ -67,7 +68,11 @@ float noise(vec2 p) {
 void main() {
   vec2 uv = vUv - 0.5;
   float aspect = uResolution.x / uResolution.y;
-  uv.x *= aspect;
+  // Partial aspect correction — full correction makes a perfect circle but
+  // on widescreen that wastes the sides. Using sqrt(aspect) makes it rounder
+  // while still filling the screen better.
+  float aspectCorr = mix(1.0, aspect, 0.7);
+  uv.x *= aspectCorr;
 
   float br = uBreathValue;
 
@@ -102,16 +107,9 @@ void main() {
   // ────────────────────────────────────────────────────────────
   // 2. DEPTH MAPPING
   // ────────────────────────────────────────────────────────────
-  // Breath bulge — tunnel mouth opens/closes
-  float bulgeFall = exp(-pow((r - 0.20) / 0.18, 2.0));
-  float bulgedR   = r - bulgeFall * (br - 0.5) * 0.10 * uBreathExpansion;
-
-  // Classic tunnel: depth = 1/r (clamped to prevent infinity at center)
-  float sr    = bulgedR / uTunnelWidth;
+  // Classic tunnel: depth = 1/r
+  float sr    = r / uTunnelWidth;
   float depth = 0.5 / (max(sr, 0.01) + 0.03);
-
-  // Subtle breath depth shift
-  depth += (br - 0.5) * 0.03 * uBreathExpansion;
 
   // Multi-timescale: tunnel's own slow rhythm
   depth += sin(uTime * 0.25) * 0.012;  // ~25s
@@ -121,7 +119,7 @@ void main() {
   float z = depth + uTime * 0.6 * uTunnelSpeed;
 
   // ────────────────────────────────────────────────────────────
-  // 3. TEXTURE COORDINATES
+  // 3. TEXTURE COORDINATES + PARALLAX
   // ────────────────────────────────────────────────────────────
   float rawDepth     = 0.4 / (r / uTunnelWidth + 0.05);
   float twist        = uSpiralAngle + rawDepth * 0.3;
@@ -129,20 +127,37 @@ void main() {
   float texU         = twistedAngle / TAU + 0.5; // around tube
   float texV         = z;                         // along tube
 
+  // Parallax: nearby walls shift more than far walls when viewed off-center.
+  // This fakes depth on the wall surface — ridges appear to have real thickness.
+  float parallaxStrength = 0.03 * uIntensity;
+  float depthFactor = 1.0 / (1.0 + rawDepth * 0.5); // near=strong, far=weak
+  texV += uv.y * parallaxStrength * depthFactor;
+  texU += uv.x * parallaxStrength * depthFactor * 0.5;
+
   // ────────────────────────────────────────────────────────────
-  // 4. WALL TEXTURE
+  // 4. WALL TEXTURE — solid ridged walls with light/shadow
   // ────────────────────────────────────────────────────────────
-  // Rings — the primary depth cue
+  // Primary rings — depth ridges (the spiral twist comes from uSpiralAngle via texU)
   float ringFreq = mix(14.0, 7.0, uTunnelShape);
-  float rings    = sin(texV * ringFreq) * 0.5 + 0.5;
+  float ringRaw  = sin(texV * ringFreq);
+  float rings    = ringRaw * 0.5 + 0.5;
   rings = smoothstep(
     mix(0.25, 0.10, uTunnelShape),
     mix(0.65, 0.80, uTunnelShape),
     rings
   );
-  rings *= 1.0 + uAudioBass * 0.4; // bass pumps rings
+  rings *= 1.0 + uAudioBass * 0.4;
 
-  // Segment lines — radial structure
+  // Secondary rings — finer detail between primary ridges
+  float fineRings = sin(texV * ringFreq * 3.0 + 0.5) * 0.5 + 0.5;
+  fineRings = smoothstep(0.3, 0.7, fineRings) * 0.3;
+
+  // Ridge edge highlight — light catching the edge of each ring
+  float ringEdge = abs(ringRaw);
+  ringEdge = 1.0 - smoothstep(0.0, 0.3, ringEdge);
+  ringEdge *= 0.4;
+
+  // Segment lines — radial structural ribs
   float segCount = mix(12.0, 3.0, uTunnelShape);
   float segLines = abs(sin(twistedAngle * segCount));
   segLines = smoothstep(mix(0.92, 0.98, uTunnelShape), 0.99, segLines);
@@ -152,10 +167,10 @@ void main() {
   float pat1 = sin(texU * TAU * 3.0 + texV * 2.0) * 0.5 + 0.5;
   float pat2 = sin(texU * TAU * 5.0 - texV * 1.5 + uTime * 0.5) * 0.5 + 0.5;
 
-  // Noise texture
+  // Wall grain — noise that follows the surface (not just random)
   float nScale   = mix(0.3, 0.7, uTunnelShape);
-  float wallNois = noise(vec2(twistedAngle * 2.0, texV * 0.5)) * nScale * uIntensity
-                 + noise(vec2(angle * 4.0 + uTime * 0.1, texV * 0.3)) * 0.2 * uTunnelShape;
+  float wallNois = noise(vec2(twistedAngle * 3.0, texV * 1.5)) * nScale * uIntensity * 0.6
+                 + noise(vec2(angle * 4.0 + uTime * 0.1, texV * 0.3)) * 0.15 * uTunnelShape;
 
   // ────────────────────────────────────────────────────────────
   // 5. COLOR — single accumulation path
@@ -174,15 +189,38 @@ void main() {
   wall = mix(wall, uColor3, pat2 * br * uIntensity * 0.4 + medPulse * 0.04 * uIntensity);
   wall = mix(wall, uColor2, uAudioMid * 0.15);
 
-  // Ring highlights
-  vec3 ringCol = uColor3 * 1.6 + uColor2 * uAudioHigh * 0.5;
+  // Ring grooves — deep shadow between ridges for solid carved-stone feel
+  float groove = 0.45 + rings * 0.55;
+  groove -= (1.0 - rings) * fineRings * 0.2; // fine detail darkens the valleys further
+  wall *= groove;
+
+  // Ring highlights — bright ridge tops
+  vec3 ringCol = uColor3 * 1.6 + uColor2 * uAudioHigh * 0.4;
   wall = mix(wall, ringCol, rings * 0.5 * uIntensity);
 
-  // Segment lines
-  wall += uColor3 * segLines * 0.3 * uIntensity;
+  // Edge specular — light catching the ridge edges (ethereal glow on ridges)
+  wall += (uColor3 * 0.8 + vec3(0.15)) * ringEdge * uIntensity;
 
-  // Noise variation
+  // Segment lines — structural ribs
+  wall += uColor3 * segLines * 0.35 * uIntensity;
+
+  // Deep layer — a second texture at a different parallax depth
+  // Creates the illusion of wall thickness (foreground ridges over background grain)
+  float deepTexV = texV + uv.y * parallaxStrength * depthFactor * 2.0;
+  float deepPat = sin(deepTexV * ringFreq * 0.5 + twistedAngle * 2.0) * 0.5 + 0.5;
+  deepPat = smoothstep(0.3, 0.7, deepPat);
+  wall = mix(wall, wall * 0.7, deepPat * 0.15 * (1.0 - rings)); // visible mainly in grooves
+
+  // Wall grain — subtle texture variation
   wall *= 1.0 + wallNois;
+
+  // Energy shimmer — bright specks drifting along the ridges (replaces particles)
+  float shimmerCoord1 = noise(vec2(twistedAngle * 5.0 + uTime * 0.3, texV * 3.0 - uTime * 0.8));
+  float shimmerCoord2 = noise(vec2(-twistedAngle * 7.0 + uTime * 0.2 + 3.0, texV * 4.0 + uTime * 0.5));
+  float shimmer1 = pow(shimmerCoord1, 6.0); // sharpen into rare bright specks
+  float shimmer2 = pow(shimmerCoord2, 7.0);
+  float wallShimmer = (shimmer1 + shimmer2 * 0.7) * rings * 0.4 * uIntensity;
+  wall += (uColor3 * 0.6 + uColor2 * 0.4) * wallShimmer;
 
   // Voice warmth
   wall += uColor3 * uVoiceEnergy * 0.12;
@@ -190,11 +228,15 @@ void main() {
   // ────────────────────────────────────────────────────────────
   // 6. LIGHTING — one unified pass
   // ────────────────────────────────────────────────────────────
-  // a) Cylindrical shading: light from above — subtle, not heavy
-  float cylLight = 0.82 + 0.18 * cos(angle - PI * 0.5);
+  // a) Cylindrical shading: strong top/bottom darkening for tube roundness
+  float cylLight = 0.6 + 0.4 * cos(angle - PI * 0.5);
 
   // b) Depth gradient: near walls bright, far walls dim
-  float depthLight = 0.3 + 0.7 * smoothstep(0.0, 2.5, depth);
+  float depthLight = 0.15 + 0.85 * smoothstep(0.0, 1.8, depth);
+
+  // c-extra) Ambient occlusion — walls at the edges of screen are darker
+  // (light can't reach deep into the tube periphery)
+  float ao = 0.7 + 0.3 * smoothstep(0.5, 0.15, r);
 
   // c) Curve shading: turning illusion
   vec2 curveDir = vec2(
@@ -205,30 +247,58 @@ void main() {
   curveDir = cLen > 0.01 ? curveDir / cLen : vec2(0.0);
   float curveLight = 1.0 + dot(normalize(uv + 0.001), curveDir) * min(cLen * 0.08, 0.08) * 0.5;
 
-  // d) Depth fog: fade to darkness at extreme distance
-  float fogMix = 1.0 - exp(-depth * 0.08);
+  // d) Depth fog: faster falloff to black — less haze, more solid near walls
+  float fogMix = 1.0 - exp(-depth * 0.15);
 
-  // Apply lighting in one multiply (no stacking!)
-  wall *= cylLight * depthLight * curveLight;
+  // Apply lighting in one multiply — AO darkens edges for tangible depth
+  wall *= cylLight * depthLight * curveLight * ao;
 
-  // Fog blends toward deep color
-  wall = mix(wall, uColor4 * 0.25, fogMix);
+  // Fog blends toward deep, dark color — gives infinite depth feeling
+  wall = mix(wall, uColor4 * 0.15, fogMix);
 
   // ────────────────────────────────────────────────────────────
   // 7. CENTER GLOW — the hypnotic attractor
   // ────────────────────────────────────────────────────────────
-  float centerFall = exp(-r * 4.0);
-  float glow       = centerFall * (0.85 + uIntensity * 0.15) * (0.85 + br * 0.15);
-  glow += exp(-r * 7.0) * uVoiceEnergy * 0.2;
-  vec3 glowCol = mix(uColor3, vec3(1.0), 0.55);
-  wall = mix(wall, glowCol, glow);
+  // Center glow — reduced so tunnel walls stay dark near the wisp (contrast)
+  float centerFall = exp(-r * 5.0);
+  float glow       = centerFall * (0.5 + uIntensity * 0.15) * (0.85 + br * 0.15);
+  glow += exp(-r * 8.0) * uVoiceEnergy * 0.15;
+  vec3 glowCol = mix(uColor3, vec3(1.0), 0.45);
+  wall = mix(wall, glowCol, glow * 0.7);
 
-  // Pulse rings — ripples from center (not at r≈0)
-  float pulseSpd   = 2.0 + uAudioBass * 3.0;
-  float pulseRings = sin(r * 20.0 - uTime * pulseSpd) * 0.5 + 0.5;
-  pulseRings *= exp(-r * 3.0) * (1.0 - exp(-r * 8.0)) * uIntensity * 0.08;
-  pulseRings *= 1.0 + uAudioEnergy * 0.15;
-  wall += uColor2 * pulseRings;
+  // ── Presence light ring — the wisp illuminates the tunnel wall around it ──
+  // The presence sits near r≈0 at a certain tunnel depth. Its light hits the
+  // walls at the periphery, creating a bright ring at a specific radius.
+  // This radius breathes with the presence.
+  // ── Presence glow ring — driven by the wisp's actual screen position ──
+  // The presence is a 2D sprite at some z-depth. In the tunnel's polar coords,
+  // the presence center appears at r≈0 (screen center). Its "depth ring" is the
+  // ring of wall texture at the tunnel-depth corresponding to its z-position.
+  // Invert the depth formula: depth = 0.5/(sr+0.03), so sr = 0.5/depth - 0.03
+  // → r = sr * tunnelWidth.  But depth scrolls with time, so we match texV instead.
+  //
+  // Simpler: the presence's z maps to a screen-radius where the tunnel wall
+  // would be at that depth. Use: r_wall ≈ tunnelWidth * 0.5 / (-presenceZ)
+  // Presence glow ring — uses a fixed screen-space radius driven by presence Z.
+  // The ring sits at the tunnel wall radius where the presence depth is.
+  // The wisp visually sits deep in the tunnel center. The ring should
+  // illuminate the wall a few ridges out from where the wisp appears.
+  // Scale: smaller wallR = deeper into the tunnel.
+  float presenceDepth = max(-uPresencePos.z, 0.5);
+  float wallR = uTunnelWidth * 0.10 / presenceDepth;
+  float ringDist = abs(r - wallR);
+
+  // Presence glow — self-luminous, visually impactful
+  float presenceGlow = exp(-ringDist * ringDist / (0.02 * 0.02));
+  float presenceWide = exp(-ringDist * ringDist / (0.05 * 0.05));
+  presenceGlow *= 0.45 * (0.7 + br * 0.3);
+  presenceWide *= 0.15 * (0.7 + br * 0.3);
+
+  // The ring brightens the wall AND shifts color toward white-hot
+  vec3 ringTint = mix(uColor3, vec3(1.0), 0.5);
+  wall += ringTint * min(presenceGlow, 0.45) * (0.5 + rings * 0.5);
+  // Wider glow lifts the grooves too — softens the darkness near the wisp
+  wall += uColor3 * 0.6 * min(presenceWide, 0.3);
 
   // ────────────────────────────────────────────────────────────
   // 8. CHROMATIC ABERRATION
@@ -253,30 +323,28 @@ void main() {
   float vr = length(vec2((vUv.x - 0.5) * aspect, vUv.y - 0.5)) * 2.0;
   float fogRadial = smoothstep(0.15, 0.8, vr);
   float brFogMod  = 0.85 + (1.0 - br) * 0.15;
-  // 3 fog layers at different scales/speeds — one noise call each
+  // Atmospheric fog — extremely subtle, just breaks perfect uniformity
   float fogFar  = noise(uv * 1.5 + vec2(uTime * 0.02, uTime * 0.015));
-  float fogMid2 = noise(uv * 2.5 - vec2(uTime * 0.04, uTime * 0.03) + vec2(5.0));
-  float fogNear = noise(uv * 4.0 + vec2(uTime * 0.07, uTime * 0.05) + vec2(10.0));
-  vec3 fogAccum = uColor4 * smoothstep(0.35, 0.6, fogFar) * 0.04
-                + mix(uColor1, uColor3, 0.4) * smoothstep(0.35, 0.6, fogMid2) * 0.03
-                + uColor3 * smoothstep(0.35, 0.6, fogNear) * 0.02;
+  vec3 fogAccum = uColor4 * smoothstep(0.5, 0.75, fogFar) * 0.005;
   wall += fogAccum * fogRadial * brFogMod * uIntensity;
 
   // ────────────────────────────────────────────────────────────
-  // 11. VIGNETTE — breathing darkness frame
+  // 11. VIGNETTE — peripheral darkness for relaxed viewing
   // ────────────────────────────────────────────────────────────
+  // The last few cm of screen fade to black following the tunnel shape.
+  // This relaxes peripheral vision and frames the experience.
 
   float breathOpen = br * uBreathExpansion;
-  float vigInner   = 0.28 - uIntensity * 0.12 + breathOpen * 0.10;
-  float vigOuter   = 0.62 - uIntensity * 0.08 + breathOpen * 0.06;
+  float vigInner   = 0.22 - uIntensity * 0.10 + breathOpen * 0.08;
+  float vigOuter   = 0.55 - uIntensity * 0.06 + breathOpen * 0.05;
   float vig        = smoothstep(vigInner, vigOuter, vr);
-  vig = max(vig, 0.10);
-  vig *= 0.5 + uIntensity * 0.45;
+  vig = max(vig, 0.15); // stronger minimum darkness at edges
+  vig *= 0.6 + uIntensity * 0.4;
   wall *= 1.0 - vig;
 
-  // Peripheral breath tint
-  float edgeMask = smoothstep(0.5, 0.9, vr);
-  wall += mix(uColor4 * 0.06, uColor3 * 0.12, br) * edgeMask * uBreathExpansion;
+  // Hard edge fade — the very outermost pixels go fully black
+  float hardEdge = smoothstep(0.85, 1.0, vr);
+  wall *= 1.0 - hardEdge * 0.9;
 
   // ────────────────────────────────────────────────────────────
   // 11. FINAL
@@ -285,5 +353,5 @@ void main() {
   wall *= 1.0 + uAudioEnergy * 0.15;
   wall += mix(uColor2 * 0.015, uColor3 * 0.03, br) * uBreathExpansion;
 
-  gl_FragColor = vec4(wall, 1.0);
+  gl_FragColor = vec4(clamp(wall, 0.0, 1.0), 1.0);
 }

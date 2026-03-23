@@ -43,17 +43,17 @@ void main() {
 
   float brMod = 0.85 + (1.0 - uBreathValue) * 0.15;
 
-  // Far layer — slow, large wisps
+  // Far layer — barely there wisps, just enough to break uniformity
   float far  = fbm2(uv * 1.5 + vec2(uTime * 0.02, uTime * 0.015));
-  far = smoothstep(0.3, 0.6, far) * 0.04;
+  far = smoothstep(0.4, 0.7, far) * 0.012;
 
-  // Mid layer — medium speed
+  // Mid layer
   float mid  = fbm2(uv * 2.5 - vec2(uTime * 0.04, uTime * 0.03) + vec2(5.0));
-  mid = smoothstep(0.3, 0.6, mid) * 0.03;
+  mid = smoothstep(0.4, 0.7, mid) * 0.008;
 
-  // Near layer — faster, finer
+  // Near layer
   float near = fbm2(uv * 4.0 + vec2(uTime * 0.07, uTime * 0.05) + vec2(10.0));
-  near = smoothstep(0.3, 0.6, near) * 0.02;
+  near = smoothstep(0.4, 0.7, near) * 0.005;
 
   // Combine — each layer tinted separately
   vec3 fog = uColorFar * far + uColorMid * mid + uColorNear * near;

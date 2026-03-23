@@ -20,10 +20,10 @@ export interface FeedbackParams {
 }
 
 const DEFAULT_PARAMS: FeedbackParams = {
-  zoom: 0.006,
-  rotation: 0.0008,
-  decay: 0.88,
-  blend: 0.65,   // higher = fresh frame dominates, trails are subtle
+  zoom: 0.005,
+  rotation: 0.0006,
+  decay: 0.85,
+  blend: 0.75,   // higher = fresh frame dominates, wall texture stays visible
 };
 
 export class FeedbackWarp {
@@ -37,6 +37,17 @@ export class FeedbackWarp {
   private feedbackCamera: THREE.OrthographicCamera;
   private flip = false;
   private params: FeedbackParams;
+
+  // Adaptive quality — auto-disable on low FPS
+  private _disabled = false;
+  private fpsHistory: number[] = [];
+  private lastFrameTime = 0;
+  private lowFpsFrames = 0;
+  private highFpsFrames = 0;
+  private static readonly LOW_FPS_THRESHOLD = 28;
+  private static readonly HIGH_FPS_THRESHOLD = 45;
+  private static readonly DISABLE_AFTER_FRAMES = 90;  // ~1.5s of low FPS
+  private static readonly REENABLE_AFTER_FRAMES = 180; // ~3s of good FPS
 
   constructor(width: number, height: number, params?: Partial<FeedbackParams>) {
     this.params = { ...DEFAULT_PARAMS, ...params };
@@ -87,13 +98,50 @@ export class FeedbackWarp {
     Object.assign(this.params, p);
   }
 
-  /** Call after rendering tunnel to tunnelTarget. Composites feedback. */
+  /** True if feedback was auto-disabled due to low FPS */
+  get disabled(): boolean { return this._disabled; }
+
+  /** Force enable/disable (overrides auto-detection) */
+  set disabled(v: boolean) { this._disabled = v; }
+
+  /** Call after rendering tunnel to tunnelTarget. Composites feedback.
+   *  Returns the tunnel texture directly if feedback is disabled. */
   render(renderer: THREE.WebGLRenderer, time: number, intensity: number): THREE.Texture {
+    // ── FPS monitoring ──
+    const now = performance.now();
+    if (this.lastFrameTime > 0) {
+      const fps = 1000 / (now - this.lastFrameTime);
+      if (fps < FeedbackWarp.LOW_FPS_THRESHOLD) {
+        this.lowFpsFrames++;
+        this.highFpsFrames = 0;
+      } else if (fps > FeedbackWarp.HIGH_FPS_THRESHOLD) {
+        this.highFpsFrames++;
+        this.lowFpsFrames = 0;
+      } else {
+        this.lowFpsFrames = Math.max(0, this.lowFpsFrames - 1);
+        this.highFpsFrames = Math.max(0, this.highFpsFrames - 1);
+      }
+
+      if (!this._disabled && this.lowFpsFrames > FeedbackWarp.DISABLE_AFTER_FRAMES) {
+        this._disabled = true;
+        console.log('[Feedback] Auto-disabled (low FPS)');
+      } else if (this._disabled && this.highFpsFrames > FeedbackWarp.REENABLE_AFTER_FRAMES) {
+        this._disabled = false;
+        console.log('[Feedback] Re-enabled (FPS recovered)');
+      }
+    }
+    this.lastFrameTime = now;
+
+    // ── Skip feedback if disabled — return the raw tunnel render ──
+    if (this._disabled) {
+      return this.tunnelTarget.texture;
+    }
+
+    // ── Feedback composite ──
     const u = this.feedbackMaterial.uniforms;
     const readRT = this.flip ? this.rtB : this.rtA;
     const writeRT = this.flip ? this.rtA : this.rtB;
 
-    // Dynamic params — intensity drives how aggressive the warp is
     const intensityMod = 0.5 + intensity * 0.5;
     u.uPrevFrame.value = readRT.texture;
     u.uFreshFrame.value = this.tunnelTarget.texture;
@@ -104,14 +152,11 @@ export class FeedbackWarp {
     u.uTime.value = time;
     u.uIntensity.value = intensity;
 
-    // Render feedback composite to writeRT
     renderer.setRenderTarget(writeRT);
     renderer.render(this.feedbackScene, this.feedbackCamera);
     renderer.setRenderTarget(null);
 
     this.flip = !this.flip;
-
-    // Return the composited texture for final display
     return writeRT.texture;
   }
 

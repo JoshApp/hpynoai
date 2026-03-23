@@ -32,8 +32,8 @@ export const relax: SessionConfig = {
       intensity: 0.2,
       texts: generatedTexts['settle'] ?? [],
       textInterval: 10,
-      breathCycle: 12,
-      breathPattern: { inhale: 5, holdIn: 1, exhale: 6 },
+      breathCycle: 14,
+      breathPattern: { inhale: 5, holdIn: 3, exhale: 6 },
       spiralSpeed: 0.8,
       interactions: [
         { type: 'breath-sync', triggerAt: 0, duration: 30 },

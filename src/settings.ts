@@ -62,7 +62,7 @@ const DEFAULTS: HpynoSettings = {
   menuDepth: -1.5,
   menuScale: 2.5,
   narrationStartZ: -1.8,
-  narrationEndZ: -0.4,
+  narrationEndZ: -0.55,
   narrationScale: 1.4,
   interactionDepth: -1.2,
   interactionScale: 1.2,

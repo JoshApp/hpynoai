@@ -1,165 +1,144 @@
 /**
- * BreathingGuide — voiced guided breathing using the wisp + tunnel + voice.
+ * BreathingGuide — intro, core, outro. Clean and simple.
  *
- * Plays a pre-generated breathing voice guide, seeking to the right
- * phrase for each breath phase. The voice says "breathe in... hold...
- * breathe out..." timed to the actual breath controller.
+ * INTRO: "let's breathe together" text + clip
+ * CORE:  N breath cycles, manually driving the breath controller each frame
+ * OUTRO: "continue breathing" text + clip
  *
- * Falls back to text-only if no voice guide is available.
+ * During CORE, the guide takes over the breath controller completely.
+ * It computes the value from a local timer — no reliance on the
+ * controller's internal clock.
  */
 
-import type { BreathController, BreathStage } from './breath';
+import type { BreathController } from './breath';
 import type { Text3D } from './text3d';
+import type { Presence } from './presence';
 
 export interface BreathingGuideOptions {
-  /** Number of complete breath cycles. Default: 4 */
   breaths: number;
-  /** Show "in... / hold... / out..." text. Default: true */
   showText: boolean;
-  /** Show breath count. Default: true */
-  showCount: boolean;
-}
-
-const DEFAULTS: BreathingGuideOptions = {
-  breaths: 4,
-  showText: true,
-  showCount: true,
-};
-
-interface SharedManifest {
-  clips: Record<string, { file: string; duration: number }>;
-  breathing: Record<string, {
-    file: string;
-    duration: number;
-    words: Array<{ word: string; start: number; end: number }>;
-    phases: Array<{ type: string; start: number; word?: string }>;
-  }>;
 }
 
 export class BreathingGuide {
   private text3d: Text3D;
   private breath: BreathController;
+  private presence: Presence | null;
   private cancelled = false;
-  private lastStage: BreathStage = 'inhale';
-  private completedBreaths = 0;
-  private totalBreaths = 4;
-  private audio: HTMLAudioElement | null = null;
-  private manifest: SharedManifest | null = null;
+  private currentClip: HTMLAudioElement | null = null;
 
-  constructor(text3d: Text3D, breath: BreathController) {
+  constructor(text3d: Text3D, breath: BreathController, presence?: Presence) {
     this.text3d = text3d;
     this.breath = breath;
+    this.presence = presence ?? null;
   }
 
-  /**
-   * Run guided breathing. Plays voiced guide if available.
-   */
-  async run(options?: Partial<BreathingGuideOptions>, style: 'gentle' | 'commanding' = 'gentle'): Promise<void> {
-    const opts = { ...DEFAULTS, ...options };
+  async run(opts: Partial<BreathingGuideOptions> = {}): Promise<void> {
+    const breaths = opts.breaths ?? 4;
+    const showText = opts.showText ?? true;
     this.cancelled = false;
-    this.completedBreaths = 0;
-    this.totalBreaths = opts.breaths;
-    this.lastStage = 'exhale'; // so first inhale triggers
 
-    // Try to load shared audio manifest
-    try {
-      const resp = await fetch('audio/shared/manifest.json');
-      if (resp.ok) this.manifest = await resp.json();
-    } catch { /* no manifest, text-only */ }
+    // ── CORE: manually drive N breath cycles ──
+    const pat = this.breath.pattern;
+    const cycleDuration = pat.inhale + (pat.holdIn ?? 0) + pat.exhale + (pat.holdOut ?? 0);
 
-    // Start the voiced breathing guide if available
-    const bgData = this.manifest?.breathing[style];
-    if (bgData) {
-      this.audio = new Audio(bgData.file);
-      this.audio.volume = 0.8;
-      await this.audio.play().catch(() => { this.audio = null; });
+    // Bring wisp close
+    if (this.presence) {
+      const THREE = await import('three');
+      this.presence.transitionTo('breathe', {
+        size: 3.0,
+        basePos: new THREE.Vector3(0, 0, -1.2),
+        duration: 1.0,
+      });
     }
 
-    // Wait for a clean inhale start
-    await this.waitForStage('inhale');
-    if (this.cancelled) return this.cleanup();
+    // Take over breath controller
+    this.breath.forceValue(0);
+    this.breath.forceStage('inhale');
 
-    if (opts.showCount) this.showBreathCount();
+    let lastLabel = '';
+    const startTime = performance.now() / 1000;
+    const totalDuration = cycleDuration * breaths;
 
-    // Run breath cycles
-    while (this.completedBreaths < this.totalBreaths && !this.cancelled) {
-      const stage = this.breath.stage;
+    while (!this.cancelled) {
+      const elapsed = performance.now() / 1000 - startTime;
+      if (elapsed >= totalDuration) break;
 
-      // Show text on stage change
-      if (opts.showText && stage !== this.lastStage) {
-        // Detect cycle completion: transition back to inhale
-        if (stage === 'inhale' && this.lastStage !== 'inhale') {
-          this.completedBreaths++;
-          if (this.completedBreaths >= this.totalBreaths) break;
-          if (opts.showCount) this.showBreathCount();
-        }
+      // Where are we in the current cycle?
+      const cycleTime = elapsed % cycleDuration;
 
-        this.lastStage = stage;
-        this.showStageText(stage);
+      let value: number;
+      let label: string;
+
+      if (cycleTime < pat.inhale) {
+        // Inhale: 0 → 1
+        const t = cycleTime / pat.inhale;
+        value = (1 - Math.cos(t * Math.PI)) / 2; // smooth cosine
+        label = 'in';
+        this.breath.forceStage('inhale');
+      } else if (cycleTime < pat.inhale + (pat.holdIn ?? 0)) {
+        // Hold in: stay at 1
+        value = 1;
+        label = 'hold';
+        this.breath.forceStage('hold-in');
+      } else if (cycleTime < pat.inhale + (pat.holdIn ?? 0) + pat.exhale) {
+        // Exhale: 1 → 0
+        const t = (cycleTime - pat.inhale - (pat.holdIn ?? 0)) / pat.exhale;
+        value = (1 + Math.cos(t * Math.PI)) / 2; // smooth cosine
+        label = 'out';
+        this.breath.forceStage('exhale');
+      } else {
+        // Hold out: stay at 0
+        value = 0;
+        label = 'hold';
+        this.breath.forceStage('hold-out');
       }
+
+      // Drive breath controller value
+      this.breath.forceValue(value);
+
+      // Play clip on label change
+      if (label !== lastLabel) {
+        lastLabel = label;
+        if (label === 'in') this.playClip('breathe_in');
+        else if (label === 'hold') this.playClip('breathe_hold');
+        else if (label === 'out') this.playClip('breathe_out');
+
+        if (showText) this.text3d.showInstant(label, 10);
+      }
+
+      // Drive text Z from value
+      this.text3d.setSlotDepth(-1.2 + value * 0.7);
 
       await this.nextFrame();
     }
 
-    this.cleanup();
+    // ── CLEANUP ──
+    this.stopClip();
+    this.breath.releaseForce();
+    this.text3d.fadeOut();
+    this.text3d.clearSlotDepth();
+    if (this.presence) this.presence.setSessionMode();
   }
 
   cancel(): void {
     this.cancelled = true;
-    this.cleanup();
   }
 
-  private cleanup(): void {
-    if (this.audio) {
-      this.audio.pause();
-      this.audio = null;
+  private playClip(name: string): void {
+    this.stopClip();
+    try {
+      const audio = new Audio(`audio/shared/${name}.wav`);
+      audio.volume = 0.7;
+      audio.play().catch(() => {});
+      this.currentClip = audio;
+    } catch { /* no audio */ }
+  }
+
+  private stopClip(): void {
+    if (this.currentClip) {
+      this.currentClip.pause();
+      this.currentClip = null;
     }
-    this.text3d.fadeOut();
-  }
-
-  get progress(): number {
-    return this.completedBreaths / this.totalBreaths;
-  }
-
-  private showStageText(stage: BreathStage): void {
-    // Always show text — reinforces the voice guide visually
-    switch (stage) {
-      case 'inhale':
-        this.text3d.show('in . . .', 5);
-        break;
-      case 'hold-in':
-        this.text3d.show('hold . . .', 5);
-        break;
-      case 'exhale':
-        this.text3d.show('out . . .', 5);
-        break;
-      case 'hold-out':
-        this.text3d.show('hold . . .', 5);
-        break;
-    }
-  }
-
-  private showBreathCount(): void {
-    const remaining = this.totalBreaths - this.completedBreaths;
-    if (remaining > 1) {
-      this.text3d.show(`${remaining} breaths`, 6);
-    } else if (remaining === 1) {
-      this.text3d.show('last breath', 6);
-    }
-  }
-
-  private waitForStage(target: BreathStage): Promise<void> {
-    return new Promise(resolve => {
-      const check = () => {
-        if (this.cancelled) { resolve(); return; }
-        if (this.breath.stage === target && this.breath.value < 0.1) {
-          resolve();
-        } else {
-          requestAnimationFrame(check);
-        }
-      };
-      requestAnimationFrame(check);
-    });
   }
 
   private nextFrame(): Promise<void> {

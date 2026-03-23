@@ -1,47 +1,141 @@
 /**
  * Presence — a living energy entity that exists throughout HPYNO.
  *
- * Movement modes (transitions smoothly between them):
- *   idle      — gentle hover, barely moving (menu background)
- *   follow    — tracks a target position (carousel selection)
- *   settle    — drifts to center and calms down (session starting)
- *   breathe   — locked in place, pulses with breath (during session)
- *   pendulum  — slow side-to-side sway (deepening, future induction)
- *   speak     — reacts to voice energy (narrator active)
+ * Redesigned as a clean system with:
+ *   - Event-driven transitions (no setTimeout / rAF inside)
+ *   - Composable movement modes
+ *   - Smooth blending between any two modes
+ *   - Simple interface for other systems to drive
  *
- * All modes blend — the wisp smoothly transitions between behaviors.
+ * Modes:
+ *   idle      — gentle drift (menu background)
+ *   follow    — tracks a world position (carousel)
+ *   settle    — drifts to center, calms (session start)
+ *   breathe   — locked, pulses with breath (during session)
+ *   pendulum  — slow sway (deepening / induction)
+ *   speak     — reacts to voice (narrator active)
+ *   hidden    — faded out, not updating
  */
 
 import * as THREE from 'three';
 import presenceVert from './shaders/presence.vert';
 import presenceFrag from './shaders/presence.frag';
+import type { EventBus } from './events';
 
-export type PresenceMode = 'idle' | 'follow' | 'settle' | 'breathe' | 'pendulum' | 'speak';
+export type PresenceMode = 'idle' | 'follow' | 'settle' | 'breathe' | 'pendulum' | 'speak' | 'hidden';
 
+export interface PresenceState {
+  breathValue: number;
+  voiceEnergy: number;
+  audioEnergy: number;
+  audioBass: number;
+  intensity: number;
+}
+
+// ── Mode behaviors ─────────────────────────────────────────────
+// Each returns a target position given the current state and time.
+// Modes are pure functions — no side effects, easy to add new ones.
+
+type ModeFn = (
+  base: THREE.Vector3,
+  time: number,
+  state: PresenceState,
+  ctx: { followTarget: THREE.Vector3; modeTime: number },
+) => THREE.Vector3;
+
+const tmp = new THREE.Vector3();
+
+const modes: Record<string, ModeFn> = {
+  idle: (base, time) => {
+    return tmp.set(
+      base.x + Math.sin(time * 0.15) * 0.02,
+      base.y + Math.sin(time * 0.25) * 0.015,
+      base.z,
+    );
+  },
+
+  follow: (_base, _time, _state, ctx) => {
+    return tmp.copy(ctx.followTarget);
+  },
+
+  settle: (base, time, _state, ctx) => {
+    const t = Math.min(1, ctx.modeTime / 3);
+    const ease = t * t * (3 - 2 * t);
+    const drift = 1 - ease;
+    return tmp.set(
+      base.x + Math.sin(time * 0.2) * 0.01 * drift,
+      base.y + Math.sin(time * 0.3) * 0.008 * drift,
+      base.z,
+    );
+  },
+
+  breathe: (base, _time, state) => {
+    // Inhale (bv=1) → closer to user, exhale (bv=0) → further into tunnel
+    const far = base.z;          // exhale position (base, e.g. -1.2)
+    const close = base.z + 0.7;  // inhale position (e.g. -0.5)
+    return tmp.set(
+      base.x,
+      base.y + state.breathValue * 0.02,
+      far + state.breathValue * (close - far),
+    );
+  },
+
+  pendulum: (base, time, state) => {
+    const speed = 0.4;
+    const width = 0.15 + state.intensity * 0.1;
+    return tmp.set(
+      base.x + Math.sin(time * speed) * width,
+      base.y + Math.sin(time * speed * 0.7) * 0.02,
+      base.z + Math.sin(time * speed * 0.5) * 0.03,
+    );
+  },
+
+  speak: (base, _time, state) => {
+    return tmp.set(
+      base.x,
+      base.y + state.voiceEnergy * 0.01,
+      base.z + state.voiceEnergy * 0.1,
+    );
+  },
+
+  hidden: (base) => tmp.copy(base),
+};
+
+// ── Transition ─────────────────────────────────────────────────
+interface Transition {
+  fromSize: number;
+  toSize: number;
+  fromOpacity: number;
+  toOpacity: number;
+  duration: number;  // seconds
+  elapsed: number;
+}
+
+// ── Presence class ─────────────────────────────────────────────
 export class Presence {
   readonly mesh: THREE.Mesh;
   private uniforms: Record<string, { value: unknown }>;
-  private _visible = false;
-  private targetOpacity = 0;
-  private currentOpacity = 0;
 
-  // Position/size targets (lerped smoothly)
+  // State
+  private mode: PresenceMode = 'hidden';
+  private modeTime = 0;
+  private basePos = new THREE.Vector3(0, 0, -1.5);
+  private followTarget = new THREE.Vector3(0, 0, -1.5);
   private targetPos = new THREE.Vector3(0, 0, -1.5);
-  private basePos = new THREE.Vector3(0, 0, -1.5); // home position for current mode
-  private targetSize = 0.8;
-  private currentSize = 0.8;
 
-  // Smoothed audio (prevents flicker — voice should feel like a glow, not a strobe)
+  // Size & opacity
+  private size = 0.8;
+  private targetSize = 0.8;
+  private opacity = 0;
+  private targetOpacity = 0;
+
+  // Smooth audio (prevents flicker)
   private smoothVoice = 0;
   private smoothEnergy = 0;
   private smoothBass = 0;
 
-  // Movement mode
-  private mode: PresenceMode = 'idle';
-  private modeTime = 0; // time since mode changed
-
-  // Follow target (for carousel)
-  private followTarget = new THREE.Vector3(0, 0, -1.5);
+  // Active transition (null = steady state)
+  private transition: Transition | null = null;
 
   constructor() {
     this.uniforms = {
@@ -65,82 +159,85 @@ export class Presence {
       blending: THREE.AdditiveBlending,
     });
 
-    const geometry = new THREE.PlaneGeometry(1, 1);
-    this.mesh = new THREE.Mesh(geometry, material);
+    this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material);
     this.mesh.visible = false;
     this.mesh.renderOrder = 100;
-
-    this.mesh.position.copy(this.targetPos);
-    this.mesh.scale.set(this.targetSize, this.targetSize, 1);
+    this.mesh.position.copy(this.basePos);
   }
 
-  // ── Mode setters ──
+  // ── Public API ───────────────────────────────────────────────
 
+  /** Transition to a new mode with optional size/opacity targets */
+  transitionTo(mode: PresenceMode, opts: {
+    size?: number;
+    opacity?: number;
+    duration?: number;
+    basePos?: THREE.Vector3;
+  } = {}): void {
+    const dur = opts.duration ?? 1.5;
+
+    this.transition = {
+      fromSize: this.size,
+      toSize: opts.size ?? this.targetSize,
+      fromOpacity: this.opacity,
+      toOpacity: opts.opacity ?? (mode === 'hidden' ? 0 : 1),
+      duration: dur,
+      elapsed: 0,
+    };
+
+    this.targetSize = opts.size ?? this.targetSize;
+    this.targetOpacity = mode === 'hidden' ? 0 : (opts.opacity ?? 1);
+
+    if (opts.basePos) this.basePos.copy(opts.basePos);
+    if (mode !== this.mode) {
+      this.mode = mode;
+      this.modeTime = 0;
+    }
+
+    this.mesh.visible = true;
+  }
+
+  /** Quick setters for common scenarios */
   show(): void {
-    this._visible = true;
     this.mesh.visible = true;
     this.targetOpacity = 1;
   }
 
-  hide(): void {
-    this.targetOpacity = 0;
+  hide(duration = 1.5): void {
+    this.transitionTo('hidden', { opacity: 0, duration });
   }
 
-  setMode(mode: PresenceMode): void {
-    if (this.mode === mode) return;
-    this.mode = mode;
-    this.modeTime = 0;
-  }
-
-  /** Menu: materialize from nothing, then idle */
+  /** Menu: materialize from a spark */
   setMenuMode(): void {
     this.basePos.set(0, 0, -1.5);
-    this.currentSize = 0.05; // start tiny
-    this.targetSize = 0.05;
+    this.size = 0.05;
     this.mesh.scale.set(0.05, 0.05, 1);
-    this.setMode('idle');
-    this.show();
-
-    // Materialize: grow from spark to full size over 2 seconds
-    const startTime = performance.now();
-    const growTo = 3.5;
-    const materialize = () => {
-      const t = Math.min(1, (performance.now() - startTime) / 2000);
-      // Ease out cubic — fast start, gentle settle
-      const ease = 1 - (1 - t) * (1 - t) * (1 - t);
-      this.targetSize = 0.05 + (growTo - 0.05) * ease;
-      if (t < 1) requestAnimationFrame(materialize);
-    };
-    requestAnimationFrame(materialize);
+    this.transitionTo('idle', { size: 3.5, opacity: 1, duration: 2.0 });
   }
 
-  /** Session: settle into tunnel, then breathe */
+  /** Session: settle into tunnel center, then auto-switch to breathe */
   setSessionMode(): void {
-    this.basePos.set(0, 0.04, -2.0);
-    this.targetSize = 2.0;
-    this.setMode('settle');
-    this.show();
-    // After settling, switch to breathe mode
-    setTimeout(() => {
-      if (this.mode === 'settle') this.setMode('breathe');
-    }, 3000);
+    this.transitionTo('settle', {
+      size: 2.0,
+      basePos: new THREE.Vector3(0, 0.04, -2.0),
+      duration: 3.0,
+    });
   }
 
-  /** Carousel: follow the focused orb */
+  /** Follow a position (e.g. carousel orb) */
   followTo(x: number, y: number, z: number): void {
     this.followTarget.set(x, y + 0.02, z - 0.1);
-    if (this.mode !== 'follow') this.setMode('follow');
+    if (this.mode !== 'follow') {
+      this.transitionTo('follow', { duration: 0.5 });
+    }
   }
 
-  /** Pendulum mode: slow hypnotic sway */
-  setPendulumMode(): void {
-    this.setMode('pendulum');
-  }
+  private baseAccent: [number, number, number] = [0.6, 0.3, 0.9];
 
   /** Set colors from session theme */
   setColors(accent: [number, number, number]): void {
+    this.baseAccent = accent;
     (this.uniforms.uColor.value as THREE.Vector3).set(...accent);
-    // Core color: brighter version of accent, still tinted (not white)
     (this.uniforms.uCoreColor.value as THREE.Vector3).set(
       Math.min(1, accent[0] * 1.4 + 0.1),
       Math.min(1, accent[1] * 1.4 + 0.1),
@@ -148,11 +245,77 @@ export class Presence {
     );
   }
 
+  setMode(mode: PresenceMode): void {
+    this.transitionTo(mode, { duration: 1.0 });
+  }
+
   setSize(s: number): void {
     this.targetSize = s;
   }
 
-  // ── Update (call every frame) ──
+  /** Quick size pulse — expands then returns. Used on session selection. */
+  pulse(): void {
+    const originalSize = this.targetSize;
+    this.transitionTo(this.mode, {
+      size: originalSize * 1.6,
+      duration: 0.4,
+    });
+    // After expanding, shrink back
+    setTimeout(() => {
+      this.transitionTo(this.mode, {
+        size: originalSize,
+        duration: 0.8,
+      });
+    }, 400);
+  }
+
+  get visible(): boolean {
+    return this.mesh.visible;
+  }
+
+  get currentMode(): PresenceMode {
+    return this.mode;
+  }
+
+  // ── Bus-driven behavior ──────────────────────────────────────
+  // Presence listens to lifecycle events and drives itself.
+  // No external system needs to call setMenuMode/setSessionMode/etc.
+
+  private busUnsubs: Array<() => void> = [];
+
+  connectBus(bus: EventBus): void {
+    // Clean previous
+    for (const u of this.busUnsubs) u();
+    this.busUnsubs = [];
+
+    // Session starting → settle into tunnel
+    this.busUnsubs.push(bus.on('session:starting', ({ session }) => {
+      this.setColors(session.theme.accentColor);
+      this.setSessionMode();
+    }));
+
+    // Session ended → hide
+    this.busUnsubs.push(bus.on('session:ended', () => {
+      this.hide();
+    }));
+
+    // Selector ready → menu mode
+    this.busUnsubs.push(bus.on('selector:ready', () => {
+      this.setMenuMode();
+    }));
+
+    // Theme preview (selector hovering sessions)
+    this.busUnsubs.push(bus.on('settings:changed', () => {
+      // No-op — presence doesn't need settings changes
+    }));
+  }
+
+  disconnectBus(): void {
+    for (const u of this.busUnsubs) u();
+    this.busUnsubs = [];
+  }
+
+  // ── Update (call every frame) ────────────────────────────────
 
   update(
     time: number,
@@ -162,108 +325,85 @@ export class Presence {
     audioBass: number,
     intensity: number,
   ): void {
-    this.modeTime += 1 / 60;
+    const dt = 1 / 60; // assume ~60fps, good enough for lerps
+    this.modeTime += dt;
 
-    // Fade opacity
-    this.currentOpacity += (this.targetOpacity - this.currentOpacity) * 0.04;
-    if (this.currentOpacity < 0.005 && this.targetOpacity === 0) {
-      this.mesh.visible = false;
-      this._visible = false;
-      return;
+    // ── Process transition ──
+    if (this.transition) {
+      this.transition.elapsed += dt;
+      const t = Math.min(1, this.transition.elapsed / this.transition.duration);
+      const ease = t * t * (3 - 2 * t); // smoothstep
+
+      this.size = this.transition.fromSize + (this.transition.toSize - this.transition.fromSize) * ease;
+      this.opacity = this.transition.fromOpacity + (this.transition.toOpacity - this.transition.fromOpacity) * ease;
+
+      if (t >= 1) {
+        this.transition = null;
+        // Auto-transitions
+        if (this.mode === 'settle') {
+          this.transitionTo('breathe', { duration: 2.0 });
+        } else if (this.mode === 'hidden') {
+          this.mesh.visible = false;
+          return;
+        }
+      }
+    } else {
+      // Steady-state lerps
+      this.size += (this.targetSize - this.size) * 0.04;
+      this.opacity += (this.targetOpacity - this.opacity) * 0.04;
+      if (this.opacity < 0.005 && this.targetOpacity === 0) {
+        this.mesh.visible = false;
+        return;
+      }
     }
 
-    // ── Compute target position based on mode ──
-    switch (this.mode) {
-      case 'idle':
-        // Gentle figure-8 drift around base position
-        this.targetPos.set(
-          this.basePos.x + Math.sin(time * 0.15) * 0.02,
-          this.basePos.y + Math.sin(time * 0.25) * 0.015,
-          this.basePos.z,
-        );
-        break;
+    // ── Compute position from mode ──
+    const state: PresenceState = { breathValue, voiceEnergy, audioEnergy, audioBass, intensity };
+    const ctx = { followTarget: this.followTarget, modeTime: this.modeTime };
+    const modeFn = modes[this.mode] ?? modes.idle;
+    const target = modeFn(this.basePos, time, state, ctx);
+    this.targetPos.copy(target);
 
-      case 'follow':
-        // Track the follow target (carousel orb)
-        this.targetPos.copy(this.followTarget);
-        break;
-
-      case 'settle':
-        // Drift toward base position, gradually calming
-        const settleProgress = Math.min(1, this.modeTime / 3);
-        const settleEase = settleProgress * settleProgress * (3 - 2 * settleProgress);
-        this.targetPos.set(
-          this.basePos.x + Math.sin(time * 0.2) * 0.01 * (1 - settleEase),
-          this.basePos.y + Math.sin(time * 0.3) * 0.008 * (1 - settleEase),
-          this.basePos.z,
-        );
-        break;
-
-      case 'breathe':
-        // Locked in place, only breath moves it
-        this.targetPos.copy(this.basePos);
-        this.targetPos.z += breathValue * 0.04;
-        this.targetPos.y += breathValue * 0.008;
-        break;
-
-      case 'pendulum':
-        // Slow hypnotic side-to-side sway
-        const swingSpeed = 0.4; // very slow
-        const swingWidth = 0.15 + intensity * 0.1;
-        this.targetPos.set(
-          this.basePos.x + Math.sin(time * swingSpeed) * swingWidth,
-          this.basePos.y + Math.sin(time * swingSpeed * 0.7) * 0.02,
-          this.basePos.z + Math.sin(time * swingSpeed * 0.5) * 0.03,
-        );
-        break;
-
-      case 'speak':
-        // Mostly still, slight forward lean when voice active
-        this.targetPos.copy(this.basePos);
-        this.targetPos.z += voiceEnergy * 0.1;
-        this.targetPos.y += voiceEnergy * 0.01;
-        break;
-    }
-
-    // Smooth lerp to target
-    const posLerp = this.mode === 'follow' ? 0.06 : 0.03;
+    // Smooth lerp to position — breathe mode tracks directly
+    const posLerp = this.mode === 'breathe' ? 0.15 : this.mode === 'follow' ? 0.06 : 0.03;
     this.mesh.position.lerp(this.targetPos, posLerp);
 
-    // Smooth size
-    this.currentSize += (this.targetSize - this.currentSize) * 0.04;
-
-    // Smooth audio values — voice should feel like a slow glow, not a strobe
-    // Rise fast (0.08) so it responds, decay slow (0.02) so it lingers
+    // ── Smooth audio (rise fast, decay slow) ──
     this.smoothVoice += (voiceEnergy - this.smoothVoice) * (voiceEnergy > this.smoothVoice ? 0.08 : 0.02);
     this.smoothEnergy += (audioEnergy - this.smoothEnergy) * 0.03;
     this.smoothBass += (audioBass - this.smoothBass) * 0.04;
 
-    // Update uniforms with smoothed values
+    // ── Breath-state color tinting (in breathe mode) ──
+    if (this.mode === 'breathe') {
+      const a = this.baseAccent;
+      // Inhale: warmer/brighter, Exhale: cooler/dimmer
+      const warmth = breathValue; // 0 = exhaled, 1 = inhaled
+      const colorVec = this.uniforms.uColor.value as THREE.Vector3;
+      colorVec.set(
+        a[0] + warmth * 0.15,
+        a[1] + warmth * 0.1,
+        a[2] - warmth * 0.05,
+      );
+    }
+
+    // ── Uniforms ──
     this.uniforms.uTime.value = time;
     this.uniforms.uBreathValue.value = breathValue;
     this.uniforms.uVoiceEnergy.value = this.smoothVoice;
     this.uniforms.uAudioEnergy.value = this.smoothEnergy;
     this.uniforms.uAudioBass.value = this.smoothBass;
-    this.uniforms.uIntensity.value = intensity * this.currentOpacity;
+    this.uniforms.uIntensity.value = intensity * this.opacity;
 
-    // Scale: base + gentle breath + smoothed voice pulse
-    const breathPulse = breathValue * 0.03;
+    // ── Scale: breathes more noticeably in breathe mode ──
+    const breathPulse = this.mode === 'breathe' ? breathValue * 0.08 : breathValue * 0.03;
     const voicePulse = this.smoothVoice * 0.05;
-    const s = this.currentSize + breathPulse + voicePulse;
+    const s = this.size + breathPulse + voicePulse;
     this.mesh.scale.set(s, s, 1);
   }
 
   /** Lightweight update for menu (no audio/voice) */
   updateIdle(time: number, breathValue: number): void {
     this.update(time, breathValue, 0, 0, 0, 0.3);
-  }
-
-  get visible(): boolean {
-    return this._visible;
-  }
-
-  get currentMode(): PresenceMode {
-    return this.mode;
   }
 
   dispose(): void {

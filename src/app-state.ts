@@ -11,7 +11,7 @@
  *   ended    → session finished, "welcome back" screen
  */
 
-export type AppPhase = 'boot' | 'selector' | 'session' | 'ended';
+export type AppPhase = 'boot' | 'selector' | 'session' | 'ended' | 'transitioning' | 'ending';
 
 export interface AppState {
   phase: AppPhase;

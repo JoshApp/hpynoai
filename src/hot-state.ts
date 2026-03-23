@@ -12,7 +12,6 @@
 
 import type * as THREE from 'three';
 import type { AudioEngine } from './audio';
-import type { ParticleField } from './particles';
 import type { Text3D } from './text3d';
 import type { BreathController } from './breath';
 import type { NarrationEngine } from './narration';
@@ -25,11 +24,17 @@ import type { SessionSelector } from './selector';
 import type { SettingsManager } from './settings';
 import type { SessionConfig } from './session';
 import type { FeedbackWarp } from './feedback';
-import type { FogLayers } from './fog-layers';
-import type { DepthParticles } from './depth-particles';
+import type { EventBus } from './events';
+import type { StateMachine } from './state-machine';
+import type { InputController } from './input';
 import type { GpuParticles } from './gpu-particles';
 
 export interface HotState {
+  // Event system
+  eventBus?: EventBus;
+  stateMachine?: StateMachine;
+  inputController?: InputController;
+
   // Core Three.js — these are expensive to recreate
   renderer?: THREE.WebGLRenderer;
   scene?: THREE.Scene;
@@ -43,7 +48,6 @@ export interface HotState {
   audio?: AudioEngine;
   ambient?: AmbientEngine;
   presence?: import('./presence').Presence;
-  particles?: ParticleField;
   text3d?: Text3D;
   breath?: BreathController;
   narration?: NarrationEngine;
@@ -55,9 +59,7 @@ export interface HotState {
   settings?: SettingsManager;
 
   // Visual layers
-  depthParticles?: DepthParticles;
   gpuParticles?: GpuParticles;
-  fogLayers?: FogLayers;
   feedback?: FeedbackWarp;
   compositeQuad?: THREE.Mesh;
   overlayScene?: THREE.Scene;

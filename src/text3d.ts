@@ -62,7 +62,7 @@ export class Text3D {
   private textColor = '#c8a0ff';
   private glowColor = 'rgba(200, 160, 255, 0.4)';
   private breathPhase = 0;
-  private _settings: Text3DSettings = { startZ: -1.8, endZ: -0.4, scale: 1.4 };
+  private _settings: Text3DSettings = { startZ: -1.8, endZ: -0.55, scale: 1.4 };
 
   // Floating lines (narration)
   private lines: FloatingLine[] = [];
@@ -180,11 +180,14 @@ export class Text3D {
     for (const line of this.lines) {
       const elapsed = now - line.startTime;
       if (elapsed < 0) {
-        line.duration = 0;
+        // Not started yet — let it vanish quickly
+        line.duration = 0.3;
+        line.startTime = now;
       } else {
         const remaining = line.duration - elapsed;
-        if (remaining > 0.5) {
-          line.duration = elapsed + 0.5;
+        // Give existing text a gentle 1.2s fade-out instead of an abrupt cut
+        if (remaining > 1.2) {
+          line.duration = elapsed + 1.2;
         }
       }
     }
@@ -248,14 +251,31 @@ export class Text3D {
   }
 
   private repositionSlots(): void {
-    const z = this._settings.endZ - 0.3;
+    const breathVal = Math.sin(this.breathPhase) * 0.5 + 0.5; // 0-1
+    const baseZ = this._slotDepthOverride ?? (this._settings.endZ - 0.3);
+    // When slot depth is overridden (breathing guide), move with breath in Z
+    const breathZ = this._slotDepthOverride !== null ? breathVal * 0.4 : 0;
+    const z = baseZ + breathZ;
+
     const hasTwo = this.slots[0] !== null && this.slots[1] !== null;
     const offset = hasTwo ? SLOT_LINE_SPACING / 2 : 0;
-    const breathY = (Math.sin(this.breathPhase) * 0.5 + 0.5 - 0.5) * 0.025;
+    const breathY = (breathVal - 0.5) * 0.025;
+    const baseY = -0.2;
 
-    if (this.slots[0]) this.slots[0].sprite.position.set(0, offset + breathY, z);
-    if (this.slots[1]) this.slots[1].sprite.position.set(0, (hasTwo ? -offset : 0) + breathY, z);
+    if (this.slots[0]) this.slots[0].sprite.position.set(0, baseY + offset + breathY, z);
+    if (this.slots[1]) this.slots[1].sprite.position.set(0, baseY + (hasTwo ? -offset : 0) + breathY, z);
   }
+
+  /** Override slot Z depth — used by breathing guide to match wisp depth */
+  setSlotDepth(z: number): void {
+    this._slotDepthOverride = z;
+  }
+
+  clearSlotDepth(): void {
+    this._slotDepthOverride = null;
+  }
+
+  private _slotDepthOverride: number | null = null;
 
   private removeSlot(index: 0 | 1): void {
     const slot = this.slots[index];
@@ -475,15 +495,15 @@ export class Text3D {
         continue;
       }
 
-      // Z: float from far to near
-      const z = line.startZ + (line.endZ - line.startZ) * this.easeInOut(progress);
+      // Z: float from far to near — ease-out so text decelerates as it approaches
+      const z = line.startZ + (line.endZ - line.startZ) * this.easeOut(progress);
       line.mesh.position.z = z;
 
       // Y: gentle lift on inhale, sink on exhale (from stored base position)
       line.mesh.position.y = line.baseY + (breathPulse - 0.5) * 0.03;
 
-      // Scale grows as it approaches
-      const scaleBoost = 1.0 + progress * 0.3;
+      // Scale grows gently as it approaches — capped to prevent edge clipping
+      const scaleBoost = 1.0 + progress * 0.15;
       const scale = line.baseScale * scaleBoost;
       line.mesh.scale.set(scale * line.aspect, scale, 1);
 
@@ -495,12 +515,16 @@ export class Text3D {
         this.redrawLineKaraoke(line, revealProgress);
       }
 
-      // Opacity envelope
+      // Opacity envelope — smooth fade in/out with wide fade-out for gentle exit
       let opacity: number;
-      if (progress < 0.08) {
-        opacity = progress / 0.08;
-      } else if (progress > 0.8) {
-        opacity = (1 - progress) / 0.2;
+      if (progress < 0.1) {
+        // Fade in: 0→1 over first 10%, smoothstep
+        const t = progress / 0.1;
+        opacity = t * t * (3 - 2 * t);
+      } else if (progress > 0.65) {
+        // Fade out: 1→0 over last 35%, smooth ease-out
+        const t = (progress - 0.65) / 0.35;
+        opacity = 1 - t * t;
       } else {
         opacity = 1;
       }
@@ -536,6 +560,9 @@ export class Text3D {
       (slot.sprite.material as THREE.SpriteMaterial).opacity = slot.opacity * breathMod;
 
     }
+
+    // Reposition slots every frame (breath-driven Z movement)
+    this.repositionSlots();
   }
 
   /** Fade out all text over ~0.5s, then remove. */

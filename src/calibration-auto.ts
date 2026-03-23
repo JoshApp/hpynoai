@@ -90,20 +90,21 @@ function computeSettings(frameTimes: number[]): Partial<HpynoSettings> {
 
   if (isMobile) {
     // Mobile: shallower depths, larger relative text, closer to camera
-    changes.narrationScale = 1.8 * screenScale;
+    changes.narrationScale = 1.6 * screenScale;
     changes.menuScale = 2.5 * screenScale;
     changes.interactionScale = 1.5 * screenScale;
     changes.narrationStartZ = -1.4;
-    changes.narrationEndZ = -0.3;
+    changes.narrationEndZ = -0.5;
     changes.menuDepth = -1.2;
     changes.interactionDepth = -0.9;
   } else {
-    // Desktop: scale proportionally
-    changes.narrationScale = 1.5 * screenScale;
+    // Desktop: scale proportionally, cap narration to avoid edge clipping
+    const narrationMult = Math.min(1.4 * screenScale, 2.2);
+    changes.narrationScale = narrationMult;
     changes.menuScale = 2.5 * screenScale;
     changes.interactionScale = 1.3 * screenScale;
     changes.narrationStartZ = -1.8;
-    changes.narrationEndZ = -0.4;
+    changes.narrationEndZ = -0.55;
     changes.menuDepth = -1.5;
     changes.interactionDepth = -1.2;
   }
