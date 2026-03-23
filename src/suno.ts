@@ -11,6 +11,8 @@
  *   });
  */
 
+import { log } from './logger';
+
 const SUNO_API_BASE = 'https://studio-api.suno.ai/api';
 const LOCAL_STORAGE_KEY = 'hpyno_suno_api_key';
 
@@ -138,7 +140,7 @@ export class SunoGenerator {
       localStorage.setItem(key, dataUrl);
     } catch {
       // localStorage might be full — data URLs are large
-      console.warn('Could not cache ambient track in localStorage');
+      log.warn('suno', 'Could not cache ambient track in localStorage');
     }
 
     return dataUrl;

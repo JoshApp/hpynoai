@@ -34,6 +34,13 @@ export interface HpynoSettings {
   narrationVolume: number;
   muted: boolean;
 
+  // Visual level
+  // 'minimal' = dark gradient, presence + text only (accessibility)
+  // 'calm'    = slow tunnel, no feedback warp, reduced effects
+  // 'full'    = everything enabled (default)
+  // 'intense' = stronger effects, more feedback, faster spiral
+  visualLevel: 'minimal' | 'calm' | 'full' | 'intense';
+
   // Experience level
   // 'listen' = audio + text only
   // 'watch' = + gates/prompts
@@ -71,6 +78,7 @@ const DEFAULTS: HpynoSettings = {
   masterVolume: 1,
   narrationVolume: 0.8,
   muted: false,
+  visualLevel: 'full' as const,
   experienceLevel: 'watch' as const,
   ttsEnabled: true,
   micEnabled: false,
@@ -157,10 +165,16 @@ export class SettingsManager {
     if (ttsCheck) ttsCheck.checked = this.settings.ttsEnabled;
     const micCheck = this.panel.querySelector<HTMLInputElement>('#settings-micEnabled');
     if (micCheck) micCheck.checked = this.settings.micEnabled;
-    // Experience level
-    const levels = ['listen', 'watch', 'breathe', 'immerse'];
-    const selectedIdx = levels.indexOf(this.settings.experienceLevel);
-    this.panel.querySelectorAll<HTMLButtonElement>('.settings-level-btn').forEach(b => {
+    // Level pickers
+    this.refreshLevelPicker('settings-visualLevel', this.settings.visualLevel, ['minimal', 'calm', 'full', 'intense']);
+    this.refreshLevelPicker('settings-experienceLevel', this.settings.experienceLevel, ['listen', 'watch', 'breathe', 'immerse']);
+  }
+
+  private refreshLevelPicker(containerId: string, current: string, levels: string[]): void {
+    const container = this.panel.querySelector(`#${containerId}`);
+    if (!container) return;
+    const selectedIdx = levels.indexOf(current);
+    container.querySelectorAll<HTMLButtonElement>('.settings-level-btn').forEach(b => {
       const idx = levels.indexOf(b.dataset.level!);
       b.classList.toggle('active', idx === selectedIdx);
       b.classList.toggle('included', idx < selectedIdx);
@@ -260,6 +274,27 @@ export class SettingsManager {
           </div>
         `).join('')}
         <div class="settings-group">
+          <div class="settings-group-title">visual level</div>
+          <div class="settings-level-picker" id="settings-visualLevel">
+            <button class="settings-level-btn ${this.settings.visualLevel === 'minimal' ? 'active' : ''}" data-level="minimal">
+              <span class="level-name">minimal</span>
+              <span class="level-features">dark bg, presence + text</span>
+            </button>
+            <button class="settings-level-btn ${this.settings.visualLevel === 'calm' ? 'active' : ''}" data-level="calm">
+              <span class="level-name">calm</span>
+              <span class="level-features">slow tunnel, soft effects</span>
+            </button>
+            <button class="settings-level-btn ${this.settings.visualLevel === 'full' ? 'active' : ''}" data-level="full">
+              <span class="level-name">full</span>
+              <span class="level-features">everything enabled</span>
+            </button>
+            <button class="settings-level-btn ${this.settings.visualLevel === 'intense' ? 'active' : ''}" data-level="intense">
+              <span class="level-name">intense</span>
+              <span class="level-features">stronger effects</span>
+            </button>
+          </div>
+        </div>
+        <div class="settings-group">
           <div class="settings-group-title">experience level</div>
           <div class="settings-level-picker" id="settings-experienceLevel">
             <button class="settings-level-btn ${this.settings.experienceLevel === 'listen' ? 'active' : ''}" data-level="listen">
@@ -332,22 +367,13 @@ export class SettingsManager {
         this.updateMuteButton();
       });
 
+      // Visual level buttons
+      this.bindLevelPicker(panel, 'settings-visualLevel', 'visualLevel',
+        ['minimal', 'calm', 'full', 'intense']);
+
       // Experience level buttons
-      panel.querySelectorAll<HTMLButtonElement>('.settings-level-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const level = btn.dataset.level!;
-          (this.settings as unknown as Record<string, unknown>).experienceLevel = level;
-          this.save();
-          // Update active state on all buttons — highlight selected + all below it
-          const levels = ['listen', 'watch', 'breathe', 'immerse'];
-          const selectedIdx = levels.indexOf(level);
-          panel.querySelectorAll<HTMLButtonElement>('.settings-level-btn').forEach(b => {
-            const idx = levels.indexOf(b.dataset.level!);
-            b.classList.toggle('active', idx === selectedIdx);
-            b.classList.toggle('included', idx < selectedIdx);
-          });
-        });
-      });
+      this.bindLevelPicker(panel, 'settings-experienceLevel', 'experienceLevel',
+        ['listen', 'watch', 'breathe', 'immerse']);
 
       // Feature toggles
       for (const key of ['ttsEnabled', 'micEnabled'] as const) {
@@ -379,6 +405,25 @@ export class SettingsManager {
     });
 
     return panel;
+  }
+
+  private bindLevelPicker(panel: HTMLElement, containerId: string, settingsKey: string, levels: string[]): void {
+    const container = panel.querySelector(`#${containerId}`);
+    if (!container) return;
+    container.querySelectorAll<HTMLButtonElement>('.settings-level-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const level = btn.dataset.level!;
+        (this.settings as unknown as Record<string, unknown>)[settingsKey] = level;
+        this.save();
+        this.listeners.forEach(fn => fn(this.settings));
+        const selectedIdx = levels.indexOf(level);
+        container.querySelectorAll<HTMLButtonElement>('.settings-level-btn').forEach(b => {
+          const idx = levels.indexOf(b.dataset.level!);
+          b.classList.toggle('active', idx === selectedIdx);
+          b.classList.toggle('included', idx < selectedIdx);
+        });
+      });
+    });
   }
 
   private sliderHTML(s: { key: keyof HpynoSettings; label: string; min: number; max: number; step: number; unit?: string }): string {

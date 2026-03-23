@@ -22,7 +22,7 @@ export interface HpynoEventMap {
   // Session lifecycle
   'session:starting': { session: SessionConfig };
   'session:started': { session: SessionConfig };
-  'session:ending': {};
+  'session:ending': { fadeSec?: number };
   'session:ended': {};
 
   // Stage progression
@@ -62,6 +62,8 @@ export interface HpynoEventMap {
 
 // ── Bus implementation ────────────────────────────────────────
 
+import { log } from './logger';
+
 type Handler<T> = (payload: T) => void;
 
 export class EventBus {
@@ -97,10 +99,15 @@ export class EventBus {
     event: K,
     payload: HpynoEventMap[K],
   ): void {
+    log.logBusEvent(event, payload);
     const set = this.listeners.get(event);
     if (set) {
       for (const handler of set) {
-        handler(payload);
+        try {
+          handler(payload);
+        } catch (err) {
+          log.error('bus', `Handler threw on "${event}"`, err);
+        }
       }
     }
   }

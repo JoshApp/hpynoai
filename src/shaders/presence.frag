@@ -12,6 +12,9 @@ uniform float uAudioBass;
 uniform float uIntensity;
 uniform vec3 uColor;
 uniform vec3 uCoreColor;
+uniform vec3 uPulseColor;   // target color for emotional pulses (set from JS)
+uniform float uPulseAmount; // 0 = base color, 1 = fully pulse color
+uniform float uRimWarp;     // 0 = calm, 1 = turbulent (driven by voice/emotion)
 
 varying vec2 vUv;
 
@@ -71,11 +74,11 @@ void main() {
   float surfaceRing = smoothstep(0.7, 1.0, sphereDist) * (1.0 - smoothstep(1.0, 1.3, sphereDist));
   float surfaceDetail = surfaceTex * surfaceRing * 0.3; // only visible at the sphere edge
 
-  // Combine body: dense core (0.65) + outer sphere (0.5) + surface shimmer
-  float core = innerEnv * bodyTex * 0.65 + sphereEnv * bodyTex * 0.5 + surfaceDetail;
+  // Combine body: strong inner core + visible outer sphere + surface detail
+  float core = innerEnv * bodyTex * 0.8 + sphereEnv * bodyTex * 0.65 + surfaceDetail;
 
   // Bright seed — the hottest point, small
-  float seed = exp(-r * r / (0.018 * 0.018)) * 0.35;
+  float seed = exp(-r * r / (0.018 * 0.018)) * 0.3;
 
   // ── Swirling tendrils — 5 layers at different speeds/colors ──
 
@@ -153,12 +156,42 @@ void main() {
   // Fine detail: bright specks
   color += uCoreColor * t5 * 0.12;
 
+  // ── Color pulse — driven from JS for breathing, emotion, transitions ──
+  if (uPulseAmount > 0.01) {
+    // Pulse radiates from center outward
+    float pulseMask = (1.0 - r * 4.0);
+    pulseMask = clamp(pulseMask, 0.0, 1.0);
+    color = mix(color, uPulseColor, uPulseAmount * pulseMask);
+  }
+
   // ── Intensity + falloff ──
   brightness *= 0.4 + uIntensity * 0.6;
 
-  // Circular edge fade — tight boundary, compact sphere
-  float edgeFade = smoothstep(0.25, 0.08, r);
+  // Organic edge fade — warped boundary (more turbulent with uRimWarp)
+  float edgeWarpAmt = 0.01 + uRimWarp * 0.06;
+  float edgeWarp = noise(vec2(sin(angle * 4.0) - t * 0.3, cos(angle * 4.0) + t * 0.15)) * edgeWarpAmt;
+  float edgeFade = smoothstep(0.25 + edgeWarp, 0.08, r);
   brightness *= edgeFade;
+
+  // Presence rim — calm circle with voice-driven "speaking" deformation
+  float warpAmt = 0.005 + uRimWarp * 0.02;
+  // Organic slow warp (always present)
+  float rimWarp = noise(vec2(sin(angle * 3.0) + t * 0.5, cos(angle * 3.0) + t * 0.2)) * warpAmt;
+
+  // Voice wave — standing wave modes driven by actual audio frequency bands.
+  // Low freqs (bass) drive slow modes, mid/high drive faster modes.
+  // This makes the rim deformation match what you actually hear.
+  float voiceWave = sin(angle * 2.0 + t * 2.0) * uAudioBass * 0.5     // bass: slow, wide
+                  + sin(angle * 3.0 - t * 3.5) * uVoiceEnergy * 0.4    // voice: mid mode
+                  + sin(angle * 5.0 + t * 5.0) * uAudioEnergy * 0.25   // energy: faster
+                  + sin(angle * 7.0 - t * 7.0) * uVoiceEnergy * 0.15;  // detail: fine
+  voiceWave *= 0.012; // scale — subtle enough to read as "speaking" not "exploding"
+  rimWarp += voiceWave;
+
+  float rimR = 0.09 + rimWarp;
+  float rimDist = abs(r - rimR);
+  float rim = exp(-rimDist * rimDist / (0.006 * 0.006)) * 0.45;
+  brightness += rim * edgeFade;
 
   // Floor: core always slightly visible
   brightness = max(brightness, core * 0.2);

@@ -5,6 +5,8 @@
  */
 
 import type { BreathController } from './breath';
+import type { EventBus } from './events';
+import type { AudioEngine } from './audio';
 
 // Pentatonic scale intervals (semitones from root) — always consonant
 const PENTATONIC = [0, 3, 5, 7, 10, 12, 15, 17, 19];
@@ -320,5 +322,39 @@ export class AmbientEngine {
 
   private midiToFreq(midi: number): number {
     return 440 * Math.pow(2, (midi - 69) / 12);
+  }
+
+  // ── Bus-driven lifecycle ──────────────────────────────────────
+  private busUnsubs: Array<() => void> = [];
+
+  connectBus(bus: EventBus, audioEngine: AudioEngine, breath: BreathController): void {
+    for (const u of this.busUnsubs) u();
+    this.busUnsubs = [];
+
+    this.busUnsubs.push(bus.on('session:started', ({ session }) => {
+      const ctx = audioEngine.context;
+      const gain = audioEngine.masterGainNode;
+      if (!ctx || !gain) return;
+
+      const rootNotes: Record<string, number> = {
+        relax: 48, sleep: 45, focus: 52, surrender: 50,
+      };
+      this.start(ctx, gain, breath, {
+        rootNote: rootNotes[session.id] ?? 48,
+        warmth: session.audio.warmth,
+        tempo: 5,
+        reverbDecay: 4,
+      });
+    }));
+
+    this.busUnsubs.push(bus.on('session:ended', () => {
+      this.stop();
+    }));
+  }
+
+  dispose(): void {
+    for (const u of this.busUnsubs) u();
+    this.busUnsubs = [];
+    this.stop();
   }
 }

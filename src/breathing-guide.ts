@@ -103,7 +103,9 @@ export class BreathingGuide {
         else if (label === 'hold') this.playClip('breathe_hold');
         else if (label === 'out') this.playClip('breathe_out');
 
-        if (showText) this.text3d.showInstant(label, 10);
+        if (showText) {
+          this.text3d.showCue(label);
+        }
       }
 
       // Drive text Z from value
@@ -115,7 +117,7 @@ export class BreathingGuide {
     // ── CLEANUP ──
     this.stopClip();
     this.breath.releaseForce();
-    this.text3d.fadeOut();
+    this.text3d.hideCue();
     this.text3d.clearSlotDepth();
     if (this.presence) this.presence.setSessionMode();
   }
@@ -125,13 +127,30 @@ export class BreathingGuide {
   }
 
   private playClip(name: string): void {
-    this.stopClip();
+    // Fade out previous clip instead of hard-cutting
+    this.fadeOutClip();
     try {
-      const audio = new Audio(`audio/shared/${name}.wav`);
+      const audio = new Audio(`audio/shared/${name}.mp3`);
       audio.volume = 0.7;
       audio.play().catch(() => {});
       this.currentClip = audio;
     } catch { /* no audio */ }
+  }
+
+  private fadeOutClip(): void {
+    const old = this.currentClip;
+    if (!old) return;
+    this.currentClip = null;
+    // Quick fade over 300ms
+    const startVol = old.volume;
+    const fadeStart = performance.now();
+    const fade = () => {
+      const t = Math.min(1, (performance.now() - fadeStart) / 300);
+      old.volume = startVol * (1 - t);
+      if (t < 1) requestAnimationFrame(fade);
+      else { old.pause(); }
+    };
+    requestAnimationFrame(fade);
   }
 
   private stopClip(): void {

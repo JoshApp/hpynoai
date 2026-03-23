@@ -5,6 +5,7 @@
  */
 
 import type { SettingsManager, HpynoSettings } from './settings';
+import { log } from './logger';
 
 // Bump version to force re-calibration when sprite/text system changes
 const CALIBRATED_KEY = 'hpyno-calibrated-v2';
@@ -41,7 +42,7 @@ export function runAutoCalibration(settings: SettingsManager): Promise<void> {
         const changes = computeSettings(frameTimes);
         settings.updateBatch(changes);
         localStorage.setItem(CALIBRATED_KEY, 'true');
-        console.log('[AutoCal] Calibration complete', changes);
+        log.info('autocal', 'Calibration complete', changes);
         resolve();
       }
     };
@@ -65,7 +66,7 @@ function computeSettings(frameTimes: number[]): Partial<HpynoSettings> {
   const effectivePx = w * dpr;
   const isMobile = w < 768;
 
-  console.log(`[AutoCal] Median FPS: ${fps.toFixed(1)}, Screen: ${w}x${h} @${dpr}x, Mobile: ${isMobile}`);
+  log.info('autocal', `Median FPS: ${fps.toFixed(1)}, Screen: ${w}x${h} @${dpr}x, Mobile: ${isMobile}`);
 
   const changes: Partial<HpynoSettings> = {};
 
@@ -109,7 +110,7 @@ function computeSettings(frameTimes: number[]): Partial<HpynoSettings> {
     changes.interactionDepth = -1.2;
   }
 
-  console.log(`[AutoCal] Screen scale factor: ${screenScale.toFixed(2)} (${effectivePx}px effective)`);
+  log.info('autocal', `Screen scale factor: ${screenScale.toFixed(2)} (${effectivePx}px effective)`);
 
   // ── Aspect ratio adjustments ──
   const aspect = w / h;

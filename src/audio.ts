@@ -5,6 +5,7 @@
 
 import type { AudioProfile } from './session';
 import { AudioAnalyzer, type AudioBands } from './audio-analyzer';
+import type { EventBus } from './events';
 
 export class AudioEngine {
   private ctx: AudioContext | null = null;
@@ -284,7 +285,36 @@ export class AudioEngine {
     this.start(profile);
   }
 
+  // ── Bus-driven lifecycle ──────────────────────────────────────
+  private busUnsubs: Array<() => void> = [];
+
+  connectBus(bus: EventBus): void {
+    for (const u of this.busUnsubs) u();
+    this.busUnsubs = [];
+
+    this.busUnsubs.push(bus.on('session:starting', ({ session }) => {
+      this.init().then(() => {
+        this.start(session.audio);
+      });
+    }));
+
+    this.busUnsubs.push(bus.on('stage:changed', ({ stage }) => {
+      this.setIntensity(stage.intensity);
+    }));
+
+    this.busUnsubs.push(bus.on('session:ending', ({ fadeSec }) => {
+      this.fadeOut(fadeSec ?? 2);
+    }));
+
+    this.busUnsubs.push(bus.on('settings:changed', ({ settings: s }) => {
+      this.setMuted(s.muted);
+      this.setMasterVolume(s.masterVolume);
+    }));
+  }
+
   dispose(): void {
+    for (const u of this.busUnsubs) u();
+    this.busUnsubs = [];
     this.fadeOut(1);
     setTimeout(() => this.ctx?.close(), 2000);
   }

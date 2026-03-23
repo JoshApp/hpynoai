@@ -153,10 +153,21 @@ export class RenderPipeline {
   private lerpColors(targets: NonNullable<FrameState['targetColors']>): void {
     const u = this.deps.tunnelUniforms;
     const speed = 0.03;
-    u.uColor1.value.lerp(_tmpVec3.set(...targets.c1), speed);
-    u.uColor2.value.lerp(_tmpVec3.set(...targets.c2), speed);
-    u.uColor3.value.lerp(_tmpVec3.set(...targets.c3), speed);
-    u.uColor4.value.lerp(_tmpVec3.set(...targets.c4), speed);
+
+    // Portal effect: session colors only appear beyond the presence depth
+    if (u.uPortalColor1 && u.uPortalBlend) {
+      u.uPortalColor1.value.lerp(_tmpVec3.set(...targets.c1), speed);
+      u.uPortalColor2.value.lerp(_tmpVec3.set(...targets.c2), speed);
+      // Blend portal in when previewing, keep outer tunnel in base colors
+      const targetBlend = 1.0;
+      u.uPortalBlend.value += (targetBlend - (u.uPortalBlend.value as number)) * speed;
+    }
+
+    // Still lerp the outer tunnel colors slowly (subtle shift, not full change)
+    u.uColor1.value.lerp(_tmpVec3.set(...targets.c1), speed * 0.3);
+    u.uColor2.value.lerp(_tmpVec3.set(...targets.c2), speed * 0.3);
+    u.uColor3.value.lerp(_tmpVec3.set(...targets.c3), speed * 0.3);
+    u.uColor4.value.lerp(_tmpVec3.set(...targets.c4), speed * 0.3);
     u.uTunnelShape.value += (targets.shape - (u.uTunnelShape.value as number)) * speed;
     this.deps.gpuParticles.setColor(targets.particle[0], targets.particle[1], targets.particle[2]);
   }
@@ -237,6 +248,11 @@ export class RenderPipeline {
     this.updateCamera(frame, frame.intensity);
     this.deps.gpuParticles.update(frame.time, frame.intensity, frame.settings.particleOpacity, frame.settings.particleSize);
     this.updatePresence(frame, true);
+    // Fade out portal effect during session (session colors are already the tunnel colors)
+    const u = this.deps.tunnelUniforms;
+    if (u.uPortalBlend) {
+      u.uPortalBlend.value += (0 - (u.uPortalBlend.value as number)) * 0.05;
+    }
     this.updateFade(frame.fadeAmount);
     this.renderPasses(frame);
   }

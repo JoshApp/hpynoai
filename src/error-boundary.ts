@@ -11,6 +11,8 @@
  * The overlay is pure DOM — no WebGL needed.
  */
 
+import { log } from './logger';
+
 let overlayEl: HTMLDivElement | null = null;
 
 function showError(title: string, detail: string, recoverable = false): void {
@@ -69,8 +71,8 @@ export function checkShaderCompile(
   type: 'vertex' | 'fragment',
 ): boolean {
   if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-    const log = gl.getShaderInfoLog(shader) ?? 'unknown error';
-    console.error(`[HPYNO] ${type} shader compile error:`, log);
+    const shaderLog = gl.getShaderInfoLog(shader) ?? 'unknown error';
+    log.error('shader', `${type} shader compile error`, shaderLog);
     showError(
       'Shader error',
       `The ${type} shader failed to compile. This usually means your GPU doesn't support a required feature. Try updating your graphics drivers.`,
@@ -90,7 +92,7 @@ export async function safeAudioContext(): Promise<AudioContext | null> {
     }
     return ctx;
   } catch (e) {
-    console.warn('[HPYNO] AudioContext creation failed:', e);
+    log.warn('audio', 'AudioContext creation failed', e);
     // Not fatal — the experience can run without audio
     return null;
   }
@@ -102,7 +104,7 @@ export function installGlobalErrorHandler(): void {
     // Ignore ResizeObserver errors (browser noise)
     if (e.message?.includes('ResizeObserver')) return;
 
-    console.error('[HPYNO] Unhandled error:', e.error);
+    log.error('runtime', `Unhandled error: ${e.message}`, e.error);
 
     // Only show overlay for fatal-looking errors
     if (e.message?.includes('WebGL') || e.message?.includes('shader') || e.message?.includes('context')) {
@@ -115,7 +117,7 @@ export function installGlobalErrorHandler(): void {
   });
 
   window.addEventListener('unhandledrejection', (e) => {
-    console.error('[HPYNO] Unhandled rejection:', e.reason);
+    log.error('runtime', 'Unhandled promise rejection', e.reason);
   });
 }
 

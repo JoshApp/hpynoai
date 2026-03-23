@@ -669,33 +669,40 @@ export class InteractionManager {
   // Progress dots show completed cycles.
 
   private async startBreathSync(): Promise<void> {
-    // Intro — same depth as breathing text (below wisp)
-    this.text3d.setSlotDepth(-1.0);
-    this.text3d.showInstant('let\u2019s breathe together', 6);
+    // Intro — cue mode (same position as in/hold/out)
+    this.text3d.showCue('let\u2019s breathe together');
     await this.playSharedClip('breathing_intro');
-    await this.sleep(500);
+    await this.sleep(800);
     if (!this.active) return;
 
-    this.text3d.fadeOut();
-    this.text3d.clearSlotDepth();
+    this.text3d.hideCue();
+    await this.sleep(500);
 
     // Activate breath-sync shader effects
     this._shaderState.breathSyncActive = 1;
 
-    // Breathing guide owns wisp + text + timing
+    // Breathing guide owns wisp + cue text + timing
     const p = this.presenceControl?.getPresence() ?? undefined;
     const guide = new BreathingGuide(this.text3d, this.breath, p);
     await guide.run({ breaths: 4, showText: true });
 
     if (!this.active) return;
 
-    // Outro — same depth as breathing text
-    this.text3d.setSlotDepth(-1.0);
-    this.text3d.showInstant('continue breathing\njust like that', 6);
+    // Outro — cue mode, same position
+    this.text3d.showCue('continue breathing');
     this.playSharedClip('breathing_good');
     await this.sleep(3000);
+    if (!this.active) return;
 
-    this.text3d.fadeOut();
+    this.text3d.showCue('just like that');
+    await this.sleep(3000);
+    if (!this.active) return;
+
+    // Gentle fade before next stage
+    this.text3d.hideCue();
+    await this.sleep(2000);
+
+    this.text3d.clearCue();
     this.text3d.clearSlotDepth();
     this._shaderState.breathSyncActive = 0;
     this.resolve();

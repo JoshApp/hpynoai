@@ -175,7 +175,32 @@ export class BreathController {
   }
 
   private smoothStep(t: number): number {
-    // Cosine interpolation for smooth breath curve
     return (1 - Math.cos(t * Math.PI)) / 2;
+  }
+
+  // ── Bus-driven lifecycle ──────────────────────────────────────
+  private busUnsubs: Array<() => void> = [];
+
+  connectBus(bus: import('./events').EventBus): void {
+    for (const u of this.busUnsubs) u();
+    this.busUnsubs = [];
+
+    this.busUnsubs.push(bus.on('stage:changed', ({ stage }) => {
+      if (stage.breathPattern) {
+        this.setPattern({
+          inhale: stage.breathPattern.inhale,
+          holdIn: stage.breathPattern.holdIn ?? 0,
+          exhale: stage.breathPattern.exhale,
+          holdOut: stage.breathPattern.holdOut ?? 0,
+        });
+      } else {
+        this.setSimpleCycle(stage.breathCycle);
+      }
+    }));
+  }
+
+  dispose(): void {
+    for (const u of this.busUnsubs) u();
+    this.busUnsubs = [];
   }
 }

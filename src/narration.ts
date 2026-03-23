@@ -9,6 +9,8 @@
  * It exposes speaking state so visuals can react to the narrator's voice.
  */
 
+import { log } from './logger';
+
 export interface NarrationLine {
   /** The text to display and optionally speak */
   text: string;
@@ -75,6 +77,8 @@ export interface AudioManifest {
   }>;
 }
 
+import type { EventBus } from './events';
+
 export class NarrationEngine {
   private config: NarrationConfig;
   private queue: NarrationLine[] = [];
@@ -105,6 +109,7 @@ export class NarrationEngine {
   private stageCurrentLine = -1;
   private stagePlaybackActive = false;
   private onStageEnded: (() => void) | null = null;
+  private stageTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
   constructor(config?: Partial<NarrationConfig>) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -147,9 +152,9 @@ export class NarrationEngine {
           }
         }
       }
-      console.log(`[Narration] Loaded audio manifest: ${this.audioLookup.size} lines, ${this.interactiveLookup.size} interactive`);
+      log.info('narration', `Loaded audio manifest: ${this.audioLookup.size} lines, ${this.interactiveLookup.size} interactive`);
     } catch (e) {
-      console.warn('[Narration] Failed to load audio manifest:', e);
+      log.warn('narration', 'Failed to load audio manifest', e);
       this.manifest = null;
     }
   }
@@ -194,23 +199,50 @@ export class NarrationEngine {
     this.speechStartTime = performance.now() / 1000;
     this.estimatedDuration = stage.duration ?? 0;
 
+    log.info('narration', `playStage: ${stageName} (${(stage.duration ?? 0).toFixed(1)}s)`, { file: stage.file });
+
     return new Promise<void>((resolve) => {
-      audio.onended = () => {
+      let resolved = false;
+      const done = (reason: string) => {
+        if (resolved) return;
+        resolved = true;
+        if (this.stageTimeoutId) {
+          clearTimeout(this.stageTimeoutId);
+          this.stageTimeoutId = null;
+        }
+        log.info('narration', `playStage done: ${stageName} (${reason})`);
         this.stagePlaybackActive = false;
         this._isSpeaking = false;
         this.stageAudio = null;
         if (this.onStageEnded) this.onStageEnded();
         resolve();
       };
+
+      audio.onended = () => done('ended');
       audio.onerror = () => {
-        this.stagePlaybackActive = false;
-        this._isSpeaking = false;
-        this.stageAudio = null;
-        resolve();
+        log.warn('narration', `Stage audio failed to load: ${stageName}`);
+        done('error');
       };
-      audio.play().catch(() => {
-        this.stagePlaybackActive = false;
-        resolve();
+
+      // Safety timeout — if onended never fires (browser bug, tab suspend),
+      // force completion so the session doesn't get stuck.
+      const timeoutSec = (stage.duration ?? 60) + 5;
+      this.stageTimeoutId = setTimeout(() => {
+        if (!resolved) {
+          log.warn('narration', `Stage audio timed out after ${timeoutSec}s: ${stageName}`);
+          audio.pause();
+          done('timeout');
+        }
+      }, timeoutSec * 1000);
+
+      audio.play().then(() => {
+        // Notify timeline to bind this audio as clock source
+        if (this.bus) {
+          this.bus.emit('narration:stage-playing', { audioElement: audio, stageName });
+        }
+      }).catch(() => {
+        log.warn('narration', `Stage audio play() rejected: ${stageName}`);
+        done('play-rejected');
       });
     });
   }
@@ -220,6 +252,14 @@ export class NarrationEngine {
     if (!this.manifest) return false;
     const stage = this.manifest.stages.find(s => s.name === stageName);
     return !!(stage?.file);
+  }
+
+  /** Get the duration of a stage's pre-recorded audio, or null if no audio */
+  getStageAudioDuration(stageName: string): number | null {
+    if (!this.manifest) return null;
+    const stage = this.manifest.stages.find(s => s.name === stageName);
+    if (!stage?.file) return null;
+    return stage.duration ?? null;
   }
 
   get isPlayingStage(): boolean {
@@ -238,13 +278,19 @@ export class NarrationEngine {
 
   /** Stop continuous stage playback */
   stopStagePlayback(): void {
+    if (this.stageTimeoutId) {
+      clearTimeout(this.stageTimeoutId);
+      this.stageTimeoutId = null;
+    }
     if (this.stageAudio) {
       // Null out onended BEFORE pausing to prevent stale callback firing
       this.stageAudio.onended = null;
+      this.stageAudio.onerror = null;
       this.stageAudio.pause();
       this.stageAudio = null;
     }
     this.stagePlaybackActive = false;
+    this._isSpeaking = false;
     this.stageLines = [];
     this.stageCurrentLine = -1;
   }
@@ -254,7 +300,7 @@ export class NarrationEngine {
   async playClip(id: string): Promise<void> {
     const entry = this.interactiveLookup.get(id);
     if (!entry) {
-      console.warn(`[Narration] Interactive clip not found: ${id}`);
+      log.warn('narration', `Interactive clip not found: ${id}`);
       return;
     }
     await this.playAudioFile(entry.file, entry.duration);
@@ -285,7 +331,7 @@ export class NarrationEngine {
     utterance.volume = 0;
     window.speechSynthesis.speak(utterance);
     this.warmedUp = true;
-    console.log('[Narration] Speech synthesis warmed up');
+    log.info('narration', 'Speech synthesis warmed up');
   }
 
   /** Queue narration lines to play in order */
@@ -405,7 +451,7 @@ export class NarrationEngine {
       if (voices.length > 0) {
         this.voicesLoaded = true;
         this.selectVoice();
-        console.log(`[Narration] Loaded ${voices.length} voices, selected: ${this.selectedVoice?.name ?? 'none'}`);
+        log.info('narration', `Loaded ${voices.length} voices, selected: ${this.selectedVoice?.name ?? 'none'}`);
       }
     };
 
@@ -515,20 +561,20 @@ export class NarrationEngine {
 
       audio.onended = done;
       audio.onerror = () => {
-        console.warn(`[Narration] Failed to play audio: ${file}`);
+        log.warn('narration', `Failed to play audio: ${file}`);
         done();
       };
 
       // Safety timeout
       setTimeout(() => {
         if (!resolved) {
-          console.warn('[Narration] Audio playback timed out');
+          log.warn('narration', 'Audio playback timed out');
           audio.pause();
           done();
         }
       }, (duration + 5) * 1000);
 
-      console.log(`[Narration] Playing: ${file} (${duration.toFixed(1)}s)`);
+      log.info('narration', `Playing: ${file} (${duration.toFixed(1)}s)`);
       audio.play().catch(() => done());
     });
   }
@@ -580,7 +626,7 @@ export class NarrationEngine {
       utterance.onend = done;
 
       utterance.onerror = (e) => {
-        console.warn('[Narration] Speech error:', e.error);
+        log.warn('narration', 'Speech error', e.error);
         done();
       };
 
@@ -589,13 +635,13 @@ export class NarrationEngine {
       const timeoutMs = (this.estimatedDuration + 5) * 1000;
       setTimeout(() => {
         if (!resolved) {
-          console.warn('[Narration] Speech timed out, advancing queue');
+          log.warn('narration', 'Speech timed out, advancing queue');
           window.speechSynthesis.cancel();
           done();
         }
       }, timeoutMs);
 
-      console.log(`[Narration] Speaking: "${line.text.substring(0, 40)}..." voice=${this.selectedVoice?.name ?? 'default'}`);
+      log.info('narration', `Speaking: "${line.text.substring(0, 40)}..." voice=${this.selectedVoice?.name ?? 'default'}`);
       window.speechSynthesis.speak(utterance);
 
       // Chrome bug workaround: speechSynthesis can pause itself after ~15s.
@@ -640,7 +686,62 @@ export class NarrationEngine {
       .map(v => v.name);
   }
 
+  // ── Bus-driven lifecycle ──────────────────────────────────────
+  private busUnsubs: Array<() => void> = [];
+  private bus: EventBus | null = null;
+  private currentStageName = '';
+
+  connectBus(bus: EventBus): void {
+    for (const u of this.busUnsubs) u();
+    this.busUnsubs = [];
+    this.bus = bus;
+
+    // Wire text display → bus emission
+    this.setTextHandler((text, words, audioStartTime) => {
+      bus.emit('narration:line', { text, words, audioStartTime });
+    });
+
+    // Wire stage ended → bus emission
+    this.setStageEndedHandler(() => {
+      bus.emit('narration:stage-ended', { stageName: this.currentStageName });
+    });
+
+    // Session starting → load manifest
+    this.busUnsubs.push(bus.on('session:starting', ({ session }) => {
+      this.clearManifest();
+      this.loadManifest(`audio/${session.id}/manifest.json`).catch(() => {});
+      this.warmup();
+    }));
+
+    // Stage text → speak (if not playing continuous audio for this stage)
+    this.busUnsubs.push(bus.on('stage:text', ({ text }) => {
+      if (this.isPlayingStage || this.hasStageAudio(this.currentStageName)) return;
+      this.speak(text);
+    }));
+
+    // Stage changed → track name + play continuous audio if available
+    this.busUnsubs.push(bus.on('stage:changed', ({ stage }) => {
+      this.currentStageName = stage.name;
+      this.stopStagePlayback();
+      if (this.hasStageAudio(stage.name)) {
+        this.playStage(stage.name);
+      }
+    }));
+
+    // Session ended → stop everything
+    this.busUnsubs.push(bus.on('session:ended', () => {
+      this.stop();
+    }));
+
+    // Settings → update config
+    this.busUnsubs.push(bus.on('settings:changed', ({ settings: s }) => {
+      this.setConfig({ voiceEnabled: s.ttsEnabled, volume: s.narrationVolume });
+    }));
+  }
+
   dispose(): void {
+    for (const u of this.busUnsubs) u();
+    this.busUnsubs = [];
     this.stop();
   }
 }

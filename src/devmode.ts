@@ -6,12 +6,12 @@
  * Auto-enable: ?dev URL parameter
  */
 
-import { StageManager } from './stages';
+import { Timeline } from './timeline';
 import { AudioEngine } from './audio';
 import { InteractionManager } from './interactions';
 
 export interface DevModeOptions {
-  stageManager: StageManager;
+  timeline: Timeline;
   audio: AudioEngine;
   interactions: InteractionManager;
   getIntensity: () => number;
@@ -70,7 +70,7 @@ export class DevMode {
   rebuildStageButtons(): void {
     const container = this.panel.querySelector('.dev-stage-btns');
     if (!container) return;
-    const sm = this.opts.stageManager;
+    const sm = this.opts.timeline;
     container.innerHTML = sm.stages
       .map((s, i) => `<button class="dev-stage-btn" data-index="${i}">${s.name}</button>`)
       .join('');
@@ -83,7 +83,7 @@ export class DevMode {
   }
 
   private buildHTML(): string {
-    const sm = this.opts.stageManager;
+    const sm = this.opts.timeline;
     const stageButtons = sm.stages
       .map((s, i) => `<button class="dev-stage-btn" data-index="${i}">${s.name}</button>`)
       .join('');
@@ -143,7 +143,7 @@ export class DevMode {
     this.panel.querySelectorAll<HTMLButtonElement>('.dev-stage-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         const idx = parseInt(btn.dataset.index!, 10);
-        this.opts.stageManager.jumpToStage(idx);
+        this.opts.timeline.jumpToStage(idx);
       });
     });
 
@@ -151,7 +151,7 @@ export class DevMode {
     this.panel.querySelectorAll<HTMLButtonElement>('.dev-speed-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         this.speedMultiplier = parseInt(btn.dataset.speed!, 10);
-        this.opts.stageManager.setSpeedMultiplier(this.speedMultiplier);
+        this.opts.timeline.setSpeedMultiplier(this.speedMultiplier);
         this.elSpeed.textContent = `${this.speedMultiplier}x`;
         this.panel.querySelectorAll('.dev-speed-btn').forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
@@ -225,7 +225,7 @@ export class DevMode {
 
     if (!this.visible) return;
 
-    const sm = this.opts.stageManager;
+    const sm = this.opts.timeline;
     const stage = sm.currentStage;
     const intensity = this.opts.getIntensity();
     const elapsed = (now - this.startTime) / 1000;

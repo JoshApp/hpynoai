@@ -15,6 +15,8 @@
  * Uses Web Audio API AnalyserNode for all processing — no external deps.
  */
 
+import { log } from './logger';
+
 export interface MicSignals {
   breathPhase: number;
   breathRate: number;
@@ -110,7 +112,7 @@ export class MicrophoneEngine {
       this.lastVocalizationTime = performance.now() / 1000;
       return true;
     } catch {
-      console.log('Microphone access denied — running without mic');
+      log.info('mic', 'Microphone access denied — running without mic');
       return false;
     }
   }

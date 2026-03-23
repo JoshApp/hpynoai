@@ -3,6 +3,8 @@
  * Only registers in production (not during Vite dev server).
  */
 
+import { log } from './logger';
+
 export function registerServiceWorker(): void {
   if (!('serviceWorker' in navigator)) return;
 
@@ -12,13 +14,13 @@ export function registerServiceWorker(): void {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').then(
       (reg) => {
-        console.log('[SW] Registered, scope:', reg.scope);
+        log.info('sw', `Registered, scope: ${reg.scope}`);
 
         // Auto-update check every hour
         setInterval(() => reg.update(), 60 * 60 * 1000);
       },
       (err) => {
-        console.warn('[SW] Registration failed:', err);
+        log.warn('sw', 'Registration failed', err);
       },
     );
   });

@@ -18,6 +18,7 @@
 
 import type { EventBus } from './events';
 import { appState, setPhase } from './app-state';
+import { log } from './logger';
 import type { AppPhase } from './app-state';
 
 export type Phase = 'boot' | 'selector' | 'transitioning' | 'session' | 'ending';
@@ -76,12 +77,13 @@ export class StateMachine {
     const from = this._phase;
 
     if (!VALID_TRANSITIONS[from]?.includes(to)) {
-      console.warn(`[StateMachine] Invalid transition: ${from} → ${to}`);
+      log.warn('state', `Invalid transition: ${from} → ${to}`);
       return false;
     }
 
     this._phase = to;
     this._epoch++;
+    log.info('state', `${from} → ${to}`, { epoch: this._epoch, sessionId: opts?.sessionId });
 
     if (opts?.sessionId !== undefined) {
       this._sessionId = opts.sessionId;

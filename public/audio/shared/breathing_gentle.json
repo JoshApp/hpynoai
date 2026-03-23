@@ -1,0 +1,281 @@
+{
+  "file": "audio/shared/breathing_gentle.mp3",
+  "duration": 52.61,
+  "words": [
+    {
+      "word": "Breathe",
+      "start": 0.0,
+      "end": 0.46
+    },
+    {
+      "word": "in",
+      "start": 0.46,
+      "end": 0.86
+    },
+    {
+      "word": "slowly,",
+      "start": 0.86,
+      "end": 1.86
+    },
+    {
+      "word": "filling",
+      "start": 2.24,
+      "end": 3.36
+    },
+    {
+      "word": "your",
+      "start": 3.36,
+      "end": 3.84
+    },
+    {
+      "word": "lungs,",
+      "start": 3.84,
+      "end": 4.4
+    },
+    {
+      "word": "and",
+      "start": 4.66,
+      "end": 5.5
+    },
+    {
+      "word": "hold",
+      "start": 5.5,
+      "end": 6.02
+    },
+    {
+      "word": "just",
+      "start": 6.02,
+      "end": 6.98
+    },
+    {
+      "word": "for",
+      "start": 6.98,
+      "end": 7.5
+    },
+    {
+      "word": "a",
+      "start": 7.5,
+      "end": 7.68
+    },
+    {
+      "word": "moment.",
+      "start": 7.68,
+      "end": 8.06
+    },
+    {
+      "word": "And",
+      "start": 9.38,
+      "end": 10.42
+    },
+    {
+      "word": "breathe",
+      "start": 10.42,
+      "end": 10.7
+    },
+    {
+      "word": "out",
+      "start": 10.7,
+      "end": 11.1
+    },
+    {
+      "word": "slowly,",
+      "start": 11.1,
+      "end": 12.44
+    },
+    {
+      "word": "letting",
+      "start": 12.84,
+      "end": 14.1
+    },
+    {
+      "word": "everything",
+      "start": 14.1,
+      "end": 14.92
+    },
+    {
+      "word": "go.",
+      "start": 14.92,
+      "end": 15.7
+    },
+    {
+      "word": "Breathe",
+      "start": 17.12,
+      "end": 18.16
+    },
+    {
+      "word": "in",
+      "start": 18.16,
+      "end": 18.62
+    },
+    {
+      "word": "again,",
+      "start": 18.62,
+      "end": 19.14
+    },
+    {
+      "word": "nice",
+      "start": 19.3,
+      "end": 20.68
+    },
+    {
+      "word": "and",
+      "start": 20.68,
+      "end": 21.2
+    },
+    {
+      "word": "deep.",
+      "start": 21.2,
+      "end": 21.6
+    },
+    {
+      "word": "Hold",
+      "start": 22.84,
+      "end": 23.36
+    },
+    {
+      "word": "and",
+      "start": 23.36,
+      "end": 23.98
+    },
+    {
+      "word": "release.",
+      "start": 23.98,
+      "end": 25.04
+    },
+    {
+      "word": "Let",
+      "start": 26.22,
+      "end": 26.74
+    },
+    {
+      "word": "it",
+      "start": 26.74,
+      "end": 27.0
+    },
+    {
+      "word": "all",
+      "start": 27.0,
+      "end": 27.26
+    },
+    {
+      "word": "out.",
+      "start": 27.26,
+      "end": 28.08
+    },
+    {
+      "word": "Once",
+      "start": 30.08,
+      "end": 30.88
+    },
+    {
+      "word": "more,",
+      "start": 30.88,
+      "end": 31.22
+    },
+    {
+      "word": "breathe",
+      "start": 31.44,
+      "end": 32.62
+    },
+    {
+      "word": "in,",
+      "start": 32.62,
+      "end": 33.12
+    },
+    {
+      "word": "hold",
+      "start": 33.22,
+      "end": 34.76
+    },
+    {
+      "word": "it",
+      "start": 34.76,
+      "end": 34.98
+    },
+    {
+      "word": "there,",
+      "start": 34.98,
+      "end": 35.26
+    },
+    {
+      "word": "and",
+      "start": 35.5,
+      "end": 36.58
+    },
+    {
+      "word": "let",
+      "start": 36.58,
+      "end": 36.84
+    },
+    {
+      "word": "go",
+      "start": 36.84,
+      "end": 37.16
+    },
+    {
+      "word": "slowly.",
+      "start": 37.16,
+      "end": 38.2
+    },
+    {
+      "word": "Last",
+      "start": 39.54,
+      "end": 40.34
+    },
+    {
+      "word": "one,",
+      "start": 40.34,
+      "end": 40.82
+    },
+    {
+      "word": "deep",
+      "start": 40.98,
+      "end": 42.32
+    },
+    {
+      "word": "breath",
+      "start": 42.32,
+      "end": 43.08
+    },
+    {
+      "word": "in,",
+      "start": 43.08,
+      "end": 43.58
+    },
+    {
+      "word": "hold,",
+      "start": 43.74,
+      "end": 45.3
+    },
+    {
+      "word": "and",
+      "start": 45.6,
+      "end": 46.92
+    },
+    {
+      "word": "out.",
+      "start": 46.92,
+      "end": 47.32
+    },
+    {
+      "word": "All",
+      "start": 48.02,
+      "end": 48.82
+    },
+    {
+      "word": "the",
+      "start": 48.82,
+      "end": 49.42
+    },
+    {
+      "word": "way.",
+      "start": 49.42,
+      "end": 49.68
+    },
+    {
+      "word": "Good.",
+      "start": 50.94,
+      "end": 51.74
+    }
+  ]
+}

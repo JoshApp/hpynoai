@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { AudioEngine } from './audio';
-import { StageManager } from './stages';
+import { Timeline, type TimelineState, type TimelineSegment } from './timeline';
+import { Timebar } from './timebar';
 import { DevMode } from './devmode';
 import { InteractionManager } from './interactions';
 import { SessionSelector } from './selector';
@@ -30,6 +31,7 @@ import tunnelFrag from './shaders/tunnel.frag';
 import { checkWebGL, installGlobalErrorHandler } from './error-boundary';
 import { registerServiceWorker } from './sw-register';
 import { LoadingIndicator } from './loading';
+import { log } from './logger';
 
 // ══════════════════════════════════════════════════════════════════════
 // ERROR BOUNDARIES — check before anything else
@@ -129,11 +131,16 @@ if (hotState.tunnelMaterial) {
     tunnelMaterial.vertexShader = tunnelVert;
     tunnelMaterial.fragmentShader = tunnelFrag;
     tunnelMaterial.needsUpdate = true;
-    console.log('[HMR] Shader updated');
+    log.info('hmr', 'Shader updated');
   }
   // Ensure new uniforms exist on reused material
   if (!tunnelMaterial.uniforms.uPresencePos) {
     tunnelMaterial.uniforms.uPresencePos = { value: new THREE.Vector3(0, 0, -1.5) };
+  }
+  if (!tunnelMaterial.uniforms.uPortalColor1) {
+    tunnelMaterial.uniforms.uPortalColor1 = { value: new THREE.Vector3(0.45, 0.1, 0.55) };
+    tunnelMaterial.uniforms.uPortalColor2 = { value: new THREE.Vector3(0.7, 0.3, 0.9) };
+    tunnelMaterial.uniforms.uPortalBlend = { value: 0 };
   }
 } else {
   tunnelMaterial = new THREE.ShaderMaterial({
@@ -166,6 +173,9 @@ if (hotState.tunnelMaterial) {
       uBreathSyncFill: { value: 0 },
       uBreathSyncProgress: { value: 0 },
       uPresencePos: { value: new THREE.Vector3(0, 0, -1.5) },
+      uPortalColor1: { value: new THREE.Vector3(0.45, 0.1, 0.55) },
+      uPortalColor2: { value: new THREE.Vector3(0.7, 0.3, 0.9) },
+      uPortalBlend: { value: 0 },
     },
   });
   tunnelPlane = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), tunnelMaterial);
@@ -258,9 +268,11 @@ const renderPipeline = new RenderPipeline({
 // ── Audio/mic ──
 const audio = hotState.audio ?? new AudioEngine();
 hotState.audio = audio;
+audio.connectBus(bus);
 
 const ambient = hotState.ambient ?? new AmbientEngine();
 hotState.ambient = ambient;
+// ambient.connectBus needs breath — connected after breath is created below
 
 const mic = hotState.mic ?? new MicrophoneEngine();
 hotState.mic = mic;
@@ -272,6 +284,8 @@ const breath = hotState.breath ?? (() => {
   return b;
 })();
 hotState.breath = breath;
+breath.connectBus(bus);
+ambient.connectBus(bus, audio, breath);
 
 // ── Narration ──
 const narration = hotState.narration ?? new NarrationEngine({
@@ -281,9 +295,7 @@ const narration = hotState.narration ?? new NarrationEngine({
   volume: settings.current.narrationVolume,
 });
 hotState.narration = narration;
-narration.setTextHandler((text, words, audioStartTime) => {
-  bus.emit('narration:line', { text, words, audioStartTime });
-});
+narration.connectBus(bus);
 
 bus.on('narration:line', ({ text, words, audioStartTime }) => {
   showText(text, words, audioStartTime);
@@ -307,43 +319,32 @@ function applyTheme(session: SessionConfig): void {
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// STAGE MANAGER — recreate with fresh callbacks, preserve stage index
+// TIMELINE — single source of truth for session progression
 // ══════════════════════════════════════════════════════════════════════
-const prevStageIndex = hotState.stageManager?.currentIndex;
-const stageManager = new StageManager(
-  activeSession?.stages ?? sessions[0].stages,
-  // onText → emit to bus
-  (text) => bus.emit('stage:text', { text }),
-  // onStageChange → emit to bus
-  (stage: SessionStage, index: number) => {
-    bus.emit('stage:changed', { stage, index, total: stageManager.stageCount ?? 0 });
-  },
-);
-hotState.stageManager = stageManager;
+const timeline = new Timeline();
 
-// ── Stage event subscribers ──
-bus.on('stage:text', ({ text }) => {
-  if (narration.isPlayingStage || narration.hasStageAudio(stageManager.currentStage.name)) return;
-  narration.speak(text);
+// Wire timeline callbacks → bus events
+timeline.onSegmentChange((seg, prev) => {
+  bus.emit('stage:changed', { stage: seg.stage, index: seg.index, total: timeline.segmentCount });
+});
+timeline.onText((text, seg) => {
+  bus.emit('stage:text', { text });
+});
+timeline.onInteraction((interaction, seg) => {
+  bus.emit('interaction:trigger', { interaction });
+});
+timeline.onComplete(() => {
+  endExperience();
 });
 
+// Timebar — dev widget for timeline scrubbing (toggle with T key)
+const timebar = new Timebar(timeline);
+
+// ── Stage event subscribers ──
+// stage:text and stage:changed → audio/narration/breath handle themselves via bus.
+// Main.ts only handles UI (breathing guide, app state tracking).
 bus.on('stage:changed', ({ stage, index }) => {
-  console.log(`Stage: ${stage.name}`);
-  audio.setIntensity(stage.intensity);
-  narration.stopStagePlayback();
-  if (narration.hasStageAudio(stage.name)) {
-    narration.playStage(stage.name);
-  }
-  if (stage.breathPattern) {
-    breath.setPattern({
-      inhale: stage.breathPattern.inhale,
-      holdIn: stage.breathPattern.holdIn ?? 0,
-      exhale: stage.breathPattern.exhale,
-      holdOut: stage.breathPattern.holdOut ?? 0,
-    });
-  } else {
-    breath.setSimpleCycle(stage.breathCycle);
-  }
+  log.info('stage', `Stage: ${stage.name}`, { index, stage: stage.name });
   breathCircle.style.animationDuration = `${breath.cycleDuration}s`;
   if (index === 0) {
     breathGuide.classList.add('visible');
@@ -370,11 +371,7 @@ interactions.setPresenceControl({
 });
 hotState.interactions = interactions;
 
-// Interaction handler: emit to bus, async logic lives in subscriber
-stageManager.setInteractionHandler((interaction: Interaction) => {
-  bus.emit('interaction:trigger', { interaction });
-});
-
+// Interaction handler — timeline fires the event, we pause/run/resume
 bus.on('interaction:trigger', async ({ interaction }) => {
   const epoch = machine.epoch;
 
@@ -384,84 +381,67 @@ bus.on('interaction:trigger', async ({ interaction }) => {
 
   text3d.clear();
   narration.stop();
-  stageManager.pause();
+  timeline.pause();
   await interactions.start(interaction);
 
-  if (!machine.guard(epoch)) return; // session changed while awaiting
+  if (!machine.guard(epoch)) return;
 
-  // Breath-sync handler already shows "continue breathing" text + clip
-  // Just advance the stage
-  stageManager.advanceStage();
-  stageManager.resume();
+  timeline.resume();
   bus.emit('interaction:complete', { type: interaction.type });
 });
 
-// Narration stage-ended handler: emit to bus
-let lastStageEndTime = 0;
-narration.setStageEndedHandler(() => {
-  bus.emit('narration:stage-ended', { stageName: stageManager.currentStage.name });
-});
-
+// Narration stage audio ended → tell timeline to unbind audio clock
+// (Timeline will auto-advance via its own position tracking)
 bus.on('narration:stage-ended', () => {
   if (!machine.is('session')) return;
-  if (stageManager.isComplete) return;
-
-  const now = performance.now();
-  if (now - lastStageEndTime < 1000) return;
-  lastStageEndTime = now;
-
+  timeline.audioEnded();
   text3d.fadeOut();
-  const stage = stageManager.currentStage;
-  if (stage.interactions && stage.interactions.length > 0) {
-    stageManager.triggerPendingInteraction();
-  } else {
-    stageManager.advanceStage();
+});
+
+// When narration starts playing stage audio, bind it as timeline clock
+bus.on('narration:stage-playing', ({ audioElement, stageName }) => {
+  if (!machine.is('session')) return;
+  const seg = timeline.currentSegment;
+  if (seg && audioElement) {
+    timeline.bindAudio(audioElement, seg.start);
   }
 });
 
 // ── Dev Mode ──
 hotState.devMode?.destroy?.();
 const devMode = new DevMode({
-  stageManager,
+  timeline,
   audio,
   interactions,
-  getIntensity: () => intensityOverride ?? stageManager.intensity,
+  getIntensity: () => intensityOverride ?? (timeline.started ? (timeline.currentSegment?.stage.intensity ?? 0.12) : 0.12),
   setIntensityOverride: (v) => { intensityOverride = v; },
   getShaderIntensityScale: () => shaderIntensityScale,
   setShaderIntensityScale: (v) => { shaderIntensityScale = v; },
   onRestart: () => {
-    stageManager.reset();
+    timeline.seek(0);
     interactions.clear();
     narration.stop();
-    audio.setIntensity(stageManager.currentStage.intensity);
     breathGuide.classList.remove('visible');
   },
 });
 hotState.devMode = devMode;
 
 // ── Settings reactivity ──
+// Settings changes → bus. Audio/narration handle themselves.
 settings.onChange((s) => {
   bus.emit('settings:changed', { settings: s });
 });
-
-bus.on('settings:changed', ({ settings: s }) => {
-  audio.setMuted(s.muted);
-  audio.setMasterVolume(s.masterVolume);
-  narration.setConfig({ voiceEnabled: s.ttsEnabled, volume: s.narrationVolume });
-});
-audio.setMuted(settings.current.muted);
-audio.setMasterVolume(settings.current.masterVolume);
 
 // ── Calibration ──
 let guidedCal: GuidedCalibration | null = null;
 settings.onCalibrate(() => {
   if (guidedCal) return;
   settings.hide();
-  if (isRunning) stageManager.pause();
+  if (isRunning) timeline.pause();
   guidedCal = new GuidedCalibration({ scene: overlayScene, camera, canvas, settings, audio, text3d, bus });
   guidedCal.run().then(() => {
     guidedCal = null;
-    if (isRunning) stageManager.resume();
+    if (isRunning) timeline.resume();
   });
 });
 if (!isHMR) runAutoCalibration(settings);
@@ -482,6 +462,7 @@ const targetColors = {
 // SESSION START — called from selector after orb expansion
 // ══════════════════════════════════════════════════════════════════════
 function startSession(session: SessionConfig): void {
+  log.info('session', `Starting: ${session.name}`, { id: session.id, stages: session.stages.length });
   // Load manifest FIRST, then start session
   sessionEpoch++;
   activeSession = session;
@@ -490,48 +471,39 @@ function startSession(session: SessionConfig): void {
   machine.transition('transitioning', { sessionId: session.id });
   bus.emit('session:starting', { session });
 
-  stageManager.setStages(session.stages);
+  // Build timeline from session stages
+  timeline.build(
+    session.stages,
+    (name) => narration.hasStageAudio(name),
+    (name) => narration.getStageAudioDuration(name),
+  );
   applyTheme(session);
+  timebar.buildSegments();
   devMode.rebuildStageButtons();
 
   selector?.dispose?.();
   selector = null;
   hotState.selector = undefined;
 
-  // Load manifest before starting — so stage audio is available from frame 1
-  narration.clearManifest();
-  const doneLoading = loading.start('preparing session');
-  narration.loadManifest(`audio/${session.id}/manifest.json`).catch(() => {}).finally(() => {
-    doneLoading();
-    isRunning = true;
-    machine.transition('session');
-    bus.emit('session:started', { session });
-    stageManager.start();
-    animate();
-  });
-
-  // Fullscreen + wakelock immediately (needs user gesture context from selector click)
+  // Fullscreen + wakelock (needs user gesture context from selector click)
   const el = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> };
   (el.requestFullscreen?.() ?? el.webkitRequestFullscreen?.())?.catch?.(() => {});
-  narration.warmup();
   acquireWakeLock();
   registerMediaSession(session.name);
   startSilentAudioKeepAlive();
 
-  // Start audio during fade so it's ready when session begins
+  // Loading indicator while audio/manifest loads
+  const doneLoading = loading.start('preparing session');
+
+  // Wait for audio to initialize, then start the session
+  // Audio, narration, ambient all react to bus events (session:starting, session:started)
   audio.init().then(() => {
-    audio.start(session.audio);
-    if (audio.context && audio.externalInputNode) {
-      const rootNotes: Record<string, number> = {
-        relax: 48, sleep: 45, focus: 52, surrender: 50,
-      };
-      ambient.start(audio.context, audio.masterGainNode!, breath, {
-        rootNote: rootNotes[session.id] ?? 48,
-        warmth: session.audio.warmth,
-        tempo: 5,
-        reverbDecay: 4,
-      });
-    }
+    doneLoading();
+    isRunning = true;
+    machine.transition('session');
+    bus.emit('session:started', { session });
+    timeline.start();
+    animate();
   });
 }
 
@@ -590,10 +562,10 @@ function animate(): void {
   const s = settings.current;
 
   // Update subsystems
-  stageManager.update();
+  const tlState = timeline.update();
   mic.update();
   narration.update();
-  const intensity = intensityOverride ?? stageManager.intensity;
+  const intensity = intensityOverride ?? (tlState?.intensity ?? 0.12);
 
   const micSig = mic.signals;
   if (micSig.active) breath.setFromMic(micSig.breathPhase);
@@ -604,7 +576,7 @@ function animate(): void {
   const rawDt = lastAnimTime > 0 ? time - lastAnimTime : 1 / 60;
   const dt = Math.min(rawDt, 0.1);
   lastAnimTime = time;
-  spiralAngle += dt * stageManager.spiralSpeed * s.spiralSpeedMult * 0.5;
+  spiralAngle += dt * (tlState?.spiralSpeed ?? 1) * s.spiralSpeedMult * 0.5;
 
   // Update scene objects
   text3d.setSettings({ startZ: s.narrationStartZ, endZ: s.narrationEndZ, scale: s.narrationScale });
@@ -626,7 +598,7 @@ function animate(): void {
     time, dt, settings: s,
     breathPhase: breath.phase, breathValue: breath.value, breathStage: breath.stage,
     intensity: intensity * shaderIntensityScale, spiralAngle,
-    spiralSpeed: stageManager.spiralSpeed,
+    spiralSpeed: tlState?.spiralSpeed ?? 1,
     mouseX: mouse.x, mouseY: mouse.y,
     audioBands, voiceEnergy: narration.state.voiceEnergy, micBoost,
     breathSyncActive: iState.breathSyncActive,
@@ -637,15 +609,17 @@ function animate(): void {
   };
   renderPipeline.renderSession(frame);
 
-  appState.stageIndex = stageManager.currentIndex;
-  if (stageManager.isComplete) endExperience();
+  appState.stageIndex = timeline.currentIndex;
+  timebar.update();
+  // Completion is handled by timeline.onComplete callback
 }
 
 // ══════════════════════════════════════════════════════════════════════
 // END EXPERIENCE — fade through tunnel, return to selector
 // ══════════════════════════════════════════════════════════════════════
 /** Shared cleanup for any session → selector transition */
-function cleanupSession(audioFadeSec: number): void {
+function cleanupSession(): void {
+  log.info('session', 'Cleanup — returning to selector');
   sessionEpoch++;
   isRunning = false;
   setPhase('selector');
@@ -657,11 +631,9 @@ function cleanupSession(audioFadeSec: number): void {
   clearMediaSession();
   stopSilentAudioKeepAlive();
 
-  // Stop all active systems
-  audio.fadeOut(audioFadeSec);
-  ambient.stop();
+  // Audio/ambient/narration/presence handle session:ended via bus.
+  // Only clear UI systems that aren't bus-connected yet.
   interactions.clear();
-  narration.stop();
   text3d.clear();
   activeSession = null;
   breathGuide.classList.remove('visible');
@@ -679,15 +651,15 @@ function endExperience(): void {
   if (transition.isActive) return;
   showText('welcome back');
   machine.transition('ending');
-  bus.emit('session:ending', {});
-  transition.run(() => cleanupSession(2), { fadeOutMs: 3000, holdMs: 500, fadeInMs: 2000 });
+  bus.emit('session:ending', { fadeSec: 3 });
+  transition.run(() => cleanupSession(), { fadeOutMs: 3000, holdMs: 500, fadeInMs: 2000 });
 }
 
 function returnToMenu(): void {
   if (transition.isActive) return;
   machine.transition('ending');
-  bus.emit('session:ending', {});
-  transition.run(() => cleanupSession(1), { fadeOutMs: 1200, holdMs: 300, fadeInMs: 1500 });
+  bus.emit('session:ending', { fadeSec: 1 });
+  transition.run(() => cleanupSession(), { fadeOutMs: 1200, holdMs: 300, fadeInMs: 1500 });
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -697,7 +669,7 @@ function boot(): void {
   const phase = appState.phase;
 
   if (isHMR) {
-    console.log(`[HMR] Restoring phase: ${phase}`);
+    log.info('hmr', `Restoring phase: ${phase}`);
   }
 
   switch (phase) {
@@ -713,13 +685,22 @@ function boot(): void {
         text3d.clear();
         interactions.clear();
 
-        // Restart at the current stage (fires onStageChange exactly once)
-        const idx = prevStageIndex ?? appState.stageIndex;
-        stageManager.resumeAt(idx);
+        // Rebuild timeline and seek to current position
+        timeline.build(
+          activeSession.stages,
+          (name) => narration.hasStageAudio(name),
+          (name) => narration.getStageAudioDuration(name),
+        );
+        timeline.start();
+        // Seek to roughly where we were (stage start)
+        const idx = appState.stageIndex;
+        if (idx > 0 && idx < timeline.segmentCount) {
+          timeline.seek(timeline.allSegments[idx].start);
+        }
 
         isRunning = true;
         animate();
-        console.log(`[HMR] Restarted stage ${idx} (${stageManager.currentStage.name})`);
+        log.info('hmr', `Restarted at segment ${idx}`);
       } else {
         setPhase('selector');
         bootSelector();
@@ -820,14 +801,22 @@ onCleanup(() => {
 // VISIBILITY — handle tab away / tab back gracefully
 // ══════════════════════════════════════════════════════════════════════
 const onVisibilityChange = () => {
-  if (!document.hidden) {
-    // Tab back — reset timing to prevent huge delta spikes
+  if (document.hidden) {
+    log.info('visibility', 'Tab hidden');
+  } else {
+    // Tab back — reset frame delta to prevent huge dt spike
     lastAnimTime = 0;
+    log.info('visibility', `Tab resumed, timeline position: ${timeline.position.toFixed(1)}s`);
+
     // Resume audio context if it was suspended
     if (audio.context?.state === 'suspended') {
       audio.context.resume().catch(() => {});
     }
-    console.log('[Visibility] Resumed');
+
+    // Timeline handles sync automatically:
+    // - If audio was bound, position = audio.currentTime (already correct)
+    // - If wall clock, position continued advancing (correct for TTS)
+    // - update() will fire any missed events on next frame
   }
 };
 document.addEventListener('visibilitychange', onVisibilityChange);

@@ -147,6 +147,9 @@ export class Presence {
       uIntensity: { value: 0.3 },
       uColor: { value: new THREE.Vector3(0.6, 0.3, 0.9) },
       uCoreColor: { value: new THREE.Vector3(0.9, 0.8, 1.0) },
+      uPulseColor: { value: new THREE.Vector3(0.6, 0.3, 0.9) },
+      uPulseAmount: { value: 0 },
+      uRimWarp: { value: 0 },
     };
 
     const material = new THREE.ShaderMaterial({
@@ -251,6 +254,22 @@ export class Presence {
 
   setSize(s: number): void {
     this.targetSize = s;
+  }
+
+  /** Color pulse — blend toward a target color then fade back. For breathing, emotions. */
+  colorPulse(r: number, g: number, b: number, amount = 1.0): void {
+    (this.uniforms.uPulseColor.value as THREE.Vector3).set(r, g, b);
+    this.uniforms.uPulseAmount.value = amount;
+  }
+
+  /** Clear color pulse */
+  clearPulse(): void {
+    this.uniforms.uPulseAmount.value = 0;
+  }
+
+  /** Set rim warp directly (0 = calm circle, 1 = turbulent) */
+  setRimWarp(amount: number): void {
+    this.uniforms.uRimWarp.value = amount;
   }
 
   /** Quick size pulse — expands then returns. Used on session selection. */
@@ -385,6 +404,20 @@ export class Presence {
         a[2] - warmth * 0.05,
       );
     }
+
+    // ── Decay color pulse ──
+    const pulseVal = this.uniforms.uPulseAmount.value as number;
+    if (pulseVal > 0.005) {
+      this.uniforms.uPulseAmount.value = pulseVal * 0.96;
+    }
+
+    // ── Auto-drive rim warp from voice + audio energy ──
+    // Voice makes outline turbulent, audio bass adds subtle movement
+    const targetWarp = Math.min(1, this.smoothVoice * 1.5 + this.smoothBass * 0.3);
+    const currentWarp = this.uniforms.uRimWarp.value as number;
+    // Rise fast, decay slow — outline reacts immediately then calms gradually
+    const warpLerp = targetWarp > currentWarp ? 0.1 : 0.02;
+    this.uniforms.uRimWarp.value = currentWarp + (targetWarp - currentWarp) * warpLerp;
 
     // ── Uniforms ──
     this.uniforms.uTime.value = time;

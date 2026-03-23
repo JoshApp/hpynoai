@@ -42,6 +42,9 @@ uniform float uBreathSyncActive;
 uniform float uBreathSyncFill;
 uniform float uBreathSyncProgress;
 uniform vec3  uPresencePos;  // world position of the presence wisp
+uniform vec3  uPortalColor1; // session preview: primary (deep side of portal)
+uniform vec3  uPortalColor2; // session preview: secondary
+uniform float uPortalBlend;  // 0 = no portal, 1 = fully showing session colors
 
 varying vec2 vUv;
 
@@ -68,11 +71,6 @@ float noise(vec2 p) {
 void main() {
   vec2 uv = vUv - 0.5;
   float aspect = uResolution.x / uResolution.y;
-  // Partial aspect correction — full correction makes a perfect circle but
-  // on widescreen that wastes the sides. Using sqrt(aspect) makes it rounder
-  // while still filling the screen better.
-  float aspectCorr = mix(1.0, aspect, 0.7);
-  uv.x *= aspectCorr;
 
   float br = uBreathValue;
 
@@ -82,8 +80,15 @@ void main() {
   // Mouse adds subtle offset
   uv += uMouse * 0.04 * uIntensity;
 
-  float r     = length(uv);
-  float angle = atan(uv.y, uv.x);
+  // For the radius (depth mapping), use screen-proportional distance
+  // so the tunnel fills the screen as a circle matching the SHORTER axis.
+  // This prevents the oval appearance on widescreen.
+  float r     = length(uv) * 2.0; // 0 at center, ~1 at edges (short axis)
+
+  // For the angle (twist, texture U), use aspect-corrected coords
+  // so the angular texture isn't squished
+  vec2 uvAspect = vec2(uv.x * aspect, uv.y);
+  float angle = atan(uvAspect.y, uvAspect.x);
 
   // Organic distortion (uTunnelShape: 0 = geometric, 1 = organic)
   if (uTunnelShape > 0.01) {
@@ -98,8 +103,8 @@ void main() {
     r += (sin(r * 15.0 - t * 1.5) * 0.02
         + sin(r * 8.0  + t * 0.8) * 0.015) * org;
     // Asymmetric opening
-    r += uv.x * sin(t * 0.1) * 0.02 * org
-       + uv.y * cos(t * 0.13) * 0.015 * org;
+    r += uvAspect.x * sin(t * 0.1) * 0.02 * org
+       + uvAspect.y * cos(t * 0.13) * 0.015 * org;
     // Warm throb
     r *= 1.0 - (sin(t * 0.7) * 0.5 + 0.5) * 0.03 * org;
   }
@@ -127,12 +132,10 @@ void main() {
   float texU         = twistedAngle / TAU + 0.5; // around tube
   float texV         = z;                         // along tube
 
-  // Parallax: nearby walls shift more than far walls when viewed off-center.
-  // This fakes depth on the wall surface — ridges appear to have real thickness.
-  float parallaxStrength = 0.03 * uIntensity;
-  float depthFactor = 1.0 / (1.0 + rawDepth * 0.5); // near=strong, far=weak
-  texV += uv.y * parallaxStrength * depthFactor;
-  texU += uv.x * parallaxStrength * depthFactor * 0.5;
+  // Parallax disabled — was causing oval distortion of rings
+  // (uv.x is aspect-corrected but uv.y isn't, making shifts asymmetric)
+  float parallaxStrength = 0.0;
+  float depthFactor = 1.0 / (1.0 + rawDepth * 0.5);
 
   // ────────────────────────────────────────────────────────────
   // 4. WALL TEXTURE — solid ridged walls with light/shadow
@@ -285,23 +288,39 @@ void main() {
   // illuminate the wall a few ridges out from where the wisp appears.
   // Scale: smaller wallR = deeper into the tunnel.
   float presenceDepth = max(-uPresencePos.z, 0.5);
-  float wallR = uTunnelWidth * 0.10 / presenceDepth;
+  float wallR = uTunnelWidth * 0.16 / presenceDepth;
   float ringDist = abs(r - wallR);
 
-  // Presence glow — self-luminous, visually impactful
-  float presenceGlow = exp(-ringDist * ringDist / (0.02 * 0.02));
-  float presenceWide = exp(-ringDist * ringDist / (0.05 * 0.05));
-  presenceGlow *= 0.45 * (0.7 + br * 0.3);
-  presenceWide *= 0.15 * (0.7 + br * 0.3);
+  // Single tunnel wall ring — one bright ridge at the wisp's depth
+  float glowWidth = max(wallR * 0.08, 0.005);
+  float presenceGlow = exp(-ringDist * ringDist / (glowWidth * glowWidth));
+  presenceGlow *= 0.5 * (0.7 + br * 0.3);
 
-  // The ring brightens the wall AND shifts color toward white-hot
-  vec3 ringTint = mix(uColor3, vec3(1.0), 0.5);
-  wall += ringTint * min(presenceGlow, 0.45) * (0.5 + rings * 0.5);
-  // Wider glow lifts the grooves too — softens the darkness near the wisp
-  wall += uColor3 * 0.6 * min(presenceWide, 0.3);
+  vec3 ringTint = mix(uColor3, vec3(1.0), 0.55);
+  wall += ringTint * min(presenceGlow, 0.45) * rings;
 
   // ────────────────────────────────────────────────────────────
-  // 8. CHROMATIC ABERRATION
+  // 8. PORTAL — session preview beyond the presence depth
+  // ────────────────────────────────────────────────────────────
+  // Everything deeper than the wisp (smaller r) shifts toward session colors.
+  // Creates the feeling of peeking through a portal into another world.
+  if (uPortalBlend > 0.01) {
+    // How deep past the ring are we? 0 = at the ring, 1 = deep inside
+    float portalDepth = smoothstep(wallR, wallR * 0.3, r); // 1.0 at center, 0 at ring
+    float portalMask = portalDepth * uPortalBlend;
+
+    // Blend wall color toward session palette (only the deep side)
+    vec3 portalWall = mix(uPortalColor1, uPortalColor2, rings);
+    // Match the existing wall brightness so it's a color shift, not a brightness change
+    float wallLum = dot(wall, vec3(0.299, 0.587, 0.114));
+    float portalLum = dot(portalWall, vec3(0.299, 0.587, 0.114));
+    portalWall *= wallLum / max(portalLum, 0.01);
+
+    wall = mix(wall, portalWall, portalMask * 0.7);
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // 9. CHROMATIC ABERRATION
   // ────────────────────────────────────────────────────────────
   float aber = uIntensity * 0.004;
   wall.r *= 1.0 + r * aber * 8.0;
@@ -320,7 +339,12 @@ void main() {
   // ────────────────────────────────────────────────────────────
   // 10. ATMOSPHERIC FOG — wispy noise at edges (baked in, no extra draw call)
   // ────────────────────────────────────────────────────────────
-  float vr = length(vec2((vUv.x - 0.5) * aspect, vUv.y - 0.5)) * 2.0;
+  // Vignette distance — blend circular (tunnel-shaped) with rectangular (screen-shaped)
+  // so the darkening follows the screen edges, not a circle that clips top/bottom
+  vec2 vigUv = abs(vUv - 0.5) * 2.0; // 0 at center, 1 at edges
+  float vrCircle = length(vec2(vigUv.x * aspect, vigUv.y));
+  float vrScreen = max(vigUv.x, vigUv.y); // follows screen edges
+  float vr = mix(vrCircle, vrScreen, 0.4);
   float fogRadial = smoothstep(0.15, 0.8, vr);
   float brFogMod  = 0.85 + (1.0 - br) * 0.15;
   // Atmospheric fog — extremely subtle, just breaks perfect uniformity

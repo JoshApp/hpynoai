@@ -70,6 +70,14 @@ export class Text3D {
   // Static slots (prompts) — upper (0) and lower (1)
   private slots: [TextSlot | null, TextSlot | null] = [null, null];
 
+  // Cue — single persistent text that updates in place (breathing in/hold/out)
+  private cueSprite: THREE.Sprite | null = null;
+  private cueText = '';
+  private cueOpacity = 0;
+  private cueTargetOpacity = 0;
+  private cueZ = -1.0;
+  private cueY = -0.2;
+
   constructor() {
     this.group = new THREE.Group();
   }
@@ -180,14 +188,13 @@ export class Text3D {
     for (const line of this.lines) {
       const elapsed = now - line.startTime;
       if (elapsed < 0) {
-        // Not started yet — let it vanish quickly
-        line.duration = 0.3;
+        line.duration = 0.2;
         line.startTime = now;
       } else {
         const remaining = line.duration - elapsed;
-        // Give existing text a gentle 1.2s fade-out instead of an abrupt cut
-        if (remaining > 1.2) {
-          line.duration = elapsed + 1.2;
+        // Quick 0.6s fade — old text should be gone before new text is fully visible
+        if (remaining > 0.6) {
+          line.duration = elapsed + 0.6;
         }
       }
     }
@@ -266,6 +273,83 @@ export class Text3D {
     if (this.slots[1]) this.slots[1].sprite.position.set(0, baseY + (hasTwo ? -offset : 0) + breathY, z);
   }
 
+  // ════════════════════════════════════════════════════════
+  // Cue text (breathing in/hold/out, stage indicators)
+  // ════════════════════════════════════════════════════════
+
+  /** Show or update the cue text. Stays in place, dip-fades on change. */
+  showCue(text: string): void {
+    if (text === this.cueText && this.cueSprite) return; // no change
+
+    const isFirst = !this.cueSprite;
+    this.cueText = text;
+
+    // Create or re-render the sprite
+    if (this.cueSprite) {
+      this.group.remove(this.cueSprite);
+      const mat = this.cueSprite.material as THREE.SpriteMaterial;
+      mat.map?.dispose();
+      mat.dispose();
+    }
+
+    const { canvas, ctx, texture, aspect } = this.createTexture(text);
+    this.renderTextFull(ctx, canvas, text);
+    texture.needsUpdate = true;
+
+    const material = new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      opacity: 0,
+      depthTest: false,
+      blending: THREE.AdditiveBlending,
+    });
+
+    this.cueSprite = new THREE.Sprite(material);
+    const scale = 0.25 * this._settings.scale;
+    this.cueSprite.scale.set(scale * aspect, scale, 1);
+    this.cueSprite.position.set(0, this.cueY, this.cueZ);
+    this.group.add(this.cueSprite);
+
+    if (isFirst) {
+      // First appearance: fade in from 0
+      this.cueOpacity = 0;
+      this.cueTargetOpacity = 0.85;
+    } else {
+      // Update: dip then recover
+      this.cueOpacity = 0.15;
+      this.cueTargetOpacity = 0.85;
+    }
+  }
+
+  /** Set cue position (Y and Z) */
+  setCuePosition(y: number, z: number): void {
+    this.cueY = y;
+    this.cueZ = z;
+    if (this.cueSprite) {
+      this.cueSprite.position.y = y;
+      this.cueSprite.position.z = z;
+    }
+  }
+
+  /** Hide the cue with a fade */
+  hideCue(): void {
+    this.cueTargetOpacity = 0;
+  }
+
+  /** Remove the cue immediately */
+  clearCue(): void {
+    if (this.cueSprite) {
+      this.group.remove(this.cueSprite);
+      const mat = this.cueSprite.material as THREE.SpriteMaterial;
+      mat.map?.dispose();
+      mat.dispose();
+      this.cueSprite = null;
+    }
+    this.cueText = '';
+    this.cueOpacity = 0;
+    this.cueTargetOpacity = 0;
+  }
+
   /** Override slot Z depth — used by breathing guide to match wisp depth */
   setSlotDepth(z: number): void {
     this._slotDepthOverride = z;
@@ -273,6 +357,17 @@ export class Text3D {
 
   clearSlotDepth(): void {
     this._slotDepthOverride = null;
+  }
+
+  /** Brief opacity dip on slots — visual cue that text is changing */
+  dipSlotOpacity(): void {
+    for (let i = 0; i < 2; i++) {
+      const slot = this.slots[i as 0 | 1];
+      if (slot) {
+        slot.opacity = 0.15; // dip low, will recover via the normal fade-in
+        slot.targetOpacity = 0.85;
+      }
+    }
   }
 
   private _slotDepthOverride: number | null = null;
@@ -495,8 +590,9 @@ export class Text3D {
         continue;
       }
 
-      // Z: float from far to near — ease-out so text decelerates as it approaches
-      const z = line.startZ + (line.endZ - line.startZ) * this.easeOut(progress);
+      // Z: gentle drift from far to near — reduced range so text doesn't travel too far
+      const zRange = Math.min(line.endZ - line.startZ, 0.5); // cap travel to 0.5 units
+      const z = line.startZ + zRange * this.easeOut(progress);
       line.mesh.position.z = z;
 
       // Y: gentle lift on inhale, sink on exhale (from stored base position)
@@ -515,15 +611,15 @@ export class Text3D {
         this.redrawLineKaraoke(line, revealProgress);
       }
 
-      // Opacity envelope — smooth fade in/out with wide fade-out for gentle exit
+      // Opacity envelope — fade in quick, hold, fade out at end
       let opacity: number;
-      if (progress < 0.1) {
-        // Fade in: 0→1 over first 10%, smoothstep
-        const t = progress / 0.1;
+      if (progress < 0.08) {
+        // Fade in: quick, first 8%
+        const t = progress / 0.08;
         opacity = t * t * (3 - 2 * t);
-      } else if (progress > 0.65) {
-        // Fade out: 1→0 over last 35%, smooth ease-out
-        const t = (progress - 0.65) / 0.35;
+      } else if (progress > 0.75) {
+        // Fade out: last 25%
+        const t = (progress - 0.75) / 0.25;
         opacity = 1 - t * t;
       } else {
         opacity = 1;
@@ -563,6 +659,25 @@ export class Text3D {
 
     // Reposition slots every frame (breath-driven Z movement)
     this.repositionSlots();
+
+    // ── Update cue ──
+    if (this.cueSprite) {
+      // Smooth fade
+      this.cueOpacity += (this.cueTargetOpacity - this.cueOpacity) * 0.12;
+
+      if (this.cueOpacity < 0.01 && this.cueTargetOpacity === 0) {
+        this.clearCue();
+      } else {
+        const breathMod = 0.7 + breathPulse * 0.3;
+        (this.cueSprite.material as THREE.SpriteMaterial).opacity = this.cueOpacity * breathMod;
+
+        // Update Z from slot depth override (breath-driven movement)
+        if (this._slotDepthOverride !== null) {
+          this.cueSprite.position.z = this._slotDepthOverride;
+          this.cueSprite.position.y = this.cueY;
+        }
+      }
+    }
   }
 
   /** Fade out all text over ~0.5s, then remove. */

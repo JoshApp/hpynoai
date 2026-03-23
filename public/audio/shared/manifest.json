@@ -1,0 +1,603 @@
+{
+  "clips": {
+    "breathing_good": {
+      "file": "audio/shared/breathing_good.mp3",
+      "duration": 4.33
+    },
+    "breathing_intro": {
+      "file": "audio/shared/breathing_intro.mp3",
+      "duration": 2.93
+    },
+    "breathing_intro_surrender": {
+      "file": "audio/shared/breathing_intro_surrender.mp3",
+      "duration": 2.97
+    },
+    "gate_deeper": {
+      "file": "audio/shared/gate_deeper.mp3",
+      "duration": 2.25
+    },
+    "gate_deeper_surrender": {
+      "file": "audio/shared/gate_deeper_surrender.mp3",
+      "duration": 2.57
+    },
+    "gate_yes": {
+      "file": "audio/shared/gate_yes.mp3",
+      "duration": 1.05
+    },
+    "gate_yes_surrender": {
+      "file": "audio/shared/gate_yes_surrender.mp3",
+      "duration": 1.21
+    },
+    "welcome_back": {
+      "file": "audio/shared/welcome_back.mp3",
+      "duration": 3.69
+    }
+  },
+  "breathing": {
+    "gentle": {
+      "file": "audio/shared/breathing_gentle.mp3",
+      "duration": 52.61,
+      "words": [
+        {
+          "word": "Breathe",
+          "start": 0.0,
+          "end": 0.46
+        },
+        {
+          "word": "in",
+          "start": 0.46,
+          "end": 0.86
+        },
+        {
+          "word": "slowly,",
+          "start": 0.86,
+          "end": 1.86
+        },
+        {
+          "word": "filling",
+          "start": 2.24,
+          "end": 3.36
+        },
+        {
+          "word": "your",
+          "start": 3.36,
+          "end": 3.84
+        },
+        {
+          "word": "lungs,",
+          "start": 3.84,
+          "end": 4.4
+        },
+        {
+          "word": "and",
+          "start": 4.66,
+          "end": 5.5
+        },
+        {
+          "word": "hold",
+          "start": 5.5,
+          "end": 6.02
+        },
+        {
+          "word": "just",
+          "start": 6.02,
+          "end": 6.98
+        },
+        {
+          "word": "for",
+          "start": 6.98,
+          "end": 7.5
+        },
+        {
+          "word": "a",
+          "start": 7.5,
+          "end": 7.68
+        },
+        {
+          "word": "moment.",
+          "start": 7.68,
+          "end": 8.06
+        },
+        {
+          "word": "And",
+          "start": 9.38,
+          "end": 10.42
+        },
+        {
+          "word": "breathe",
+          "start": 10.42,
+          "end": 10.7
+        },
+        {
+          "word": "out",
+          "start": 10.7,
+          "end": 11.1
+        },
+        {
+          "word": "slowly,",
+          "start": 11.1,
+          "end": 12.44
+        },
+        {
+          "word": "letting",
+          "start": 12.84,
+          "end": 14.1
+        },
+        {
+          "word": "everything",
+          "start": 14.1,
+          "end": 14.92
+        },
+        {
+          "word": "go.",
+          "start": 14.92,
+          "end": 15.7
+        },
+        {
+          "word": "Breathe",
+          "start": 17.12,
+          "end": 18.16
+        },
+        {
+          "word": "in",
+          "start": 18.16,
+          "end": 18.62
+        },
+        {
+          "word": "again,",
+          "start": 18.62,
+          "end": 19.14
+        },
+        {
+          "word": "nice",
+          "start": 19.3,
+          "end": 20.68
+        },
+        {
+          "word": "and",
+          "start": 20.68,
+          "end": 21.2
+        },
+        {
+          "word": "deep.",
+          "start": 21.2,
+          "end": 21.6
+        },
+        {
+          "word": "Hold",
+          "start": 22.84,
+          "end": 23.36
+        },
+        {
+          "word": "and",
+          "start": 23.36,
+          "end": 23.98
+        },
+        {
+          "word": "release.",
+          "start": 23.98,
+          "end": 25.04
+        },
+        {
+          "word": "Let",
+          "start": 26.22,
+          "end": 26.74
+        },
+        {
+          "word": "it",
+          "start": 26.74,
+          "end": 27.0
+        },
+        {
+          "word": "all",
+          "start": 27.0,
+          "end": 27.26
+        },
+        {
+          "word": "out.",
+          "start": 27.26,
+          "end": 28.08
+        },
+        {
+          "word": "Once",
+          "start": 30.08,
+          "end": 30.88
+        },
+        {
+          "word": "more,",
+          "start": 30.88,
+          "end": 31.22
+        },
+        {
+          "word": "breathe",
+          "start": 31.44,
+          "end": 32.62
+        },
+        {
+          "word": "in,",
+          "start": 32.62,
+          "end": 33.12
+        },
+        {
+          "word": "hold",
+          "start": 33.22,
+          "end": 34.76
+        },
+        {
+          "word": "it",
+          "start": 34.76,
+          "end": 34.98
+        },
+        {
+          "word": "there,",
+          "start": 34.98,
+          "end": 35.26
+        },
+        {
+          "word": "and",
+          "start": 35.5,
+          "end": 36.58
+        },
+        {
+          "word": "let",
+          "start": 36.58,
+          "end": 36.84
+        },
+        {
+          "word": "go",
+          "start": 36.84,
+          "end": 37.16
+        },
+        {
+          "word": "slowly.",
+          "start": 37.16,
+          "end": 38.2
+        },
+        {
+          "word": "Last",
+          "start": 39.54,
+          "end": 40.34
+        },
+        {
+          "word": "one,",
+          "start": 40.34,
+          "end": 40.82
+        },
+        {
+          "word": "deep",
+          "start": 40.98,
+          "end": 42.32
+        },
+        {
+          "word": "breath",
+          "start": 42.32,
+          "end": 43.08
+        },
+        {
+          "word": "in,",
+          "start": 43.08,
+          "end": 43.58
+        },
+        {
+          "word": "hold,",
+          "start": 43.74,
+          "end": 45.3
+        },
+        {
+          "word": "and",
+          "start": 45.6,
+          "end": 46.92
+        },
+        {
+          "word": "out.",
+          "start": 46.92,
+          "end": 47.32
+        },
+        {
+          "word": "All",
+          "start": 48.02,
+          "end": 48.82
+        },
+        {
+          "word": "the",
+          "start": 48.82,
+          "end": 49.42
+        },
+        {
+          "word": "way.",
+          "start": 49.42,
+          "end": 49.68
+        },
+        {
+          "word": "Good.",
+          "start": 50.94,
+          "end": 51.74
+        }
+      ],
+      "phases": [
+        {
+          "type": "inhale",
+          "start": 0.0
+        },
+        {
+          "type": "hold",
+          "start": 5.5
+        },
+        {
+          "type": "exhale",
+          "start": 10.4
+        },
+        {
+          "type": "inhale",
+          "start": 17.1
+        },
+        {
+          "type": "hold",
+          "start": 22.8
+        },
+        {
+          "type": "exhale",
+          "start": 24.0
+        },
+        {
+          "type": "inhale",
+          "start": 31.4
+        },
+        {
+          "type": "hold",
+          "start": 33.2
+        },
+        {
+          "type": "exhale",
+          "start": 36.6
+        },
+        {
+          "type": "inhale",
+          "start": 43.1
+        },
+        {
+          "type": "hold",
+          "start": 43.7
+        },
+        {
+          "type": "exhale",
+          "start": 46.9
+        },
+        {
+          "type": "done",
+          "start": 50.9
+        }
+      ]
+    },
+    "commanding": {
+      "file": "audio/shared/breathing_commanding.mp3",
+      "duration": 27.89,
+      "words": [
+        {
+          "word": "Breathe",
+          "start": 0.0,
+          "end": 0.62
+        },
+        {
+          "word": "in",
+          "start": 0.62,
+          "end": 1.12
+        },
+        {
+          "word": "deep",
+          "start": 1.12,
+          "end": 1.86
+        },
+        {
+          "word": "and",
+          "start": 1.86,
+          "end": 2.72
+        },
+        {
+          "word": "hold",
+          "start": 2.72,
+          "end": 3.34
+        },
+        {
+          "word": "and",
+          "start": 3.34,
+          "end": 4.04
+        },
+        {
+          "word": "out",
+          "start": 4.04,
+          "end": 4.9
+        },
+        {
+          "word": "slowly.",
+          "start": 4.9,
+          "end": 5.88
+        },
+        {
+          "word": "In",
+          "start": 6.94,
+          "end": 7.6
+        },
+        {
+          "word": "deeper",
+          "start": 7.6,
+          "end": 8.58
+        },
+        {
+          "word": "this",
+          "start": 8.58,
+          "end": 9.02
+        },
+        {
+          "word": "time,",
+          "start": 9.02,
+          "end": 9.6
+        },
+        {
+          "word": "hold",
+          "start": 9.64,
+          "end": 10.48
+        },
+        {
+          "word": "it",
+          "start": 10.48,
+          "end": 10.86
+        },
+        {
+          "word": "and",
+          "start": 10.86,
+          "end": 11.68
+        },
+        {
+          "word": "release.",
+          "start": 11.68,
+          "end": 12.46
+        },
+        {
+          "word": "Again,",
+          "start": 12.86,
+          "end": 14.18
+        },
+        {
+          "word": "in,",
+          "start": 14.18,
+          "end": 15.4
+        },
+        {
+          "word": "hold,",
+          "start": 15.44,
+          "end": 16.56
+        },
+        {
+          "word": "let",
+          "start": 16.98,
+          "end": 17.66
+        },
+        {
+          "word": "go.",
+          "start": 17.66,
+          "end": 18.04
+        },
+        {
+          "word": "One",
+          "start": 18.5,
+          "end": 19.16
+        },
+        {
+          "word": "more.",
+          "start": 19.16,
+          "end": 19.58
+        },
+        {
+          "word": "Breathe",
+          "start": 19.96,
+          "end": 20.62
+        },
+        {
+          "word": "in,",
+          "start": 20.62,
+          "end": 21.28
+        },
+        {
+          "word": "hold,",
+          "start": 21.58,
+          "end": 22.62
+        },
+        {
+          "word": "and",
+          "start": 22.78,
+          "end": 23.6
+        },
+        {
+          "word": "surrender",
+          "start": 23.6,
+          "end": 24.26
+        },
+        {
+          "word": "to",
+          "start": 24.26,
+          "end": 25.06
+        },
+        {
+          "word": "the",
+          "start": 25.06,
+          "end": 25.42
+        },
+        {
+          "word": "exhale.",
+          "start": 25.42,
+          "end": 25.9
+        },
+        {
+          "word": "Good.",
+          "start": 26.52,
+          "end": 27.18
+        }
+      ],
+      "phases": [
+        {
+          "type": "inhale",
+          "start": 0.0
+        },
+        {
+          "type": "hold",
+          "start": 2.72
+        },
+        {
+          "type": "exhale",
+          "start": 4.04
+        },
+        {
+          "type": "inhale",
+          "start": 6.94
+        },
+        {
+          "type": "hold",
+          "start": 9.64
+        },
+        {
+          "type": "exhale",
+          "start": 11.68
+        },
+        {
+          "type": "count",
+          "start": 12.86,
+          "word": "Again,"
+        },
+        {
+          "type": "inhale",
+          "start": 14.18
+        },
+        {
+          "type": "hold",
+          "start": 15.44
+        },
+        {
+          "type": "exhale",
+          "start": 16.98
+        },
+        {
+          "type": "count",
+          "start": 18.5,
+          "word": "One"
+        },
+        {
+          "type": "inhale",
+          "start": 19.96
+        },
+        {
+          "type": "hold",
+          "start": 21.58
+        },
+        {
+          "type": "exhale",
+          "start": 23.6
+        },
+        {
+          "type": "done",
+          "start": 26.52
+        }
+      ]
+    }
+  }
+}

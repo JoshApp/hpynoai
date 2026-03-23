@@ -11,6 +11,7 @@
 import * as THREE from 'three';
 import feedbackVert from './shaders/feedback.vert';
 import feedbackFrag from './shaders/feedback.frag';
+import { log } from './logger';
 
 export interface FeedbackParams {
   zoom: number;       // inward pull per frame (0.005-0.03)
@@ -124,10 +125,10 @@ export class FeedbackWarp {
 
       if (!this._disabled && this.lowFpsFrames > FeedbackWarp.DISABLE_AFTER_FRAMES) {
         this._disabled = true;
-        console.log('[Feedback] Auto-disabled (low FPS)');
+        log.warn('feedback', 'Auto-disabled (low FPS)');
       } else if (this._disabled && this.highFpsFrames > FeedbackWarp.REENABLE_AFTER_FRAMES) {
         this._disabled = false;
-        console.log('[Feedback] Re-enabled (FPS recovered)');
+        log.info('feedback', 'Re-enabled (FPS recovered)');
       }
     }
     this.lastFrameTime = now;

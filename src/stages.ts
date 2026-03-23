@@ -4,6 +4,7 @@
  */
 
 import type { SessionStage, Interaction } from './session';
+import { log } from './logger';
 
 export class StageManager {
   private _stages: SessionStage[];
@@ -151,7 +152,13 @@ export class StageManager {
     this.lastTextTime = this.virtualNow;
   }
 
-  /** Immediately emit the next text line (used after interactions to avoid dead air) */
+  /** Compensate for time spent tabbed away — prevents fast-forwarding through stages */
+  compensateForPause(seconds: number): void {
+    this.virtualTimeOffset -= seconds;
+    this.lastRealTime = performance.now() / 1000;
+    log.info('stages', `Compensated virtual time by -${seconds.toFixed(1)}s`);
+  }
+
   /** Advance to the next stage immediately */
   advanceStage(): void {
     if (this._currentIndex >= this._stages.length - 1) return;
