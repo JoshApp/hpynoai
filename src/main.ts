@@ -14,8 +14,17 @@ import { Text3D } from './text3d';
 import { SettingsManager } from './settings';
 import { runAutoCalibration, autoCalibrationFrameHook } from './calibration-auto';
 import { GuidedCalibration } from './calibration-guided';
-import { BreathController } from './breath';
+import { BreathController, type BreathStage } from './breath';
 import tunnelVert from './shaders/tunnel.vert';
+
+function breathStageToFloat(stage: BreathStage): number {
+  switch (stage) {
+    case 'inhale': return 0;
+    case 'hold-in': return 1;
+    case 'exhale': return 2;
+    case 'hold-out': return 3;
+  }
+}
 import tunnelFrag from './shaders/tunnel.frag';
 
 // ── DOM Elements ──
