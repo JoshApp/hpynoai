@@ -32,7 +32,7 @@ import { checkWebGL, installGlobalErrorHandler } from './error-boundary';
 import { registerServiceWorker } from './sw-register';
 import { LoadingIndicator } from './loading';
 import { log } from './logger';
-import { createHypnoAPI } from './api';
+import { createHypnoAPI, type HypnoAPI } from './api';
 
 // ══════════════════════════════════════════════════════════════════════
 // ERROR BOUNDARIES — check before anything else
@@ -358,6 +358,7 @@ function applyTheme(session: SessionConfig): void {
 // TIMELINE — single source of truth for session progression
 // ══════════════════════════════════════════════════════════════════════
 const timeline = new Timeline();
+let hypnoApi: HypnoAPI | null = null;
 
 // Pull-model: timeline callbacks removed. The animate loop reads TimelineState
 // each frame and drives narration, text, breath, interactions directly.
@@ -531,13 +532,14 @@ function startSession(session: SessionConfig): void {
     timebar.buildBlocks();
     devMode.rebuildStageButtons();
 
+    // Expose programmatic API on window for AI agents / test harnesses
+    hypnoApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, bus });
+    window.__HYPNO__ = hypnoApi;
+
     doneLoading();
     isRunning = true;
     machine.transition('session');
     bus.emit('session:started', { session });
-
-    // Expose programmatic API for AI agents (Chrome DevTools evaluate_script)
-    window.__HYPNO__ = createHypnoAPI({ timeline, machine, interactions, breath, narration, bus });
 
     timeline.start();
     animate();
@@ -745,6 +747,9 @@ function animate(): void {
       _completionHandled = true;
       endExperience();
     }
+
+    // Feed state to public API (event bridge + log buffer)
+    hypnoApi?._onFrame(tlState);
   }
 
   // Narration update AFTER block handling — prevents stale text events
@@ -874,6 +879,10 @@ function boot(): void {
         if (idx > 0 && idx < timeline.blockCount) {
           timeline.seek(timeline.allBlocks[idx].start);
         }
+
+        // Re-create API for HMR
+        hypnoApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, bus });
+        window.__HYPNO__ = hypnoApi;
 
         isRunning = true;
         animate();
