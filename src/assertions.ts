@@ -1,0 +1,291 @@
+/**
+ * Assertion engine for AI agents and test harnesses.
+ *
+ * Provides typed state checks against a unified state object
+ * that merges timeline (from window.__HYPNO__.getState()) and
+ * telemetry (from TelemetryAggregator) into a single queryable tree.
+ *
+ * Usage via Chrome DevTools evaluate_script:
+ *   window.__HYPNO__.assert.state('timeline.position', 10, 'gt')
+ *   window.__HYPNO__.assert.waitFor('breath.stage', 'exhale', 'eq', 5000)
+ *   window.__HYPNO__.assert.batch([
+ *     { path: 'timeline.paused', expected: false, op: 'eq' },
+ *     { path: 'audio.energy', expected: 0, op: 'gt' },
+ *   ])
+ */
+
+import type { TelemetryAggregator, TelemetrySnapshot } from './telemetry';
+import type { HypnoAPI } from './api';
+
+// ── Types ────────────────────────────────────────────────────────
+
+export type AssertOp = 'eq' | 'gt' | 'lt' | 'contains' | 'truthy' | 'range';
+
+export interface AssertionCheck {
+  path: string;
+  expected: unknown;
+  op: AssertOp;
+}
+
+export interface AssertionResult {
+  pass: boolean;
+  path: string;
+  op: AssertOp;
+  expected: unknown;
+  actual: unknown;
+  message: string;
+  telemetrySnapshot?: TelemetrySnapshot | null;
+}
+
+export interface AssertionReport {
+  total: number;
+  passed: number;
+  failed: number;
+  results: AssertionResult[];
+  timestamp: number;
+}
+
+// ── Unified state resolution ─────────────────────────────────────
+
+/**
+ * Build a flat-accessible unified state object merging timeline API state
+ * and the latest telemetry snapshot.
+ *
+ * Paths:
+ *   timeline.position, timeline.blockIndex, timeline.paused, ...
+ *   breath.value, breath.stage, breath.cycleDuration
+ *   audio.energy, audio.bass, audio.mid, audio.high, audio.isPeak
+ *   narration.isSpeaking, narration.currentText, narration.lineProgress
+ *   interactions.breathSyncActive, interactions.breathSyncFill, ...
+ *   feedback.disabled
+ *   render.fps, render.dt
+ *   machine.phase, machine.epoch
+ */
+function buildUnifiedState(
+  api: HypnoAPI,
+  telemetry: TelemetryAggregator,
+): Record<string, unknown> {
+  const state: Record<string, unknown> = {};
+
+  // Timeline from API (canonical source)
+  const tl = api.getState();
+  if (tl) {
+    state['timeline.position'] = tl.position;
+    state['timeline.blockIndex'] = tl.blockIndex;
+    state['timeline.blockProgress'] = tl.blockProgress;
+    state['timeline.blockElapsed'] = tl.blockElapsed;
+    state['timeline.intensity'] = tl.intensity;
+    state['timeline.paused'] = tl.paused;
+    state['timeline.complete'] = tl.complete;
+    state['timeline.atBoundary'] = tl.atBoundary;
+    state['timeline.speed'] = tl.speed;
+    state['timeline.currentText'] = tl.currentText;
+    if (tl.block) {
+      state['timeline.block.kind'] = tl.block.kind;
+      state['timeline.block.stageName'] = tl.block.stageName;
+      state['timeline.block.start'] = tl.block.start;
+      state['timeline.block.end'] = tl.block.end;
+      state['timeline.block.duration'] = tl.block.duration;
+    }
+    if (tl.breath) {
+      state['breath.value'] = tl.breath.value;
+      state['breath.stage'] = tl.breath.stage;
+      state['breath.cycleDuration'] = tl.breath.cycleDuration;
+    }
+  }
+
+  // Telemetry enrichment (audio, narration, interactions, feedback, render, machine)
+  const snap = telemetry.getLatest();
+  if (snap) {
+    // Only set breath from telemetry if not already set from API
+    if (state['breath.value'] === undefined && snap.breath) {
+      state['breath.value'] = snap.breath.value;
+      state['breath.stage'] = snap.breath.stage;
+      state['breath.cycleDuration'] = snap.breath.cycleDuration;
+    }
+
+    if (snap.audio) {
+      state['audio.energy'] = snap.audio.energy;
+      state['audio.bass'] = snap.audio.bass;
+      state['audio.mid'] = snap.audio.mid;
+      state['audio.high'] = snap.audio.high;
+      state['audio.isPeak'] = snap.audio.isPeak;
+      state['audio.voicePresence'] = snap.audio.voicePresence;
+    }
+
+    state['narration.isSpeaking'] = snap.narration.isSpeaking;
+    state['narration.currentText'] = snap.narration.currentText;
+    state['narration.lineProgress'] = snap.narration.lineProgress;
+    state['narration.voiceEnergy'] = snap.narration.voiceEnergy;
+
+    state['interactions.breathSyncActive'] = snap.interactions.breathSyncActive;
+    state['interactions.breathSyncFill'] = snap.interactions.breathSyncFill;
+    state['interactions.humSyncActive'] = snap.interactions.humSyncActive;
+    state['interactions.humProgress'] = snap.interactions.humProgress;
+
+    state['feedback.disabled'] = snap.feedback.disabled;
+
+    state['render.fps'] = snap.render.fps;
+    state['render.dt'] = snap.render.dt;
+
+    state['machine.phase'] = snap.machine.phase;
+    state['machine.epoch'] = snap.machine.epoch;
+  }
+
+  // Phase from API as fallback
+  if (state['machine.phase'] === undefined) {
+    state['machine.phase'] = api.getPhase();
+  }
+
+  return state;
+}
+
+// ── Operators ────────────────────────────────────────────────────
+
+function evaluate(actual: unknown, expected: unknown, op: AssertOp): boolean {
+  switch (op) {
+    case 'eq':
+      return actual === expected;
+    case 'gt':
+      return typeof actual === 'number' && typeof expected === 'number' && actual > expected;
+    case 'lt':
+      return typeof actual === 'number' && typeof expected === 'number' && actual < expected;
+    case 'contains':
+      if (typeof actual === 'string' && typeof expected === 'string') {
+        return actual.includes(expected);
+      }
+      if (Array.isArray(actual)) {
+        return actual.includes(expected);
+      }
+      return false;
+    case 'truthy':
+      return !!actual;
+    case 'range':
+      if (typeof actual !== 'number' || !Array.isArray(expected) || expected.length !== 2) {
+        return false;
+      }
+      return actual >= (expected[0] as number) && actual <= (expected[1] as number);
+  }
+}
+
+function formatMessage(pass: boolean, path: string, op: AssertOp, expected: unknown, actual: unknown): string {
+  const verb = pass ? 'PASS' : 'FAIL';
+  const expStr = op === 'range' ? `[${(expected as number[]).join(', ')}]` : JSON.stringify(expected);
+  return `[${verb}] ${path} ${op} ${expStr} (actual: ${JSON.stringify(actual)})`;
+}
+
+// ── Assertion Engine ─────────────────────────────────────────────
+
+export class AssertionEngine {
+  private results: AssertionResult[] = [];
+  private api: HypnoAPI;
+  private telemetry: TelemetryAggregator;
+
+  constructor(api: HypnoAPI, telemetry: TelemetryAggregator) {
+    this.api = api;
+    this.telemetry = telemetry;
+  }
+
+  /** Immediate state assertion — checks current value at path. */
+  state(path: string, expected: unknown, op: AssertOp = 'eq'): AssertionResult {
+    const unified = buildUnifiedState(this.api, this.telemetry);
+    const actual = unified[path];
+    const pass = evaluate(actual, expected, op);
+    const result: AssertionResult = {
+      pass,
+      path,
+      op,
+      expected,
+      actual,
+      message: formatMessage(pass, path, op, expected, actual),
+      telemetrySnapshot: pass ? undefined : this.telemetry.getLatest(),
+    };
+    this.results.push(result);
+    return result;
+  }
+
+  /**
+   * Temporal assertion — polls until condition is met or timeout.
+   * Returns a Promise that resolves with the result.
+   * Default timeout: 5000ms, poll interval: 100ms.
+   */
+  waitFor(
+    path: string,
+    expected: unknown,
+    op: AssertOp = 'eq',
+    timeoutMs = 5000,
+  ): Promise<AssertionResult> {
+    const pollInterval = 100;
+    const start = Date.now();
+
+    return new Promise<AssertionResult>((resolve) => {
+      const check = () => {
+        const unified = buildUnifiedState(this.api, this.telemetry);
+        const actual = unified[path];
+        const pass = evaluate(actual, expected, op);
+
+        if (pass || Date.now() - start >= timeoutMs) {
+          const result: AssertionResult = {
+            pass,
+            path,
+            op,
+            expected,
+            actual,
+            message: pass
+              ? formatMessage(true, path, op, expected, actual)
+              : `[FAIL] ${path} ${op} ${JSON.stringify(expected)} — timed out after ${timeoutMs}ms (last: ${JSON.stringify(actual)})`,
+            telemetrySnapshot: pass ? undefined : this.telemetry.getLatest(),
+          };
+          this.results.push(result);
+          resolve(result);
+          return;
+        }
+
+        setTimeout(check, pollInterval);
+      };
+
+      check();
+    });
+  }
+
+  /** Run multiple assertions at once. Returns all results. */
+  batch(checks: AssertionCheck[]): AssertionResult[] {
+    const unified = buildUnifiedState(this.api, this.telemetry);
+    const batchResults: AssertionResult[] = [];
+
+    for (const { path, expected, op } of checks) {
+      const actual = unified[path];
+      const pass = evaluate(actual, expected, op);
+      const result: AssertionResult = {
+        pass,
+        path,
+        op,
+        expected,
+        actual,
+        message: formatMessage(pass, path, op, expected, actual),
+        telemetrySnapshot: pass ? undefined : this.telemetry.getLatest(),
+      };
+      this.results.push(result);
+      batchResults.push(result);
+    }
+
+    return batchResults;
+  }
+
+  /** Get a structured report of all assertions run so far. */
+  getReport(): AssertionReport {
+    const passed = this.results.filter(r => r.pass).length;
+    return {
+      total: this.results.length,
+      passed,
+      failed: this.results.length - passed,
+      results: [...this.results],
+      timestamp: Date.now(),
+    };
+  }
+
+  /** Clear all recorded results. */
+  clearReport(): void {
+    this.results = [];
+  }
+}

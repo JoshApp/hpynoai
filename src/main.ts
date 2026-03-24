@@ -542,7 +542,7 @@ function startSession(session: SessionConfig): void {
     devMode.rebuildStageButtons();
 
     // Expose programmatic API on window for AI agents / test harnesses
-    hypnoApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, audio, bus });
+    hypnoApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, audio, telemetry, bus });
     window.__HYPNO__ = hypnoApi;
 
     // Reset telemetry for new session and expose on window
@@ -1017,7 +1017,7 @@ function bootTimelineIsolation(config: { mode: 'block' | 'stage'; session: strin
     timebar.buildBlocks();
     devMode.rebuildStageButtons();
 
-    hypnoApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, audio, bus });
+    hypnoApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, audio, telemetry, bus });
     window.__HYPNO__ = hypnoApi;
 
     doneLoading();
@@ -1123,7 +1123,7 @@ function bootInteractionIsolation(config: { mode: 'interaction'; type: string; b
     timebar.buildBlocks();
     devMode.rebuildStageButtons();
 
-    hypnoApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, audio, bus });
+    hypnoApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, audio, telemetry, bus });
     window.__HYPNO__ = hypnoApi;
 
     doneLoading();
@@ -1178,7 +1178,7 @@ function boot(): void {
         }
 
         // Re-create API for HMR
-        hypnoApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, audio, bus });
+        hypnoApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, audio, telemetry, bus });
         window.__HYPNO__ = hypnoApi;
         initConsoleProtocol(hypnoApi, telemetry);
 
@@ -1309,7 +1309,7 @@ onCleanup(() => document.removeEventListener('visibilitychange', onVisibilityCha
 // ══════════════════════════════════════════════════════════════════════
 // EXPOSE INITIAL API — minimal surface before session starts
 // ══════════════════════════════════════════════════════════════════════
-const initialApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, audio, bus });
+const initialApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, audio, telemetry, bus });
 window.__HYPNO__ = initialApi;
 initConsoleProtocol(initialApi, telemetry);
 
