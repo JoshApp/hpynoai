@@ -5,7 +5,7 @@ import { Timebar } from './timebar';
 import { DevMode } from './devmode';
 import { InteractionManager } from './interactions';
 import { SessionSelector } from './selector';
-import { sessions } from './sessions/index';
+import { sessions, getSession } from './sessions/index';
 import { MicrophoneEngine } from './microphone';
 import { NarrationEngine } from './narration';
 import type { SessionConfig, SessionStage, Interaction } from './session';
@@ -35,6 +35,7 @@ import { log } from './logger';
 import { createHypnoAPI, type HypnoAPI } from './api';
 import { TelemetryAggregator } from './telemetry';
 import { FrameProfiler } from './frame-profiler';
+import { parseIsolationParams, type IsolationConfig, type ShaderIsolation } from './isolation';
 
 // ══════════════════════════════════════════════════════════════════════
 // ERROR BOUNDARIES — check before anything else
@@ -884,9 +885,237 @@ function returnToMenu(): void {
 }
 
 // ══════════════════════════════════════════════════════════════════════
+// ISOLATION MODE — minimal boot paths for testing individual subsystems
+// ══════════════════════════════════════════════════════════════════════
+
+function bootIsolation(config: IsolationConfig): void {
+  log.info('isolation', `Entering isolation mode: ${config.mode}`, config);
+
+  switch (config.mode) {
+    case 'shader':
+      bootShaderIsolation(config);
+      break;
+    case 'block':
+    case 'stage':
+      bootTimelineIsolation(config);
+      break;
+    case 'audio':
+      bootAudioIsolation(config);
+      break;
+    case 'interaction':
+      bootInteractionIsolation(config);
+      break;
+  }
+}
+
+/** Shader-only mode: render tunnel at fixed params, no timeline */
+function bootShaderIsolation(config: ShaderIsolation): void {
+  setPhase('session');
+  machine.transition('session');
+  isRunning = true;
+
+  const fixedIntensity = config.intensity;
+  const fixedBreath = config.breath;
+  const fixedSpiralSpeed = config.spiralSpeed;
+
+  function animateShader(): void {
+    if (!isRunning) return;
+    hotState.animFrameId = requestAnimationFrame(animateShader);
+
+    const time = performance.now() / 1000;
+    const s = settings.current;
+    const rawDt = lastAnimTime > 0 ? time - lastAnimTime : 1 / 60;
+    const dt = Math.min(rawDt, 0.1);
+    lastAnimTime = time;
+
+    spiralAngle += dt * fixedSpiralSpeed * s.spiralSpeedMult * 0.5;
+    breath.update(time);
+
+    const frame: FrameState = {
+      time, dt, settings: s,
+      breathPhase: fixedBreath, breathValue: fixedBreath, breathStage: breath.stage,
+      intensity: fixedIntensity, spiralAngle, spiralSpeed: fixedSpiralSpeed,
+      mouseX: mouse.x, mouseY: mouse.y,
+      audioBands: null, voiceEnergy: 0, micBoost: 0,
+      breathSyncActive: 0, breathSyncFill: 0, breathSyncProgress: 0,
+      fadeAmount: 0, intensityMult: 1,
+    };
+    renderPipeline.renderSession(frame);
+    devMode.update();
+  }
+
+  animateShader();
+}
+
+/** Block or stage isolation: load a session, build timeline, play only the target segment */
+function bootTimelineIsolation(config: { mode: 'block' | 'stage'; session: string; index?: number; stage?: string }): void {
+  const session = getSession(config.session);
+  if (!session) {
+    log.error('isolation', `Session "${config.session}" not found`);
+    bootSelector();
+    return;
+  }
+
+  activeSession = session;
+  setPhase('session');
+  machine.transition('session');
+  applyTheme(session);
+
+  _lastTextKey = null;
+  _wasNarrationPlaying = false;
+  _narrationBound = false;
+  _completionHandled = false;
+
+  const doneLoading = loading.start('loading isolation mode');
+
+  Promise.all([
+    audio.init(),
+    narration.waitForManifest(),
+  ]).then(() => {
+    timeline.build(
+      session.stages,
+      (name) => narration.hasStageAudio(name),
+      (name) => narration.getStageAudioDuration(name),
+    );
+    timebar.buildBlocks();
+    devMode.rebuildStageButtons();
+
+    hypnoApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, bus });
+    window.__HYPNO__ = hypnoApi;
+
+    doneLoading();
+
+    // Seek to the requested block or stage
+    if (config.mode === 'block') {
+      const idx = config.index ?? 0;
+      const block = timeline.allBlocks[idx];
+      if (block) {
+        timeline.start();
+        timeline.seek(block.start);
+        log.info('isolation', `Seeked to block ${idx} at ${block.start.toFixed(1)}s`);
+      } else {
+        log.error('isolation', `Block index ${idx} out of range (${timeline.blockCount} blocks)`);
+        timeline.start();
+      }
+    } else {
+      // Stage mode — find first block matching the stage name
+      const stageName = config.stage ?? '';
+      const block = timeline.allBlocks.find(b => b.stage.name === stageName);
+      if (block) {
+        timeline.start();
+        timeline.seek(block.start);
+        log.info('isolation', `Seeked to stage "${stageName}" at ${block.start.toFixed(1)}s`);
+      } else {
+        log.error('isolation', `Stage "${stageName}" not found in session "${config.session}"`);
+        timeline.start();
+      }
+    }
+
+    isRunning = true;
+    bus.emit('session:started', { session });
+    animate();
+  });
+}
+
+/** Audio-only isolation: no renderer, just audio engine */
+function bootAudioIsolation(config: { mode: 'audio'; profile: string; component: string }): void {
+  const session = getSession(config.profile);
+  if (!session) {
+    log.error('isolation', `Session/profile "${config.profile}" not found`);
+    bootSelector();
+    return;
+  }
+
+  setPhase('session');
+  machine.transition('session');
+
+  audio.init().then(() => {
+    audio.start(session.audio);
+    audio.setIntensity(0.5);
+
+    if (config.component === 'ambient' || config.component === 'all') {
+      ambient.update();
+    }
+
+    log.info('isolation', `Audio isolation: profile=${config.profile}, component=${config.component}`);
+
+    // Render a minimal background so the page isn't blank
+    animateBackground();
+  });
+}
+
+/** Interaction sandbox: single-block timeline with the requested interaction type */
+function bootInteractionIsolation(config: { mode: 'interaction'; type: string; blocking: boolean }): void {
+  // Use relax session as base, build a single-stage timeline with the interaction
+  const session = getSession('relax');
+  if (!session) {
+    log.error('isolation', 'Cannot load base session for interaction isolation');
+    bootSelector();
+    return;
+  }
+
+  // Create a synthetic single stage with the requested interaction
+  const syntheticStage = {
+    ...session.stages[0],
+    name: 'interaction-sandbox',
+    duration: 60,
+    interactions: [{
+      type: config.type as 'gate',
+      triggerAt: 2,
+      duration: 30,
+      data: {
+        text: `[Isolation] ${config.type} interaction`,
+        blocking: config.blocking,
+      },
+    }],
+  };
+
+  activeSession = { ...session, stages: [syntheticStage] };
+  setPhase('session');
+  machine.transition('session');
+  applyTheme(session);
+
+  _lastTextKey = null;
+  _wasNarrationPlaying = false;
+  _narrationBound = false;
+  _completionHandled = false;
+
+  const doneLoading = loading.start('loading interaction sandbox');
+
+  Promise.all([
+    audio.init(),
+    narration.waitForManifest(),
+  ]).then(() => {
+    timeline.build(
+      activeSession!.stages,
+      (name) => narration.hasStageAudio(name),
+      (name) => narration.getStageAudioDuration(name),
+    );
+    timebar.buildBlocks();
+    devMode.rebuildStageButtons();
+
+    hypnoApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, bus });
+    window.__HYPNO__ = hypnoApi;
+
+    doneLoading();
+    isRunning = true;
+    timeline.start();
+    bus.emit('session:started', { session: activeSession! });
+    animate();
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════
 // STATE-AWARE BOOT — route based on where we are in the experience
 // ══════════════════════════════════════════════════════════════════════
 function boot(): void {
+  // Check for isolation mode BEFORE normal boot path
+  const isolation = parseIsolationParams();
+  if (isolation && !isHMR) {
+    bootIsolation(isolation);
+    return;
+  }
+
   const phase = appState.phase;
 
   if (isHMR) {
