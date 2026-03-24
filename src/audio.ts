@@ -285,6 +285,28 @@ export class AudioEngine {
     this.start(profile);
   }
 
+  // ── Telemetry ──
+  getIsPlaying(): boolean { return this.isPlaying; }
+  getIsMuted(): boolean { return this.isMuted; }
+
+  getBinauralState(): { enabled: boolean; carrierFreq: number; beatFreq: number } | null {
+    if (!this.binauralLeft || !this.binauralRight || !this.profile) return null;
+    return {
+      enabled: this.binauralEnabled,
+      carrierFreq: this.binauralLeft.frequency.value,
+      beatFreq: this.binauralRight.frequency.value - this.binauralLeft.frequency.value,
+    };
+  }
+
+  getDroneState(): { freq1: number; freq2: number; lfoSpeed: number } | null {
+    if (!this.droneOsc1 || !this.droneOsc2 || !this.lfo) return null;
+    return {
+      freq1: this.droneOsc1.frequency.value,
+      freq2: this.droneOsc2.frequency.value,
+      lfoSpeed: this.lfo.frequency.value,
+    };
+  }
+
   // ── Bus-driven lifecycle ──────────────────────────────────────
   private busUnsubs: Array<() => void> = [];
 

@@ -50,6 +50,7 @@ interface TextSlot {
   opacity: number;
   targetOpacity: number;
   expireTime: number;
+  text: string;
 }
 
 const FONT_SIZE = 48;
@@ -101,6 +102,14 @@ export class Text3D {
 
   get mesh(): THREE.Group {
     return this.group;
+  }
+
+  // ── Telemetry ──
+  getActiveWord(): string | null { return this.focusCurrentWord || null; }
+  getCueText(): string | null { return this.cueText || null; }
+  getFloatingLineCount(): number { return this.lines.length; }
+  getSlotStates(): Array<{ text: string; opacity: number } | null> {
+    return this.slots.map(s => s ? { text: s.text, opacity: s.opacity } : null);
   }
 
   setColors(textColor: string, glowColor: string): void {
@@ -267,7 +276,7 @@ export class Text3D {
 
     this.group.add(sprite);
 
-    return { sprite, canvas, texture, opacity: 0.85, targetOpacity: 0.85, expireTime };
+    return { sprite, canvas, texture, opacity: 0.85, targetOpacity: 0.85, expireTime, text };
   }
 
   private repositionSlots(): void {

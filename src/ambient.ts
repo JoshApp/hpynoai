@@ -301,6 +301,10 @@ export class AmbientEngine {
     this.melodyTimer = window.setTimeout(playNote, this.profile.tempo * 1000);
   }
 
+  // ── Telemetry ──
+  getProfile(): AmbientProfile { return { ...this.profile }; }
+  getLastNoteIndex(): number { return this.lastNoteIndex; }
+
   // ── Utilities ──
 
   private createReverbImpulse(ctx: AudioContext, decay: number): AudioBuffer {
