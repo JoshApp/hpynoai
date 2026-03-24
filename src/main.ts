@@ -43,6 +43,7 @@ import { auth } from './auth';
 import { showPostSessionPrompt, autoAnonymousSignIn } from './post-session-prompt';
 import { SettingsSync } from './settings-sync';
 import { supabase } from './supabase';
+import { Entitlements } from './entitlements';
 
 // ══════════════════════════════════════════════════════════════════════
 // ERROR BOUNDARIES — check before anything else
@@ -104,6 +105,11 @@ onCleanup(() => settingsSync.dispose());
 
 const favorites = hotState.favorites ?? new Favorites(null);
 hotState.favorites = favorites;
+
+// Entitlements — no Supabase client yet (null = offline/free mode)
+const entitlements = hotState.entitlements ?? new Entitlements(null);
+hotState.entitlements = entitlements;
+entitlements.init();
 
 const mouse = { x: 0, y: 0 };
 
