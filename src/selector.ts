@@ -7,6 +7,12 @@ import type { EventBus } from './events';
 import { hotState, type AuthState } from './hot-state';
 import type { Favorites } from './favorites';
 
+/** Minimal entitlement check interface — gracefully degrades when module absent. */
+export interface EntitlementChecker {
+  canAccess(sessionId: string): boolean;
+  onChange(listener: () => void): () => void;
+}
+
 /**
  * Immersive 3D session selector — the landing IS the experience.
  *
@@ -35,6 +41,8 @@ export class SessionSelector {
   private unsubs: Array<() => void> = [];
   private favorites: Favorites | null = null;
   private heartSprites: THREE.Sprite[] = [];
+  private entitlements: EntitlementChecker | null = null;
+  private lockSprites: THREE.Sprite[] = [];
 
   // Auth UI overlay (DOM, not 3D)
   private authOverlay: HTMLDivElement | null = null;
@@ -90,6 +98,12 @@ export class SessionSelector {
     this.unsubs.push(unsub);
   }
 
+  setEntitlements(checker: EntitlementChecker): void {
+    this.entitlements = checker;
+    const unsub = checker.onChange(() => this.updateLockStates());
+    this.unsubs.push(unsub);
+  }
+
   setDepth(z: number): void {
     this.group.position.z = z;
   }
@@ -141,9 +155,13 @@ export class SessionSelector {
       const orbTarget = focused ? 0.26 + breathPulse * 0.06 : Math.max(0.08, 0.18 - absDiff * 0.04);
       orb.scale.setScalar(orb.scale.x + (orbTarget - orb.scale.x) * lerp);
 
+      // Locked sessions get dimmed opacity
+      const isLocked = this.entitlements ? !this.entitlements.canAccess(this.sessions[i].id) : false;
+      const lockDim = isLocked ? 0.6 : 1.0;
+
       // Orb opacity — focused orb fades out (wisp absorbs it), others stay visible
       const orbMat = orb.material as THREE.SpriteMaterial;
-      const orbAlpha = focused ? 0.08 : Math.max(0.15, 0.5 - absDiff * 0.15);
+      const orbAlpha = (focused ? 0.08 : Math.max(0.15, 0.5 - absDiff * 0.15)) * lockDim;
       orbMat.opacity += (orbAlpha - orbMat.opacity) * lerp;
 
       // Label follows orb, below it
@@ -155,7 +173,7 @@ export class SessionSelector {
 
       // Label opacity
       const labelMat = label.material as THREE.SpriteMaterial;
-      const labelAlpha = focused ? 0.9 : Math.max(0.1, 0.5 - absDiff * 0.2);
+      const labelAlpha = (focused ? 0.9 : Math.max(0.1, 0.5 - absDiff * 0.2)) * lockDim;
       labelMat.opacity += (labelAlpha - labelMat.opacity) * lerp;
 
       // Heart follows orb, upper-right corner
@@ -167,6 +185,19 @@ export class SessionSelector {
         const heartMat = heart.material as THREE.SpriteMaterial;
         const heartAlpha = focused ? 0.9 : Math.max(0.1, 0.4 - absDiff * 0.15);
         heartMat.opacity += (heartAlpha - heartMat.opacity) * lerp;
+      }
+
+      // Lock icon follows orb, upper-left corner
+      const lockIcon = this.lockSprites[i];
+      if (lockIcon) {
+        lockIcon.position.x += (targetX - 0.12 - lockIcon.position.x) * lerp;
+        lockIcon.position.z += (targetZ + 0.01 - lockIcon.position.z) * lerp;
+        lockIcon.position.y += (targetY + 0.08 - lockIcon.position.y) * lerp;
+        if (lockIcon.visible) {
+          const lockMat = lockIcon.material as THREE.SpriteMaterial;
+          const lockAlpha = focused ? 0.9 : Math.max(0.1, 0.5 - absDiff * 0.15);
+          lockMat.opacity += (lockAlpha - lockMat.opacity) * lerp;
+        }
       }
     }
 
@@ -215,6 +246,7 @@ export class SessionSelector {
     this.orbSprites = [];
     this.orbLabels = [];
     this.heartSprites = [];
+    this.lockSprites = [];
   }
 
   // ══════════════════════════════════════════
@@ -399,16 +431,34 @@ export class SessionSelector {
       this.group.add(heart);
       this.heartSprites.push(heart);
       this.allSprites.push(heart);
+
+      // Lock icon for gated sessions — only shown if entitlements deny access
+      const isLocked = this.entitlements ? !this.entitlements.canAccess(s.id) : false;
+      const lock = SpriteText.create('\u{1F512}', {
+        height: 0.035, fontSize: 28, color: '#aa7799',
+        glow: 'rgba(170,119,153,0.3)', additive: false,
+      });
+      lock.position.set(posX - 0.12, posY + 0.08, posZ + 0.01);
+      lock.visible = isLocked;
+      SpriteText.setOpacity(lock, 0);
+      this.group.add(lock);
+      this.lockSprites.push(lock);
+      this.allSprites.push(lock);
     }
 
     // Fade in all at once — no stagger, they're already positioned
     for (let i = 0; i < n; i++) {
+      const isLocked = this.entitlements ? !this.entitlements.canAccess(this.sessions[i].id) : false;
       if (i === 0) {
         // First orb invisible (wisp absorbs it)
-        this.fadeIn(this.orbLabels[i], 0.6, 800);
+        this.fadeIn(this.orbLabels[i], isLocked ? 0.4 : 0.6, 800);
       } else {
-        this.fadeIn(this.orbSprites[i], 0.5, 800);
-        this.fadeIn(this.orbLabels[i], 0.5, 800);
+        this.fadeIn(this.orbSprites[i], isLocked ? 0.3 : 0.5, 800);
+        this.fadeIn(this.orbLabels[i], isLocked ? 0.35 : 0.5, 800);
+      }
+      // Fade in lock icon if session is gated
+      if (this.lockSprites[i]?.visible) {
+        this.fadeIn(this.lockSprites[i], 0.8, 800);
       }
       // Heart fades in on all orbs
       if (this.heartSprites[i]) {
@@ -423,13 +473,14 @@ export class SessionSelector {
     if (this.disposed) return;
     const session = this.sessions[selected];
 
-    // ── Selection: fade all orbs/labels/hearts, pulse the wisp ──
+    // ── Selection: fade all orbs/labels/hearts/locks, pulse the wisp ──
     question.visible = false;
     if (this.descSprite) this.animateOut(this.descSprite, 400);
     for (let i = 0; i < this.orbSprites.length; i++) {
       this.animateOut(this.orbSprites[i], 500);
       this.animateOut(this.orbLabels[i], 500);
       if (this.heartSprites[i]) this.animateOut(this.heartSprites[i], 500);
+      if (this.lockSprites[i]?.visible) this.animateOut(this.lockSprites[i], 500);
     }
 
     // Pulse the wisp on selection
@@ -662,6 +713,12 @@ export class SessionSelector {
       const subs: Array<() => void> = [];
       const done = (idx: number) => {
         if (resolved) return;
+        // Check entitlement — locked sessions trigger upgrade prompt instead
+        const session = this.sessions[idx];
+        if (session && this.entitlements && !this.entitlements.canAccess(session.id)) {
+          this.bus.emit('entitlement:upgrade-prompt', { feature: session.id, context: 'selector' });
+          return; // Don't resolve — stay in carousel
+        }
         resolved = true;
         for (const u of subs) u();
         resolve(idx);
@@ -735,6 +792,17 @@ export class SessionSelector {
   private updateHeartStates(): void {
     for (let i = 0; i < this.heartSprites.length; i++) {
       this.updateHeartVisual(i);
+    }
+  }
+
+  /** Re-evaluate lock state on all orbs (called when entitlements change). */
+  private updateLockStates(): void {
+    for (let i = 0; i < this.lockSprites.length; i++) {
+      const session = this.sessions[i];
+      const lock = this.lockSprites[i];
+      if (!session || !lock) continue;
+      const isLocked = this.entitlements ? !this.entitlements.canAccess(session.id) : false;
+      lock.visible = isLocked;
     }
   }
 

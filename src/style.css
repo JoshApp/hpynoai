@@ -407,6 +407,27 @@ html, body {
   border-color: rgba(168, 230, 207, 0.4);
 }
 
+/* ── Content Gating — Lock Icons ── */
+#settings-panel .settings-level-btn.locked {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+#settings-panel .settings-level-btn.locked:hover {
+  background: rgba(170, 119, 153, 0.08);
+  border-color: rgba(170, 119, 153, 0.2);
+}
+
+#settings-panel .settings-toggle-row.locked label {
+  opacity: 0.55;
+}
+
+.lock-icon {
+  font-size: 10px;
+  margin-left: 4px;
+  opacity: 0.7;
+}
+
 /* ── Mute Button ── */
 #fullscreen-btn {
   position: fixed;
