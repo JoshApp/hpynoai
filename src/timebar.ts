@@ -13,11 +13,14 @@
 
 import type { Timeline, TimelineBlock } from './timeline';
 
-const BLOCK_COLORS: Record<string, string> = {
-  narration:   'rgba(100, 140, 255, 0.25)',
-  breathing:   'rgba(80, 220, 160, 0.25)',
-  interaction: 'rgba(255, 180, 80, 0.25)',
-  transition:  'rgba(255, 255, 255, 0.08)',
+const CLIP_COLORS: Record<string, string> = {
+  'narration-audio':  'rgba(100, 140, 255, 0.3)',
+  'narration-tts':    'rgba(100, 140, 255, 0.15)',
+  'breathing-intro':  'rgba(80, 220, 160, 0.2)',
+  'breathing-core':   'rgba(80, 220, 160, 0.3)',
+  'breathing-outro':  'rgba(80, 220, 160, 0.2)',
+  'interaction':      'rgba(255, 180, 80, 0.25)',
+  'transition':       'rgba(255, 255, 255, 0.08)',
 };
 
 export class Timebar {
@@ -144,7 +147,7 @@ export class Timebar {
 
       const left = (block.start / total) * 100;
       const width = (block.duration / total) * 100;
-      const bg = BLOCK_COLORS[block.kind] ?? BLOCK_COLORS.transition;
+      const bg = CLIP_COLORS[block.clipType] ?? CLIP_COLORS.transition;
 
       const div = document.createElement('div');
       div.style.cssText = `
@@ -157,18 +160,17 @@ export class Timebar {
         text-overflow: ellipsis; white-space: nowrap; padding: 0 2px;
       `;
       div.textContent = this.blockLabel(block);
-      div.title = `${block.kind}: ${block.stage.name} (${this.fmt(block.duration)})`;
+      div.title = `${block.clipType}: ${block.stage.name} (${this.fmt(block.duration)})`;
       this.blockLabels.appendChild(div);
     }
   }
 
   private blockLabel(block: TimelineBlock): string {
-    switch (block.kind) {
-      case 'breathing': return `🫁 ${block.breathing?.phase ?? ''}`;
-      case 'interaction': return `⚡ ${block.interaction?.type ?? ''}`;
-      case 'narration': return block.stage.name;
-      case 'transition': return '…';
-    }
+    // Simple label from clipType — no access to block.data needed
+    if (block.clipType.startsWith('breathing')) return `🫁 ${block.clipType.split('-')[1]}`;
+    if (block.clipType === 'interaction') return '⚡';
+    if (block.clipType === 'transition') return '…';
+    return block.stage.name;
   }
 
   private startDrag(e: MouseEvent): void {

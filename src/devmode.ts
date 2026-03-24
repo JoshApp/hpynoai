@@ -72,7 +72,7 @@ export class DevMode {
     if (!container) return;
     const tl = this.opts.timeline;
     container.innerHTML = tl.allBlocks
-      .map((b, i) => `<button class="dev-stage-btn" data-index="${i}">${b.stage.name} (${b.kind[0]})</button>`)
+      .map((b, i) => `<button class="dev-stage-btn" data-index="${i}">${b.stage.name} (${b.clipType[0]})</button>`)
       .join('');
     container.querySelectorAll<HTMLButtonElement>('.dev-stage-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -86,7 +86,7 @@ export class DevMode {
   private buildHTML(): string {
     const tl = this.opts.timeline;
     const stageButtons = tl.allBlocks
-      .map((b, i) => `<button class="dev-stage-btn" data-index="${i}">${b.stage.name} (${b.kind[0]})</button>`)
+      .map((b, i) => `<button class="dev-stage-btn" data-index="${i}">${b.stage.name} (${b.clipType[0]})</button>`)
       .join('');
 
     return `
@@ -236,7 +236,7 @@ export class DevMode {
     const breathPhase = (performance.now() / 1000) * (2 * Math.PI / breathCycle);
     const breathLabel = Math.sin(breathPhase) > 0 ? 'inhale' : 'exhale';
 
-    this.elStage.textContent = `${stage?.name ?? '—'} [${block?.kind ?? '?'}] ${tl.currentIndex + 1}/${tl.blockCount}`;
+    this.elStage.textContent = `${stage?.name ?? '—'} [${block?.clipType ?? '?'}] ${tl.currentIndex + 1}/${tl.blockCount}`;
     this.elIntensity.textContent = intensity.toFixed(3);
     this.elBreath.textContent = `${breathLabel} (${breathCycle.toFixed(1)}s)`;
     this.elElapsed.textContent = this.formatTime(elapsed);

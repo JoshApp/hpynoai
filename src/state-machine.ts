@@ -100,9 +100,6 @@ export class StateMachine {
     setPhase(legacyPhase);
     appState.sessionId = this._sessionId;
 
-    // Emit event
-    this.bus?.emit('phase:changed', { from, to, sessionId: this._sessionId ?? undefined });
-
     return true;
   }
 

@@ -16,24 +16,11 @@ import type { HpynoSettings } from './settings';
 // ── Event map — every event name to its payload type ──────────
 
 export interface HpynoEventMap {
-  // Phase lifecycle
-  'phase:changed': { from: string; to: string; sessionId?: string };
-
   // Session lifecycle
   'session:starting': { session: SessionConfig };
   'session:started': { session: SessionConfig };
   'session:ending': { fadeSec?: number };
   'session:ended': {};
-
-  // Narration — text display with optional karaoke word timing
-  'narration:line': {
-    text: string;
-    words?: Array<{ word: string; start: number; end: number }>;
-    audioStartTime?: number;
-  };
-
-  // Interactions
-  'interaction:complete': { type: string };
 
   // Settings
   'settings:changed': { settings: Readonly<HpynoSettings> };

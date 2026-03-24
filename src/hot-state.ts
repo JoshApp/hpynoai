@@ -70,6 +70,7 @@ export interface HotState {
   activeSession?: SessionConfig | null;
   spiralAngle?: number;
   lastAnimTime?: number;
+  renderTime?: number;
   intensityOverride?: number | null;
   shaderIntensityScale?: number;
   animFrameId?: number;

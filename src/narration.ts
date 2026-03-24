@@ -91,7 +91,8 @@ export class NarrationEngine {
   private estimatedDuration = 0;
   private selectedVoice: SpeechSynthesisVoice | null = null;
   private voicesLoaded = false;
-  private onTextDisplay: ((text: string, words?: WordTimestamp[], audioStartTime?: number) => void) | null = null;
+  // Pull-model: current display line (replaces onTextDisplay callback)
+  private _displayLine: { text: string; words?: WordTimestamp[]; startTime: number } | null = null;
   private paused = false;
   private pauseTimer: ReturnType<typeof setTimeout> | null = null;
   private processingQueue = false;
@@ -117,9 +118,9 @@ export class NarrationEngine {
     this.loadVoices();
   }
 
-  /** Set callback for when text should be displayed (with optional word timestamps and audio sync time) */
-  setTextHandler(handler: (text: string, words?: WordTimestamp[], audioStartTime?: number) => void): void {
-    this.onTextDisplay = handler;
+  /** Current display line (pull-model — read by animate loop each frame) */
+  get displayLine(): Readonly<{ text: string; words?: WordTimestamp[]; startTime: number }> | null {
+    return this._displayLine;
   }
 
   /**
@@ -382,6 +383,7 @@ export class NarrationEngine {
   stop(): void {
     this.queue = [];
     this.currentLine = null;
+    this._displayLine = null;
     this._isSpeaking = false;
     this._active = false;
     this._voiceEnergy = 0;
@@ -415,26 +417,24 @@ export class NarrationEngine {
     }
   }
 
-  /** Call every frame to update voice energy simulation */
+  /** Call every frame to update voice energy and current line state */
   update(): void {
-    // Continuous stage playback — check audio time, trigger text changes
+    // Continuous stage playback — derive current line from audio time (pull model)
     if (this.stagePlaybackActive && this.stageAudio) {
       const t = this.stageAudio.currentTime;
 
-      // Find which line should be displayed based on current audio time
       for (let i = 0; i < this.stageLines.length; i++) {
         const line = this.stageLines[i];
         if (t >= line.startTime && (i === this.stageLines.length - 1 || t < this.stageLines[i + 1].startTime)) {
           if (i !== this.stageCurrentLine) {
             this.stageCurrentLine = i;
-            if (this.onTextDisplay) {
-              // Pass the audio time when this line starts so text3d can sync to audio clock
-              this.onTextDisplay(line.text, line.words, line.startTime);
-            }
+            this._displayLine = { text: line.text, words: line.words, startTime: line.startTime };
           }
           break;
         }
       }
+    } else {
+      this._displayLine = null;
     }
 
     if (!this._isSpeaking) {
@@ -534,10 +534,8 @@ export class NarrationEngine {
       // Check for pre-generated audio file first
       const audioEntry = this.audioLookup.get(line.text.trim().toLowerCase());
 
-      // Display text (with word timestamps if available for synced karaoke)
-      if (this.onTextDisplay) {
-        this.onTextDisplay(line.text, audioEntry?.words);
-      }
+      // Set current line state (pull model — animate loop reads this)
+      this._displayLine = { text: line.text, words: audioEntry?.words, startTime: 0 };
 
       if (audioEntry) {
         // Play pre-generated audio file
@@ -727,13 +725,8 @@ export class NarrationEngine {
     this.busUnsubs = [];
     this.bus = bus;
 
-    // Wire text display → bus emission
-    this.setTextHandler((text, words, audioStartTime) => {
-      bus.emit('narration:line', { text, words, audioStartTime });
-    });
-
-    // Stage ended is now edge-detected in the animate loop
-    // (narration.isPlayingStage transitions from true → false)
+    // Text display is now pull-model: animate loop reads narration.currentLine each frame.
+    // No bus emission needed.
 
     // Session starting → load manifest
     this.busUnsubs.push(bus.on('session:starting', ({ session }) => {

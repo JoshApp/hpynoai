@@ -93,43 +93,16 @@ export interface SessionStage {
 
 // ── Block-based timeline types ──────────────────────────────────
 
-export type BlockKind = 'narration' | 'breathing' | 'interaction' | 'transition';
-
-export interface NarrationBlockData {
-  texts: string[];
-  textInterval: number;
-  hasAudio: boolean;
-  audioOffset: number;    // seconds into the stage audio where this block starts
-}
-
-export interface BreathingBlockData {
-  phase: 'intro' | 'core' | 'outro';
-  pattern: BreathPatternConfig;
-  breaths?: number;           // core phase only
-  introText?: string;         // intro phase text
-  outroTexts?: string[];      // outro phase texts
-}
-
-export interface InteractionBlockData {
-  type: Interaction['type'];
-  promptText: string;
-  blocking: boolean;          // pause at boundary when interaction mode on
-  minDuration: number;        // text display time
-  data?: Interaction['data'];
-}
+import type { ClipType } from './clips';
 
 export interface TimelineBlock {
-  kind: BlockKind;
+  clipType: ClipType;
   start: number;              // absolute start (seconds)
   duration: number;
   end: number;                // start + duration
-
   stage: SessionStage;
   stageIndex: number;
-
-  narration?: NarrationBlockData;
-  breathing?: BreathingBlockData;
-  interaction?: InteractionBlockData;
+  data: unknown;              // clip-type-specific, cast by the derive function
 }
 
 // Complete session configuration

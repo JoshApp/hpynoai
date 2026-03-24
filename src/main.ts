@@ -128,6 +128,7 @@ let intensityOverride: number | null = hotState.intensityOverride ?? null;
 let shaderIntensityScale = hotState.shaderIntensityScale ?? 1.0;
 let spiralAngle = hotState.spiralAngle ?? 0;
 let lastAnimTime = hotState.lastAnimTime ?? 0;
+let renderTime = hotState.renderTime ?? 0;  // accumulated shader time (immune to tab-away jumps)
 let activeSession: SessionConfig | null = hotState.activeSession ?? null;
 
 // ── Three.js core ──
@@ -326,28 +327,9 @@ const narration = hotState.narration ?? new NarrationEngine({
 hotState.narration = narration;
 narration.connectBus(bus);
 
-bus.on('narration:line', ({ text, words, audioStartTime }) => {
-  showText(text, words, audioStartTime);
-});
-
 // ══════════════════════════════════════════════════════════════════════
 // HELPERS
 // ══════════════════════════════════════════════════════════════════════
-function showText(text: string, words?: Array<{ word: string; start: number; end: number }>, audioStartTime?: number): void {
-  if (activeSession) {
-    text3d.setColors(activeSession.theme.textColor, activeSession.theme.textGlow);
-  }
-  const audioRef = narration.isPlayingStage ? narration.stageAudioElement : null;
-  // Focus mode: single-point word stream (default for narration with word timings)
-  if (words && words.length > 0) {
-    const duration = words[words.length - 1].end + 0.5;
-    text3d.showFocus(text, duration, words, audioRef, audioStartTime);
-  } else {
-    // Fallback to karaoke for text without word timings
-    text3d.show(text, 8, words, audioRef, audioStartTime);
-  }
-}
-
 function applyTheme(session: SessionConfig): void {
   renderPipeline.applyTheme(session.theme);
   text3d.setColors(session.theme.textColor, session.theme.textGlow);
@@ -356,19 +338,19 @@ function applyTheme(session: SessionConfig): void {
 // ══════════════════════════════════════════════════════════════════════
 // TIMELINE — single source of truth for session progression
 // ══════════════════════════════════════════════════════════════════════
-const timeline = new Timeline();
+import { realtimeClock } from './clock';
+const timeline = new Timeline(realtimeClock);
 
 // Pull-model: timeline callbacks removed. The animate loop reads TimelineState
 // each frame and drives narration, text, breath, interactions directly.
 // If any frame errors, the next frame derives the correct state from position.
 
-// Track state for edge detection in animate loop
-let _lastTextKey: string | null = null;
+// Track what's currently active on screen (the animate loop compares against these)
 let _wasNarrationPlaying = false;
 let _narrationBound = false;
 let _completionHandled = false;
-let _lastBreathStage: string | null = null;
 let _breathClip: HTMLAudioElement | null = null;
+let _breathClipName: string | null = null;
 
 /** Play a breathing cue clip, crossfading from previous */
 function playBreathClip(name: string): void {
@@ -391,13 +373,14 @@ function playBreathClip(name: string): void {
     clip.volume = 0.7;
     clip.play().catch(() => {});
     _breathClip = clip;
+    _breathClipName = name;
   } catch { /* no audio */ }
 }
 
 // Timebar — dev widget for timeline scrubbing (toggle with T key)
 const timebar = new Timebar(timeline);
 
-// ── Stage events now driven by pull-model in animate() ──
+// ── Stage events driven by pull-model in sessionTick() ──
 
 // ── Interactions ──
 const interactions = new InteractionManager(breath, overlayScene, camera, canvas, text3d, narration);
@@ -420,7 +403,7 @@ hotState.interactions = interactions;
 function confirmInteractionBoundary(): void {
   if (!timeline.paused) return;
   timeline.resume();
-  bus.emit('interaction:complete', { type: 'gate' });
+  // interaction confirmed — timeline resumes
 }
 
 // Wire user input to interaction confirmation
@@ -430,7 +413,7 @@ bus.on('input:confirm', () => {
   }
 });
 
-// narration:line is still emitted by narration for karaoke word timing (kept).
+// Narration text is now pull-model: animate loop reads narration.displayLine each frame.
 
 // ── Dev Mode ──
 hotState.devMode?.destroy?.();
@@ -495,8 +478,7 @@ function startSession(session: SessionConfig): void {
   machine.transition('transitioning', { sessionId: session.id });
   bus.emit('session:starting', { session });
 
-  // Reset pull-model edge detection state
-  _lastTextKey = null;
+  // Reset animate loop state
   _wasNarrationPlaying = false;
   _narrationBound = false;
   _completionHandled = false;
@@ -535,7 +517,8 @@ function startSession(session: SessionConfig): void {
     machine.transition('session');
     bus.emit('session:started', { session });
     timeline.start();
-    animate();
+    startSessionTick();
+    render();
   });
 }
 
@@ -584,168 +567,130 @@ function animateBackground(): void {
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// SESSION ANIMATION LOOP
+// SESSION TICK — always runs (setInterval), drives all state progression
 // ══════════════════════════════════════════════════════════════════════
-function animate(): void {
+let _tickInterval: ReturnType<typeof setInterval> | null = null;
+let _lastTick: TimelineState | null = null;
+
+function sessionTick(): void {
   if (!isRunning) return;
-  hotState.animFrameId = requestAnimationFrame(animate);
+
+  const tlState = timeline.update();
+  _lastTick = tlState;
+  if (!tlState) return;
+
+  // ── Block transition ──
+  if (tlState.blockJustChanged) {
+    log.info('block', `[${tlState.blockIndex}] ${tlState.block.clipType} (${tlState.block.stage.name})`);
+    _narrationBound = false;
+
+    if (tlState.wantsNarrationAudio && tlState.narrationStageName) {
+      narration.enterStage(tlState.narrationStageName, tlState.narrationAudioOffset + tlState.blockElapsed);
+    } else {
+      narration.stopStagePlayback();
+    }
+
+    if (!tlState.breathDrive) { breath.applyStage(tlState.block.stage); breath.releaseForce(); }
+    audio.setIntensity(tlState.block.stage.intensity);
+  }
+
+  // ── Breath ──
+  if (tlState.breathDrive && tlState.breathValue !== null && tlState.breathStage) {
+    breath.forceValue(tlState.breathValue);
+    breath.forceStage(tlState.breathStage);
+  }
+
+  // ── Audio clip: compare desired vs playing ──
+  if (tlState.audioClip) {
+    if (tlState.audioClip !== _breathClipName) playBreathClip(tlState.audioClip);
+  } else if (_breathClipName) {
+    if (_breathClip) { _breathClip.pause(); _breathClip = null; }
+    _breathClipName = null;
+  }
+
+  // ── Interaction boundary ──
+  if (tlState.atBoundary && !timeline.paused) timeline.pause();
+
+  // ── Narration audio binding (transport-level) ──
+  if (!_narrationBound && narration.isPlayingStage && narration.stageAudioElement) {
+    timeline.bindAudio(narration.stageAudioElement, tlState.block.start);
+    _narrationBound = true;
+  }
+  if (_wasNarrationPlaying && !narration.isPlayingStage) {
+    timeline.audioEnded();
+    _narrationBound = false;
+  }
+  _wasNarrationPlaying = narration.isPlayingStage;
+
+  // ── Narration line tracking (after block handling) ──
+  narration.update();
+
+  // ── Completion ──
+  if (tlState.complete && !_completionHandled) {
+    _completionHandled = true;
+    endExperience();
+  }
+}
+
+function startSessionTick(): void {
+  if (_tickInterval) clearInterval(_tickInterval);
+  // 60Hz tick — matches rAF cadence when visible, keeps running when hidden
+  _tickInterval = setInterval(sessionTick, 1000 / 60);
+}
+
+function stopSessionTick(): void {
+  if (_tickInterval) { clearInterval(_tickInterval); _tickInterval = null; }
+  _lastTick = null;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// SESSION RENDER — only when visible (rAF), reads state from last tick
+// ══════════════════════════════════════════════════════════════════════
+let _renderBlockIndex = -1;
+
+function render(): void {
+  if (!isRunning) return;
+  hotState.animFrameId = requestAnimationFrame(render);
 
   const time = performance.now() / 1000;
   const s = settings.current;
-
-  // ── Pull-model: timeline is the single source of truth ──
-  const tlState = timeline.update();
-  mic.update();
-  // NOTE: narration.update() is called AFTER block change handling below,
-  // so stopStagePlayback() runs before narration can fire stale text events.
+  const tlState = _lastTick;
   const intensity = intensityOverride ?? (tlState?.intensity ?? 0.12);
 
-  // ── Drive subsystems from block-based TimelineState ──
+  // ── Visual-only updates from tick state ──
   if (tlState) {
-    // Seek recovery
-    if (tlState.seeked) {
-      if (tlState.blockJustChanged) {
-        // Cross-block seek — full cleanup, block change handler will re-enter
-        text3d.clear();
-        text3d.clearCue();
-        narration.stop();
-        narration.stopStagePlayback();
-        interactions.clear();
-        _lastTextKey = null;
-        _wasNarrationPlaying = false;
-        _narrationBound = false;
-        _lastBreathStage = null;
-        if (_breathClip) { _breathClip.pause(); _breathClip = null; }
-      } else {
-        // Same-block seek — just update text key so text re-derives from position
-        _lastTextKey = null;
-      }
-    }
-
-    // Block change — fire once per transition
-    if (tlState.blockJustChanged) {
-      const block = tlState.block;
-      log.info('block', `Block ${tlState.blockIndex}: ${block.kind} (stage: ${block.stage.name})`, {
-        kind: block.kind, stage: block.stage.name, duration: block.duration.toFixed(1),
-      });
-
-      text3d.clear();
-      text3d.clearCue();
-      text3d.clearSlotDepth();
-      _lastTextKey = null;
-      _narrationBound = false;
-
-      // Narration: enter stage on narration blocks with audio
-      if (block.kind === 'narration' && block.narration?.hasAudio) {
-        // audioOffset = where in the stage audio this block starts
-        // blockElapsed = how far into this block we are (nonzero on seek)
-        const offset = (block.narration.audioOffset ?? 0) + tlState.blockElapsed;
-        narration.enterStage(block.stage.name, offset);
-      } else {
-        narration.stopStagePlayback();
-      }
-
-      // Breath: apply stage pattern (breathing blocks drive per-frame below)
-      if (block.kind !== 'breathing') {
-        breath.applyStage(block.stage);
-        breath.releaseForce();
-      }
-
-      // Audio: update binaural beat intensity
-      audio.setIntensity(block.stage.intensity);
-
-      // Breathing: bring presence wisp close + play intro/outro clips
-      if (block.kind === 'breathing') {
-        presence.transitionTo('breathe', {
-          size: 3.0,
-          basePos: new THREE.Vector3(0, 0, -1.2),
-          duration: 1.0,
-        });
-        // Play breathing intro/outro audio clips
-        if (block.breathing?.phase === 'intro') {
-          playBreathClip('breathing_intro');
-        } else if (block.breathing?.phase === 'outro') {
-          playBreathClip('breathing_good');
-        }
+    // Detect block change on the render side (tick may have advanced while hidden)
+    const renderBlockChanged = tlState.blockIndex !== _renderBlockIndex;
+    if (renderBlockChanged) {
+      _renderBlockIndex = tlState.blockIndex;
+      if (tlState.presenceMode === 'breathe') {
+        presence.transitionTo('breathe', { size: 3.0, basePos: new THREE.Vector3(0, 0, -1.2), duration: 1.0 });
       } else {
         presence.setSessionMode();
-        // Stop any lingering breath clip when leaving breathing blocks
-        if (_breathClip) { _breathClip.pause(); _breathClip = null; }
       }
-
-      setSessionInfo(activeSession?.id ?? '', block.stageIndex);
+      text3d.set(null);
+      setSessionInfo(activeSession?.id ?? '', tlState.block.stageIndex);
     }
 
-    // ── Per-frame block-type-specific driving ──
-
-    if (tlState.block.kind === 'breathing' && tlState.breathValue !== null && tlState.breathStage) {
-      // Breathing blocks: drive breath controller from position-derived values
-      breath.forceValue(tlState.breathValue);
-      breath.forceStage(tlState.breathStage);
-      text3d.setSlotDepth(-1.2 + tlState.breathValue * 0.7);
-      if (tlState.currentText) {
-        text3d.showCue(tlState.currentText);
-      }
-
-      // Play breathing audio clips on phase change (core blocks only)
-      if (tlState.block.breathing?.phase === 'core' && tlState.breathStage !== _lastBreathStage) {
-        _lastBreathStage = tlState.breathStage;
-        if (tlState.breathStage === 'inhale') playBreathClip('breathe_in');
-        else if (tlState.breathStage === 'exhale') playBreathClip('breathe_out');
-        else playBreathClip('breathe_hold');
-      }
-    } else {
-      text3d.clearSlotDepth();
-      _lastBreathStage = null;
+    // Text display — compare against what text3d is showing
+    const narLine = narration.displayLine;
+    if (narLine && narration.isPlayingStage) {
+      text3d.set(narLine.text, 'focus', {
+        words: narLine.words as Array<{ word: string; start: number; end: number }>,
+        audioRef: narration.stageAudioElement,
+        audioLineStart: narLine.startTime,
+      });
+    } else if (tlState.text) {
+      text3d.set(tlState.text, tlState.textStyle, { depth: tlState.slotDepth ?? undefined });
+      if (tlState.textStyle === 'narration') narration.speakText(tlState.text);
+    } else if (!narLine) {
+      text3d.set(null);
     }
-
-    // Text for narration and interaction blocks
-    if (tlState.block.kind === 'narration' || tlState.block.kind === 'interaction') {
-      if (tlState.currentText) {
-        const textKey = `${tlState.blockIndex}:${tlState.currentText}`;
-        if (textKey !== _lastTextKey) {
-          _lastTextKey = textKey;
-          if (tlState.block.kind === 'narration' && !tlState.block.narration?.hasAudio) {
-            narration.speakText(tlState.currentText);
-          }
-          if (tlState.block.kind === 'interaction') {
-            text3d.showInstant(tlState.currentText, 30);
-          }
-        }
-      }
-    }
-
-    // Interaction boundary — auto-pause
-    if (tlState.atBoundary && !timeline.paused) {
-      timeline.pause();
-      log.info('interaction', `Paused at boundary: ${tlState.block.interaction?.type}`);
-    }
-
-    // Narration stage audio started playing → bind as timeline clock
-    if (!_narrationBound && narration.isPlayingStage && narration.stageAudioElement) {
-      timeline.bindAudio(narration.stageAudioElement, tlState.block.start);
-      _narrationBound = true;
-    }
-
-    // Narration stage audio ended → unbind audio clock, fade text
-    if (_wasNarrationPlaying && !narration.isPlayingStage) {
-      timeline.audioEnded();
-      text3d.fadeOut();
-      _narrationBound = false;
-    }
-    _wasNarrationPlaying = narration.isPlayingStage;
-
-    // Completion
-    if (tlState.complete && !_completionHandled) {
-      _completionHandled = true;
-      endExperience();
-    }
+    if (tlState.slotDepth !== null) text3d.setSlotDepth(tlState.slotDepth);
   }
 
-  // Narration update AFTER block handling — prevents stale text events
-  narration.update();
-
-  // ── Per-frame updates (independent of pull-model) ──
+  // ── Scene updates (visual only) ──
+  mic.update();
   const micSig = mic.signals;
   if (micSig.active) breath.setFromMic(micSig.breathPhase);
   breath.update(time);
@@ -753,11 +698,11 @@ function animate(): void {
   const audioBands = audio.analyzer?.update() ?? null;
 
   const rawDt = lastAnimTime > 0 ? time - lastAnimTime : 1 / 60;
-  const dt = Math.min(rawDt, 0.1);
+  const dt = Math.min(rawDt, 0.1);  // clamp prevents jump after tab resume
   lastAnimTime = time;
+  renderTime += dt;
   spiralAngle += dt * (tlState?.spiralSpeed ?? 1) * s.spiralSpeedMult * 0.5;
 
-  // Update scene objects
   text3d.setSettings({ startZ: s.narrationStartZ, endZ: s.narrationEndZ, scale: s.narrationScale });
   text3d.update(intensity, breath.phase);
   interactions.setDepth(s.interactionDepth);
@@ -768,13 +713,13 @@ function animate(): void {
   transition.update();
   devMode.update();
 
-  // Build frame state and render
+  // Build frame and draw
   const iState = interactions.shaderState;
   let micBoost = 0;
   if (micSig.active && micSig.isHumming) micBoost = micSig.volume * 0.3;
 
   const frame: FrameState = {
-    time, dt, settings: s,
+    time: renderTime, dt, settings: s,
     breathPhase: breath.phase, breathValue: breath.value, breathStage: breath.stage,
     intensity: intensity * shaderIntensityScale, spiralAngle,
     spiralSpeed: tlState?.spiralSpeed ?? 1,
@@ -809,7 +754,8 @@ function cleanupSession(): void {
   clearMediaSession();
   stopSilentAudioKeepAlive();
 
-  // Stop timeline and clear all UI
+  // Stop tick + timeline
+  stopSessionTick();
   timeline.stop();
   interactions.clear();
   text3d.clear();
@@ -821,7 +767,7 @@ function cleanupSession(): void {
 
 function endExperience(): void {
   if (transition.isActive) return;
-  showText('welcome back');
+  text3d.set('welcome back', 'narration');
   machine.transition('ending');
   bus.emit('session:ending', { fadeSec: 3 });
   transition.run(() => cleanupSession(), { fadeOutMs: 3000, holdMs: 500, fadeInMs: 2000 });
@@ -871,7 +817,8 @@ function boot(): void {
         }
 
         isRunning = true;
-        animate();
+        startSessionTick();
+        render();
         log.info('hmr', `Restarted at segment ${idx}`);
       } else {
         setPhase('selector');
@@ -974,21 +921,15 @@ onCleanup(() => {
 // ══════════════════════════════════════════════════════════════════════
 const onVisibilityChange = () => {
   if (document.hidden) {
-    log.info('visibility', 'Tab hidden');
+    log.info('visibility', 'Tab hidden — tick continues running');
+    // Tick keeps running via setInterval (not rAF), so timeline advances.
+    // rAF render() will stop and resume automatically.
   } else {
-    // Tab back — reset frame delta to prevent huge dt spike
-    lastAnimTime = 0;
-    log.info('visibility', `Tab resumed, timeline position: ${timeline.position.toFixed(1)}s`);
-
-    // Resume audio context if it was suspended
+    lastAnimTime = 0; // prevent huge dt spike on resume
+    log.info('visibility', `Tab resumed, position: ${timeline.position.toFixed(1)}s`);
     if (audio.context?.state === 'suspended') {
       audio.context.resume().catch(() => {});
     }
-
-    // Timeline handles sync automatically:
-    // - If audio was bound, position = audio.currentTime (already correct)
-    // - If wall clock, position continued advancing (correct for TTS)
-    // - update() will fire any missed events on next frame
   }
 };
 document.addEventListener('visibilitychange', onVisibilityChange);
@@ -1009,6 +950,7 @@ if (import.meta.hot) {
     hotState.activeSession = activeSession;
     hotState.spiralAngle = spiralAngle;
     hotState.lastAnimTime = lastAnimTime;
+    hotState.renderTime = renderTime;
     hotState.intensityOverride = intensityOverride;
     hotState.shaderIntensityScale = shaderIntensityScale;
   });
