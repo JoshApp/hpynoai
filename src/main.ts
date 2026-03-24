@@ -377,6 +377,9 @@ let _completionHandled = false;
 let _lastBreathStage: string | null = null;
 let _breathClip: HTMLAudioElement | null = null;
 
+// Isolation mode: auto-stop when position exceeds this boundary (seconds)
+let _isolationBoundary: number | null = null;
+
 /** Play a breathing cue clip, crossfading from previous */
 function playBreathClip(name: string): void {
   // Fade out old clip
@@ -754,6 +757,14 @@ function animate(): void {
     }
     _wasNarrationPlaying = narration.isPlayingStage;
 
+    // Isolation boundary — auto-pause when block/stage segment is done
+    if (_isolationBoundary !== null && tlState.position >= _isolationBoundary && !_completionHandled) {
+      _completionHandled = true;
+      timeline.pause();
+      log.info('isolation', `Reached boundary at ${_isolationBoundary.toFixed(1)}s — paused`);
+      bus.emit('isolation:boundary-reached', { boundary: _isolationBoundary });
+    }
+
     // Completion
     if (tlState.complete && !_completionHandled) {
       _completionHandled = true;
@@ -966,6 +977,7 @@ function bootTimelineIsolation(config: { mode: 'block' | 'stage'; session: strin
   _wasNarrationPlaying = false;
   _narrationBound = false;
   _completionHandled = false;
+  _isolationBoundary = null;
 
   const doneLoading = loading.start('loading isolation mode');
 
@@ -973,11 +985,31 @@ function bootTimelineIsolation(config: { mode: 'block' | 'stage'; session: strin
     audio.init(),
     narration.waitForManifest(),
   ]).then(() => {
-    timeline.build(
-      session.stages,
-      (name) => narration.hasStageAudio(name),
-      (name) => narration.getStageAudioDuration(name),
-    );
+    if (config.mode === 'stage') {
+      // Stage mode: build timeline from just the target stage
+      const stageName = config.stage ?? '';
+      const targetStage = session.stages.find(s => s.name === stageName);
+      if (!targetStage) {
+        log.error('isolation', `Stage "${stageName}" not found in session "${config.session}"`);
+        doneLoading();
+        bootSelector();
+        return;
+      }
+      timeline.build(
+        [targetStage],
+        (name) => narration.hasStageAudio(name),
+        (name) => narration.getStageAudioDuration(name),
+      );
+      log.info('isolation', `Built single-stage timeline: "${stageName}" (${timeline.blockCount} blocks)`);
+    } else {
+      // Block mode: build full timeline, will seek to target block
+      timeline.build(
+        session.stages,
+        (name) => narration.hasStageAudio(name),
+        (name) => narration.getStageAudioDuration(name),
+      );
+    }
+
     timebar.buildBlocks();
     devMode.rebuildStageButtons();
 
@@ -986,30 +1018,22 @@ function bootTimelineIsolation(config: { mode: 'block' | 'stage'; session: strin
 
     doneLoading();
 
-    // Seek to the requested block or stage
     if (config.mode === 'block') {
       const idx = config.index ?? 0;
       const block = timeline.allBlocks[idx];
       if (block) {
+        // Set boundary at block end so animate() auto-pauses
+        _isolationBoundary = block.end;
         timeline.start();
         timeline.seek(block.start);
-        log.info('isolation', `Seeked to block ${idx} at ${block.start.toFixed(1)}s`);
+        log.info('isolation', `Block ${idx}: ${block.kind} [${block.start.toFixed(1)}s–${block.end.toFixed(1)}s]`);
       } else {
         log.error('isolation', `Block index ${idx} out of range (${timeline.blockCount} blocks)`);
         timeline.start();
       }
     } else {
-      // Stage mode — find first block matching the stage name
-      const stageName = config.stage ?? '';
-      const block = timeline.allBlocks.find(b => b.stage.name === stageName);
-      if (block) {
-        timeline.start();
-        timeline.seek(block.start);
-        log.info('isolation', `Seeked to stage "${stageName}" at ${block.start.toFixed(1)}s`);
-      } else {
-        log.error('isolation', `Stage "${stageName}" not found in session "${config.session}"`);
-        timeline.start();
-      }
+      // Stage mode: timeline is already built from single stage, just start
+      timeline.start();
     }
 
     isRunning = true;
