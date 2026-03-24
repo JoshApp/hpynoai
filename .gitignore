@@ -1,6 +1,10 @@
 node_modules
 dist
 .env
+.env.local
+
+# Supabase local dev
+supabase/.temp/
 
 # Voice test samples (not shipped)
 voice-tests/
