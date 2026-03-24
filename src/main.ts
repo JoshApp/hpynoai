@@ -981,7 +981,7 @@ function bootTimelineIsolation(config: { mode: 'block' | 'stage'; session: strin
     timebar.buildBlocks();
     devMode.rebuildStageButtons();
 
-    hypnoApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, bus });
+    hypnoApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, audio, bus });
     window.__HYPNO__ = hypnoApi;
 
     doneLoading();
@@ -1095,7 +1095,7 @@ function bootInteractionIsolation(config: { mode: 'interaction'; type: string; b
     timebar.buildBlocks();
     devMode.rebuildStageButtons();
 
-    hypnoApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, bus });
+    hypnoApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, audio, bus });
     window.__HYPNO__ = hypnoApi;
 
     doneLoading();
