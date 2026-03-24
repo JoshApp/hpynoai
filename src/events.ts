@@ -54,6 +54,10 @@ export interface HpynoEventMap {
 
   // Isolation mode
   'isolation:boundary-reached': { boundary: number };
+
+  // Entitlements / content gating
+  'entitlement:upgrade-prompt': { feature: string; context?: string };
+  'entitlement:changed': {};
 }
 
 // ── Bus implementation ────────────────────────────────────────

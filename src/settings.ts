@@ -90,6 +90,13 @@ const DEFAULTS: HpynoSettings = {
 
 type SettingsListener = (settings: HpynoSettings) => void;
 
+/** Minimal entitlement check interface for settings panel gating. */
+export interface SettingsEntitlementChecker {
+  canAccessLevel(level: string): boolean;
+  canAccessFeature(feature: string): boolean;
+  onChange(listener: () => void): () => void;
+}
+
 export class SettingsManager {
   private settings: HpynoSettings;
   private listeners: SettingsListener[] = [];
@@ -101,6 +108,8 @@ export class SettingsManager {
   private sliderDefs: Array<{ key: keyof HpynoSettings; unit?: string }> = [];
   private authUnsub: (() => void) | null = null;
   private accessTokenProvider: (() => string | null) | null = null;
+  private entitlements: SettingsEntitlementChecker | null = null;
+  private upgradeHandler: ((feature: string) => void) | null = null;
 
   constructor() {
     this.settings = this.load();
@@ -152,6 +161,14 @@ export class SettingsManager {
     this.refreshPanel();
   }
 
+  /** Set entitlement checker for content gating in the panel. */
+  setEntitlements(checker: SettingsEntitlementChecker, onUpgrade: (feature: string) => void): void {
+    this.entitlements = checker;
+    this.upgradeHandler = onUpgrade;
+    checker.onChange(() => this.refreshGating());
+    this.refreshGating();
+  }
+
   /** Set callback for the calibrate button */
   onCalibrate(handler: () => void): void {
     this.calibrateHandler = handler;
@@ -183,6 +200,48 @@ export class SettingsManager {
     // Level pickers
     this.refreshLevelPicker('settings-visualLevel', this.settings.visualLevel, ['minimal', 'calm', 'full', 'intense']);
     this.refreshLevelPicker('settings-experienceLevel', this.settings.experienceLevel, ['listen', 'watch', 'breathe', 'immerse']);
+  }
+
+  /** Update lock icons on experience level buttons and feature toggles. */
+  private refreshGating(): void {
+    if (!this.entitlements) return;
+    // Experience level lock icons
+    const expContainer = this.panel.querySelector('#settings-experienceLevel');
+    if (expContainer) {
+      expContainer.querySelectorAll<HTMLButtonElement>('.settings-level-btn').forEach(btn => {
+        const level = btn.dataset.level!;
+        const locked = !this.entitlements!.canAccessLevel(level);
+        btn.classList.toggle('locked', locked);
+        // Add/remove lock indicator
+        let lockEl = btn.querySelector('.lock-icon');
+        if (locked && !lockEl) {
+          lockEl = document.createElement('span');
+          lockEl.className = 'lock-icon';
+          lockEl.textContent = '\u{1F512}';
+          btn.appendChild(lockEl);
+        } else if (!locked && lockEl) {
+          lockEl.remove();
+        }
+      });
+    }
+    // Mic feature lock
+    const micCheck = this.panel.querySelector<HTMLInputElement>('#settings-micEnabled');
+    if (micCheck) {
+      const micLocked = !this.entitlements.canAccessFeature('mic');
+      const row = micCheck.closest('.settings-toggle-row');
+      if (row) {
+        row.classList.toggle('locked', micLocked);
+        let lockEl = row.querySelector('.lock-icon');
+        if (micLocked && !lockEl) {
+          lockEl = document.createElement('span');
+          lockEl.className = 'lock-icon';
+          lockEl.textContent = '\u{1F512}';
+          row.querySelector('label')?.appendChild(lockEl);
+        } else if (!micLocked && lockEl) {
+          lockEl.remove();
+        }
+      }
+    }
   }
 
   private refreshLevelPicker(containerId: string, current: string, levels: string[]): void {
@@ -402,7 +461,14 @@ export class SettingsManager {
       // Feature toggles
       for (const key of ['ttsEnabled', 'micEnabled'] as const) {
         panel.querySelector<HTMLInputElement>(`#settings-${key}`)!.addEventListener('change', (e) => {
-          this.update(key, (e.target as HTMLInputElement).checked);
+          const checkbox = e.target as HTMLInputElement;
+          // Gate mic behind entitlements
+          if (key === 'micEnabled' && checkbox.checked && this.entitlements && !this.entitlements.canAccessFeature('mic')) {
+            checkbox.checked = false;
+            if (this.upgradeHandler) this.upgradeHandler('feature:mic');
+            return;
+          }
+          this.update(key, checkbox.checked);
         });
       }
 
@@ -455,6 +521,11 @@ export class SettingsManager {
     container.querySelectorAll<HTMLButtonElement>('.settings-level-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const level = btn.dataset.level!;
+        // Check entitlement for experience levels
+        if (settingsKey === 'experienceLevel' && this.entitlements && !this.entitlements.canAccessLevel(level)) {
+          if (this.upgradeHandler) this.upgradeHandler(`level:${level}`);
+          return;
+        }
         (this.settings as unknown as Record<string, unknown>)[settingsKey] = level;
         this.save();
         this.listeners.forEach(fn => fn(this.settings));
