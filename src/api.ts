@@ -13,6 +13,7 @@ import type { NarrationEngine } from './narration';
 import type { AudioEngine } from './audio';
 import type { TelemetryAggregator } from './telemetry';
 import type { EventBus } from './events';
+import type { FrameProfiler, FrameBudget } from './frame-profiler';
 import { log } from './logger';
 import { AssertionEngine } from './assertions';
 import type { MicrophoneEngine } from './microphone';
@@ -114,6 +115,7 @@ export interface HypnoAPIDeps {
   bus: EventBus;
   canvas?: HTMLCanvasElement;
   mic?: MicrophoneEngine;
+  profiler?: FrameProfiler;
 }
 
 // ── Helpers ─────────────────────────────────────────────────────
@@ -165,7 +167,7 @@ function blockToInfo(block: TimelineBlock, index: number): BlockInfo {
 const PAGE_LOAD_TIME = performance.now();
 
 export function createHypnoAPI(deps: HypnoAPIDeps) {
-  const { timeline, machine, interactions, audio, telemetry, bus, canvas, mic } = deps;
+  const { timeline, machine, interactions, audio, telemetry, bus, canvas, mic, profiler } = deps;
   const eventLog = new EventLog();
 
   // Frame timing for health check
@@ -358,6 +360,12 @@ export function createHypnoAPI(deps: HypnoAPIDeps) {
         sessionId: machine.sessionId,
         phase: machine.phase,
       };
+    },
+
+    // ── Frame Budget Profiler ────────────────────────────────
+    /** Get frame budget breakdown: latest frame, 60-frame average, total frames counted. */
+    getFrameBudget(): { latest: FrameBudget; avg60: FrameBudget; frames: number } | null {
+      return profiler?.getFrameBudget() ?? null;
     },
 
     // ── Assertions ────────────────────────────────────────────
