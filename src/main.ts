@@ -45,6 +45,7 @@ import { SettingsSync } from './settings-sync';
 import { supabase } from './supabase';
 import { Entitlements } from './entitlements';
 import { checkPaymentReturn } from './payments';
+import { UpgradePrompt } from './upgrade-prompt';
 
 // ══════════════════════════════════════════════════════════════════════
 // ERROR BOUNDARIES — check before anything else
@@ -107,10 +108,13 @@ onCleanup(() => settingsSync.dispose());
 const favorites = hotState.favorites ?? new Favorites(null);
 hotState.favorites = favorites;
 
-// Entitlements — no Supabase client yet (null = offline/free mode)
+// Entitlements + Upgrade prompt — no Supabase client yet (null = offline/free mode)
 const entitlements = hotState.entitlements ?? new Entitlements(null);
 hotState.entitlements = entitlements;
 entitlements.init();
+
+const upgradePrompt = hotState.upgradePrompt ?? new UpgradePrompt(entitlements);
+hotState.upgradePrompt = upgradePrompt;
 
 // Check for payment redirect return (checkout success/cancel or portal return)
 const paymentStatus = checkPaymentReturn();
