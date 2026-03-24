@@ -33,6 +33,7 @@ import { registerServiceWorker } from './sw-register';
 import { LoadingIndicator } from './loading';
 import { log } from './logger';
 import { createHypnoAPI, type HypnoAPI } from './api';
+import { sessionHistory } from './history';
 import { TelemetryAggregator } from './telemetry';
 import { FrameProfiler } from './frame-profiler';
 import { parseIsolationParams, type IsolationConfig, type ShaderIsolation } from './isolation';
@@ -132,6 +133,7 @@ document.addEventListener('webkitfullscreenchange', updateFsIcon);
  */
 let sessionEpoch = 0;
 
+let activeHistoryEntryId: string | null = null;
 let isRunning = hotState.isRunning ?? false;
 let intensityOverride: number | null = hotState.intensityOverride ?? null;
 let shaderIntensityScale = hotState.shaderIntensityScale ?? 1.0;
@@ -516,6 +518,7 @@ function startSession(session: SessionConfig): void {
   setSessionInfo(session.id, 0);
   machine.transition('transitioning', { sessionId: session.id });
   bus.emit('session:starting', { session });
+  activeHistoryEntryId = sessionHistory.recordStart(session.id);
 
   // Reset pull-model edge detection state
   _lastTextKey = null;
@@ -902,6 +905,10 @@ function cleanupSession(): void {
 
 function endExperience(): void {
   if (transition.isActive) return;
+  if (activeHistoryEntryId) {
+    sessionHistory.recordComplete(activeHistoryEntryId, { stagesReached: appState.stageIndex + 1 });
+    activeHistoryEntryId = null;
+  }
   showText('welcome back');
   machine.transition('ending');
   bus.emit('session:ending', { fadeSec: 3 });
@@ -910,6 +917,10 @@ function endExperience(): void {
 
 function returnToMenu(): void {
   if (transition.isActive) return;
+  if (activeHistoryEntryId) {
+    sessionHistory.recordAbort(activeHistoryEntryId, { stagesReached: appState.stageIndex + 1 });
+    activeHistoryEntryId = null;
+  }
   machine.transition('ending');
   bus.emit('session:ending', { fadeSec: 1 });
   transition.run(() => cleanupSession(), { fadeOutMs: 1200, holdMs: 300, fadeInMs: 1500 });
