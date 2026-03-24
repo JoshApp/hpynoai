@@ -11,8 +11,10 @@ import type { InteractionManager } from './interactions';
 import type { BreathController } from './breath';
 import type { NarrationEngine } from './narration';
 import type { AudioEngine } from './audio';
+import type { TelemetryAggregator } from './telemetry';
 import type { EventBus } from './events';
 import { log } from './logger';
+import { AssertionEngine } from './assertions';
 
 // ── Public types (all JSON-serializable) ────────────────────────
 
@@ -107,6 +109,7 @@ export interface HypnoAPIDeps {
   breath: BreathController;
   narration: NarrationEngine;
   audio: AudioEngine;
+  telemetry: TelemetryAggregator;
   bus: EventBus;
 }
 
@@ -159,7 +162,7 @@ function blockToInfo(block: TimelineBlock, index: number): BlockInfo {
 const PAGE_LOAD_TIME = performance.now();
 
 export function createHypnoAPI(deps: HypnoAPIDeps) {
-  const { timeline, machine, interactions, audio, bus } = deps;
+  const { timeline, machine, interactions, audio, telemetry, bus } = deps;
   const eventLog = new EventLog();
 
   // Frame timing for health check
@@ -352,6 +355,10 @@ export function createHypnoAPI(deps: HypnoAPIDeps) {
       };
     },
 
+    // ── Assertions ────────────────────────────────────────────
+    // Initialized after api object is created (see below)
+    assert: null as unknown as AssertionEngine,
+
     // ── Internal: called from animate() ───────────────────────
 
     /** @internal — called every frame from animate loop */
@@ -419,6 +426,9 @@ export function createHypnoAPI(deps: HypnoAPIDeps) {
   bus.on('session:ended', () => {
     emit('session:ended', {});
   });
+
+  // Initialize assertion engine (needs api reference, so done post-construction)
+  api.assert = new AssertionEngine(api, telemetry);
 
   return api;
 }
