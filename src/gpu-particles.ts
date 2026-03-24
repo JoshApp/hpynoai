@@ -57,6 +57,19 @@ export class GpuParticles {
     u.uSize.value = (2.0 + intensity * 2.0) * sizeMult;
   }
 
+  // ── Telemetry ──
+  getState(): { intensity: number; size: number; speedMult: number; opacity: number; color: [number, number, number] } {
+    const u = this.material.uniforms;
+    const c = u.uColor.value;
+    return {
+      intensity: u.uIntensity.value,
+      size: u.uSize.value,
+      speedMult: u.uSpeedMult.value,
+      opacity: u.uOpacity.value,
+      color: [c.x, c.y, c.z],
+    };
+  }
+
   dispose(): void {
     this.mesh.geometry.dispose();
     this.material.dispose();

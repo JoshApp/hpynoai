@@ -161,6 +161,11 @@ export class FeedbackWarp {
     return writeRT.texture;
   }
 
+  // ── Telemetry ──
+  get isDisabled(): boolean { return this._disabled; }
+  getLowFpsFrameCount(): number { return this.lowFpsFrames; }
+  getParams(): FeedbackParams { return { ...this.params }; }
+
   resize(width: number, height: number): void {
     const hw = Math.ceil(width / 2);
     const hh = Math.ceil(height / 2);
