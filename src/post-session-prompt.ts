@@ -37,7 +37,7 @@ export function showPostSessionPrompt(): void {
   signInBtn.className = 'psp-sign-in';
   signInBtn.textContent = 'sign in';
   signInBtn.addEventListener('click', () => {
-    auth.signInWithGoogle();
+    auth.linkGoogle();
     dismiss();
   });
   overlay.appendChild(signInBtn);
