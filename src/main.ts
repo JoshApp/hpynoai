@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { AudioEngine } from './audio';
-import { Timeline, type TimelineState, type TimelineSegment } from './timeline';
+import { Timeline, type TimelineState } from './timeline';
 import { Timebar } from './timebar';
 import { DevMode } from './devmode';
 import { InteractionManager } from './interactions';
@@ -76,8 +76,6 @@ machine.setBus(bus);
 // DOM ELEMENTS
 // ══════════════════════════════════════════════════════════════════════
 const canvas = document.getElementById('scene') as HTMLCanvasElement;
-const breathGuide = document.getElementById('breath-guide')!;
-const breathCircle = document.getElementById('breath-circle')!;
 
 // ══════════════════════════════════════════════════════════════════════
 // SUBSYSTEMS — reuse across HMR, create only on first load
@@ -86,6 +84,37 @@ const settings = hotState.settings ?? new SettingsManager();
 hotState.settings = settings;
 
 const mouse = { x: 0, y: 0 };
+
+// ── Fullscreen toggle button ──
+const fsBtn = document.getElementById('fullscreen-btn') ?? (() => {
+  const btn = document.createElement('button');
+  btn.id = 'fullscreen-btn';
+  btn.textContent = '\u26F6'; // ⛶ expand
+  btn.title = 'Toggle fullscreen';
+  document.body.appendChild(btn);
+  return btn;
+})();
+
+function updateFsIcon(): void {
+  const doc = document as Document & { webkitFullscreenElement?: Element };
+  const isFs = !!(doc.fullscreenElement || doc.webkitFullscreenElement);
+  fsBtn.textContent = isFs ? '\u2716' : '\u26F6'; // ✖ or ⛶
+  fsBtn.title = isFs ? 'Exit fullscreen' : 'Fullscreen';
+}
+
+fsBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  const doc = document as Document & { webkitFullscreenElement?: Element; webkitExitFullscreen?: () => void };
+  if (doc.fullscreenElement || doc.webkitFullscreenElement) {
+    (doc.exitFullscreen?.() ?? doc.webkitExitFullscreen?.())?.catch?.(() => {});
+  } else {
+    const el = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> };
+    (el.requestFullscreen?.() ?? el.webkitRequestFullscreen?.())?.catch?.(() => {});
+  }
+});
+
+document.addEventListener('fullscreenchange', updateFsIcon);
+document.addEventListener('webkitfullscreenchange', updateFsIcon);
 
 /**
  * Session lifecycle guard — monotonic counter incremented on every state transition.
@@ -309,12 +338,18 @@ function showText(text: string, words?: Array<{ word: string; start: number; end
     text3d.setColors(activeSession.theme.textColor, activeSession.theme.textGlow);
   }
   const audioRef = narration.isPlayingStage ? narration.stageAudioElement : null;
-  text3d.show(text, 8, words, audioRef, audioStartTime);
+  // Focus mode: single-point word stream (default for narration with word timings)
+  if (words && words.length > 0) {
+    const duration = words[words.length - 1].end + 0.5;
+    text3d.showFocus(text, duration, words, audioRef, audioStartTime);
+  } else {
+    // Fallback to karaoke for text without word timings
+    text3d.show(text, 8, words, audioRef, audioStartTime);
+  }
 }
 
 function applyTheme(session: SessionConfig): void {
   renderPipeline.applyTheme(session.theme);
-  breathCircle.style.borderColor = session.theme.breatheColor;
   text3d.setColors(session.theme.textColor, session.theme.textGlow);
 }
 
@@ -323,36 +358,46 @@ function applyTheme(session: SessionConfig): void {
 // ══════════════════════════════════════════════════════════════════════
 const timeline = new Timeline();
 
-// Wire timeline callbacks → bus events
-timeline.onSegmentChange((seg, prev) => {
-  bus.emit('stage:changed', { stage: seg.stage, index: seg.index, total: timeline.segmentCount });
-});
-timeline.onText((text, seg) => {
-  bus.emit('stage:text', { text });
-});
-timeline.onInteraction((interaction, seg) => {
-  bus.emit('interaction:trigger', { interaction });
-});
-timeline.onComplete(() => {
-  endExperience();
-});
+// Pull-model: timeline callbacks removed. The animate loop reads TimelineState
+// each frame and drives narration, text, breath, interactions directly.
+// If any frame errors, the next frame derives the correct state from position.
+
+// Track state for edge detection in animate loop
+let _lastTextKey: string | null = null;
+let _wasNarrationPlaying = false;
+let _narrationBound = false;
+let _completionHandled = false;
+let _lastBreathStage: string | null = null;
+let _breathClip: HTMLAudioElement | null = null;
+
+/** Play a breathing cue clip, crossfading from previous */
+function playBreathClip(name: string): void {
+  // Fade out old clip
+  if (_breathClip) {
+    const old = _breathClip;
+    _breathClip = null;
+    const startVol = old.volume;
+    const fadeStart = performance.now();
+    const fade = () => {
+      const t = Math.min(1, (performance.now() - fadeStart) / 300);
+      old.volume = startVol * (1 - t);
+      if (t < 1) requestAnimationFrame(fade);
+      else old.pause();
+    };
+    requestAnimationFrame(fade);
+  }
+  try {
+    const clip = new Audio(`audio/shared/${name}.mp3`);
+    clip.volume = 0.7;
+    clip.play().catch(() => {});
+    _breathClip = clip;
+  } catch { /* no audio */ }
+}
 
 // Timebar — dev widget for timeline scrubbing (toggle with T key)
 const timebar = new Timebar(timeline);
 
-// ── Stage event subscribers ──
-// stage:text and stage:changed → audio/narration/breath handle themselves via bus.
-// Main.ts only handles UI (breathing guide, app state tracking).
-bus.on('stage:changed', ({ stage, index }) => {
-  log.info('stage', `Stage: ${stage.name}`, { index, stage: stage.name });
-  breathCircle.style.animationDuration = `${breath.cycleDuration}s`;
-  if (index === 0) {
-    breathGuide.classList.add('visible');
-  } else if (index === 1) {
-    setTimeout(() => breathGuide.classList.remove('visible'), 5000);
-  }
-  setSessionInfo(activeSession?.id ?? '', index);
-});
+// ── Stage events now driven by pull-model in animate() ──
 
 // ── Interactions ──
 const interactions = new InteractionManager(breath, overlayScene, camera, canvas, text3d, narration);
@@ -371,41 +416,21 @@ interactions.setPresenceControl({
 });
 hotState.interactions = interactions;
 
-// Interaction handler — timeline fires the event, we pause/run/resume
-bus.on('interaction:trigger', async ({ interaction }) => {
-  const epoch = machine.epoch;
-
-  const { interactionAllowed } = await import('./experience-level');
-  const level = settings.current.experienceLevel;
-  if (!interactionAllowed(interaction.type, level)) return;
-
-  text3d.clear();
-  narration.stop();
-  timeline.pause();
-  await interactions.start(interaction);
-
-  if (!machine.guard(epoch)) return;
-
+// Interaction confirm handler — called when user confirms at an interaction boundary
+function confirmInteractionBoundary(): void {
+  if (!timeline.paused) return;
   timeline.resume();
-  bus.emit('interaction:complete', { type: interaction.type });
-});
+  bus.emit('interaction:complete', { type: 'gate' });
+}
 
-// Narration stage audio ended → tell timeline to unbind audio clock
-// (Timeline will auto-advance via its own position tracking)
-bus.on('narration:stage-ended', () => {
-  if (!machine.is('session')) return;
-  timeline.audioEnded();
-  text3d.fadeOut();
-});
-
-// When narration starts playing stage audio, bind it as timeline clock
-bus.on('narration:stage-playing', ({ audioElement, stageName }) => {
-  if (!machine.is('session')) return;
-  const seg = timeline.currentSegment;
-  if (seg && audioElement) {
-    timeline.bindAudio(audioElement, seg.start);
+// Wire user input to interaction confirmation
+bus.on('input:confirm', () => {
+  if (timeline.started && timeline.paused) {
+    confirmInteractionBoundary();
   }
 });
+
+// narration:line is still emitted by narration for karaoke word timing (kept).
 
 // ── Dev Mode ──
 hotState.devMode?.destroy?.();
@@ -413,7 +438,7 @@ const devMode = new DevMode({
   timeline,
   audio,
   interactions,
-  getIntensity: () => intensityOverride ?? (timeline.started ? (timeline.currentSegment?.stage.intensity ?? 0.12) : 0.12),
+  getIntensity: () => intensityOverride ?? (timeline.started ? (timeline.currentBlock?.stage.intensity ?? 0.12) : 0.12),
   setIntensityOverride: (v) => { intensityOverride = v; },
   getShaderIntensityScale: () => shaderIntensityScale,
   setShaderIntensityScale: (v) => { shaderIntensityScale = v; },
@@ -421,7 +446,6 @@ const devMode = new DevMode({
     timeline.seek(0);
     interactions.clear();
     narration.stop();
-    breathGuide.classList.remove('visible');
   },
 });
 hotState.devMode = devMode;
@@ -471,23 +495,19 @@ function startSession(session: SessionConfig): void {
   machine.transition('transitioning', { sessionId: session.id });
   bus.emit('session:starting', { session });
 
-  // Build timeline from session stages
-  timeline.build(
-    session.stages,
-    (name) => narration.hasStageAudio(name),
-    (name) => narration.getStageAudioDuration(name),
-  );
+  // Reset pull-model edge detection state
+  _lastTextKey = null;
+  _wasNarrationPlaying = false;
+  _narrationBound = false;
+  _completionHandled = false;
+
   applyTheme(session);
-  timebar.buildSegments();
-  devMode.rebuildStageButtons();
 
   selector?.dispose?.();
   selector = null;
   hotState.selector = undefined;
 
-  // Fullscreen + wakelock (needs user gesture context from selector click)
-  const el = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> };
-  (el.requestFullscreen?.() ?? el.webkitRequestFullscreen?.())?.catch?.(() => {});
+  // Wakelock (needs user gesture context from selector click)
   acquireWakeLock();
   registerMediaSession(session.name);
   startSilentAudioKeepAlive();
@@ -495,9 +515,21 @@ function startSession(session: SessionConfig): void {
   // Loading indicator while audio/manifest loads
   const doneLoading = loading.start('preparing session');
 
-  // Wait for audio to initialize, then start the session
-  // Audio, narration, ambient all react to bus events (session:starting, session:started)
-  audio.init().then(() => {
+  // Wait for audio init AND manifest load before building timeline.
+  // The manifest must be loaded so hasStageAudio/getStageAudioDuration return correct values.
+  Promise.all([
+    audio.init(),
+    narration.waitForManifest(),
+  ]).then(() => {
+    // Build timeline AFTER manifest is available
+    timeline.build(
+      session.stages,
+      (name) => narration.hasStageAudio(name),
+      (name) => narration.getStageAudioDuration(name),
+    );
+    timebar.buildBlocks();
+    devMode.rebuildStageButtons();
+
     doneLoading();
     isRunning = true;
     machine.transition('session');
@@ -561,12 +593,159 @@ function animate(): void {
   const time = performance.now() / 1000;
   const s = settings.current;
 
-  // Update subsystems
+  // ── Pull-model: timeline is the single source of truth ──
   const tlState = timeline.update();
   mic.update();
-  narration.update();
+  // NOTE: narration.update() is called AFTER block change handling below,
+  // so stopStagePlayback() runs before narration can fire stale text events.
   const intensity = intensityOverride ?? (tlState?.intensity ?? 0.12);
 
+  // ── Drive subsystems from block-based TimelineState ──
+  if (tlState) {
+    // Seek recovery
+    if (tlState.seeked) {
+      if (tlState.blockJustChanged) {
+        // Cross-block seek — full cleanup, block change handler will re-enter
+        text3d.clear();
+        text3d.clearCue();
+        narration.stop();
+        narration.stopStagePlayback();
+        interactions.clear();
+        _lastTextKey = null;
+        _wasNarrationPlaying = false;
+        _narrationBound = false;
+        _lastBreathStage = null;
+        if (_breathClip) { _breathClip.pause(); _breathClip = null; }
+      } else {
+        // Same-block seek — just update text key so text re-derives from position
+        _lastTextKey = null;
+      }
+    }
+
+    // Block change — fire once per transition
+    if (tlState.blockJustChanged) {
+      const block = tlState.block;
+      log.info('block', `Block ${tlState.blockIndex}: ${block.kind} (stage: ${block.stage.name})`, {
+        kind: block.kind, stage: block.stage.name, duration: block.duration.toFixed(1),
+      });
+
+      text3d.clear();
+      text3d.clearCue();
+      text3d.clearSlotDepth();
+      _lastTextKey = null;
+      _narrationBound = false;
+
+      // Narration: enter stage on narration blocks with audio
+      if (block.kind === 'narration' && block.narration?.hasAudio) {
+        // audioOffset = where in the stage audio this block starts
+        // blockElapsed = how far into this block we are (nonzero on seek)
+        const offset = (block.narration.audioOffset ?? 0) + tlState.blockElapsed;
+        narration.enterStage(block.stage.name, offset);
+      } else {
+        narration.stopStagePlayback();
+      }
+
+      // Breath: apply stage pattern (breathing blocks drive per-frame below)
+      if (block.kind !== 'breathing') {
+        breath.applyStage(block.stage);
+        breath.releaseForce();
+      }
+
+      // Audio: update binaural beat intensity
+      audio.setIntensity(block.stage.intensity);
+
+      // Breathing: bring presence wisp close + play intro/outro clips
+      if (block.kind === 'breathing') {
+        presence.transitionTo('breathe', {
+          size: 3.0,
+          basePos: new THREE.Vector3(0, 0, -1.2),
+          duration: 1.0,
+        });
+        // Play breathing intro/outro audio clips
+        if (block.breathing?.phase === 'intro') {
+          playBreathClip('breathing_intro');
+        } else if (block.breathing?.phase === 'outro') {
+          playBreathClip('breathing_good');
+        }
+      } else {
+        presence.setSessionMode();
+        // Stop any lingering breath clip when leaving breathing blocks
+        if (_breathClip) { _breathClip.pause(); _breathClip = null; }
+      }
+
+      setSessionInfo(activeSession?.id ?? '', block.stageIndex);
+    }
+
+    // ── Per-frame block-type-specific driving ──
+
+    if (tlState.block.kind === 'breathing' && tlState.breathValue !== null && tlState.breathStage) {
+      // Breathing blocks: drive breath controller from position-derived values
+      breath.forceValue(tlState.breathValue);
+      breath.forceStage(tlState.breathStage);
+      text3d.setSlotDepth(-1.2 + tlState.breathValue * 0.7);
+      if (tlState.currentText) {
+        text3d.showCue(tlState.currentText);
+      }
+
+      // Play breathing audio clips on phase change (core blocks only)
+      if (tlState.block.breathing?.phase === 'core' && tlState.breathStage !== _lastBreathStage) {
+        _lastBreathStage = tlState.breathStage;
+        if (tlState.breathStage === 'inhale') playBreathClip('breathe_in');
+        else if (tlState.breathStage === 'exhale') playBreathClip('breathe_out');
+        else playBreathClip('breathe_hold');
+      }
+    } else {
+      text3d.clearSlotDepth();
+      _lastBreathStage = null;
+    }
+
+    // Text for narration and interaction blocks
+    if (tlState.block.kind === 'narration' || tlState.block.kind === 'interaction') {
+      if (tlState.currentText) {
+        const textKey = `${tlState.blockIndex}:${tlState.currentText}`;
+        if (textKey !== _lastTextKey) {
+          _lastTextKey = textKey;
+          if (tlState.block.kind === 'narration' && !tlState.block.narration?.hasAudio) {
+            narration.speakText(tlState.currentText);
+          }
+          if (tlState.block.kind === 'interaction') {
+            text3d.showInstant(tlState.currentText, 30);
+          }
+        }
+      }
+    }
+
+    // Interaction boundary — auto-pause
+    if (tlState.atBoundary && !timeline.paused) {
+      timeline.pause();
+      log.info('interaction', `Paused at boundary: ${tlState.block.interaction?.type}`);
+    }
+
+    // Narration stage audio started playing → bind as timeline clock
+    if (!_narrationBound && narration.isPlayingStage && narration.stageAudioElement) {
+      timeline.bindAudio(narration.stageAudioElement, tlState.block.start);
+      _narrationBound = true;
+    }
+
+    // Narration stage audio ended → unbind audio clock, fade text
+    if (_wasNarrationPlaying && !narration.isPlayingStage) {
+      timeline.audioEnded();
+      text3d.fadeOut();
+      _narrationBound = false;
+    }
+    _wasNarrationPlaying = narration.isPlayingStage;
+
+    // Completion
+    if (tlState.complete && !_completionHandled) {
+      _completionHandled = true;
+      endExperience();
+    }
+  }
+
+  // Narration update AFTER block handling — prevents stale text events
+  narration.update();
+
+  // ── Per-frame updates (independent of pull-model) ──
   const micSig = mic.signals;
   if (micSig.active) breath.setFromMic(micSig.breathPhase);
   breath.update(time);
@@ -611,7 +790,6 @@ function animate(): void {
 
   appState.stageIndex = timeline.currentIndex;
   timebar.update();
-  // Completion is handled by timeline.onComplete callback
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -631,18 +809,12 @@ function cleanupSession(): void {
   clearMediaSession();
   stopSilentAudioKeepAlive();
 
-  // Audio/ambient/narration/presence handle session:ended via bus.
-  // Only clear UI systems that aren't bus-connected yet.
+  // Stop timeline and clear all UI
+  timeline.stop();
   interactions.clear();
   text3d.clear();
+  if (_breathClip) { _breathClip.pause(); _breathClip = null; }
   activeSession = null;
-  breathGuide.classList.remove('visible');
-
-  // Exit fullscreen
-  const doc = document as Document & { webkitFullscreenElement?: Element; webkitExitFullscreen?: () => void };
-  if (doc.fullscreenElement || doc.webkitFullscreenElement) {
-    (doc.exitFullscreen?.() ?? doc.webkitExitFullscreen?.())?.catch?.(() => {});
-  }
 
   bootSelector();
 }
@@ -692,10 +864,10 @@ function boot(): void {
           (name) => narration.getStageAudioDuration(name),
         );
         timeline.start();
-        // Seek to roughly where we were (stage start)
+        // Seek to roughly where we were
         const idx = appState.stageIndex;
-        if (idx > 0 && idx < timeline.segmentCount) {
-          timeline.seek(timeline.allSegments[idx].start);
+        if (idx > 0 && idx < timeline.blockCount) {
+          timeline.seek(timeline.allBlocks[idx].start);
         }
 
         isRunning = true;

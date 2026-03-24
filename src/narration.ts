@@ -99,6 +99,7 @@ export class NarrationEngine {
 
   // Pre-generated audio playback
   private manifest: AudioManifest | null = null;
+  private _manifestPromise: Promise<void> | null = null;
   private audioLookup: Map<string, { file: string; duration: number; words?: WordTimestamp[] }> = new Map();
   private interactiveLookup: Map<string, { file: string; duration: number }> = new Map();
   private currentAudio: HTMLAudioElement | null = null;
@@ -125,6 +126,11 @@ export class NarrationEngine {
    * Load a pre-generated audio manifest. When loaded, speak() will play
    * audio files instead of browser TTS for any text that matches.
    */
+  /** Wait for any in-flight manifest load to complete (resolves immediately if none). */
+  waitForManifest(): Promise<void> {
+    return this._manifestPromise ?? Promise.resolve();
+  }
+
   async loadManifest(url: string): Promise<void> {
     try {
       const resp = await fetch(url);
@@ -172,7 +178,7 @@ export class NarrationEngine {
    * Text display updates are driven by timestamps — no slicing.
    * Returns a promise that resolves when the stage audio finishes.
    */
-  async playStage(stageName: string): Promise<void> {
+  async playStage(stageName: string, offset = 0): Promise<void> {
     if (!this.manifest) return;
 
     const stage = this.manifest.stages.find(s => s.name === stageName);
@@ -235,16 +241,41 @@ export class NarrationEngine {
         }
       }, timeoutSec * 1000);
 
+      // Seek to offset if resuming mid-block (e.g. timeline scrub)
+      if (offset > 0) {
+        audio.currentTime = offset;
+      }
+
       audio.play().then(() => {
-        // Notify timeline to bind this audio as clock source
-        if (this.bus) {
-          this.bus.emit('narration:stage-playing', { audioElement: audio, stageName });
-        }
+        // Audio clock binding is now handled by the animate loop's
+        // edge detection (narration.isPlayingStage → timeline.bindAudio)
       }).catch(() => {
         log.warn('narration', `Stage audio play() rejected: ${stageName}`);
         done('play-rejected');
       });
     });
+  }
+
+  /**
+   * Called by the animate loop when a narration block starts.
+   * Sets the current stage name, stops old playback, and starts stage audio if available.
+   * @param offset Seconds into the audio to start (for seeking into middle of a block)
+   */
+  enterStage(stageName: string, offset = 0): void {
+    this.currentStageName = stageName;
+    this.stopStagePlayback();
+    if (this.hasStageAudio(stageName)) {
+      this.playStage(stageName, offset);
+    }
+  }
+
+  /**
+   * Called by the animate loop when timeline text changes (non-audio segments).
+   * Speaks via TTS if no stage audio is playing for this stage.
+   */
+  speakText(text: string): void {
+    if (this.isPlayingStage || this.hasStageAudio(this.currentStageName)) return;
+    this.speak(text);
   }
 
   /** Check if a stage has continuous audio available */
@@ -701,32 +732,19 @@ export class NarrationEngine {
       bus.emit('narration:line', { text, words, audioStartTime });
     });
 
-    // Wire stage ended → bus emission
-    this.setStageEndedHandler(() => {
-      bus.emit('narration:stage-ended', { stageName: this.currentStageName });
-    });
+    // Stage ended is now edge-detected in the animate loop
+    // (narration.isPlayingStage transitions from true → false)
 
     // Session starting → load manifest
     this.busUnsubs.push(bus.on('session:starting', ({ session }) => {
       this.clearManifest();
-      this.loadManifest(`audio/${session.id}/manifest.json`).catch(() => {});
+      this._manifestPromise = this.loadManifest(`audio/${session.id}/manifest.json`).catch(() => {});
       this.warmup();
     }));
 
-    // Stage text → speak (if not playing continuous audio for this stage)
-    this.busUnsubs.push(bus.on('stage:text', ({ text }) => {
-      if (this.isPlayingStage || this.hasStageAudio(this.currentStageName)) return;
-      this.speak(text);
-    }));
-
-    // Stage changed → track name + play continuous audio if available
-    this.busUnsubs.push(bus.on('stage:changed', ({ stage }) => {
-      this.currentStageName = stage.name;
-      this.stopStagePlayback();
-      if (this.hasStageAudio(stage.name)) {
-        this.playStage(stage.name);
-      }
-    }));
+    // NOTE: stage:text and stage:changed are now handled by the pull-model
+    // animate loop in main.ts. Narration is called directly via
+    // enterStage() and speakText() instead of through bus events.
 
     // Session ended → stop everything
     this.busUnsubs.push(bus.on('session:ended', () => {

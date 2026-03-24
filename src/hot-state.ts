@@ -17,7 +17,7 @@ import type { BreathController } from './breath';
 import type { NarrationEngine } from './narration';
 import type { MicrophoneEngine } from './microphone';
 import type { AmbientEngine } from './ambient';
-import type { StageManager } from './stages';
+// StageManager removed — replaced by Timeline
 import type { InteractionManager } from './interactions';
 import type { DevMode } from './devmode';
 import type { SessionSelector } from './selector';
@@ -52,7 +52,7 @@ export interface HotState {
   breath?: BreathController;
   narration?: NarrationEngine;
   mic?: MicrophoneEngine;
-  stageManager?: StageManager;
+  // stageManager removed — replaced by Timeline
   interactions?: InteractionManager;
   devMode?: DevMode;
   selector?: SessionSelector;

@@ -2,23 +2,30 @@
  * Timeline scrubber — a dev/debug widget for navigating the session timeline.
  *
  * Shows:
- *   - Full timeline bar with segment boundaries
+ *   - Full timeline bar with block boundaries (color-coded by type)
  *   - Current position indicator (draggable)
- *   - Segment names annotated
+ *   - Block names annotated
  *   - Elapsed / total time
  *   - Play/pause button
  *
  * Toggle: press 't' key
  */
 
-import type { Timeline, TimelineSegment } from './timeline';
+import type { Timeline, TimelineBlock } from './timeline';
+
+const BLOCK_COLORS: Record<string, string> = {
+  narration:   'rgba(100, 140, 255, 0.25)',
+  breathing:   'rgba(80, 220, 160, 0.25)',
+  interaction: 'rgba(255, 180, 80, 0.25)',
+  transition:  'rgba(255, 255, 255, 0.08)',
+};
 
 export class Timebar {
   private el: HTMLDivElement;
   private bar: HTMLDivElement;
   private cursor: HTMLDivElement;
   private timeLabel: HTMLSpanElement;
-  private segLabels: HTMLDivElement;
+  private blockLabels: HTMLDivElement;
   private timeline: Timeline;
   private visible = false;
   private dragging = false;
@@ -32,7 +39,7 @@ export class Timebar {
       <div class="timebar-inner">
         <button class="timebar-playpause" id="timebar-pp">▶</button>
         <div class="timebar-track" id="timebar-track">
-          <div class="timebar-segments" id="timebar-segments"></div>
+          <div class="timebar-blocks" id="timebar-blocks"></div>
           <div class="timebar-cursor" id="timebar-cursor"></div>
         </div>
         <span class="timebar-time" id="timebar-time">0:00 / 0:00</span>
@@ -49,9 +56,8 @@ export class Timebar {
     this.bar = this.el.querySelector('#timebar-track')!;
     this.cursor = this.el.querySelector('#timebar-cursor')!;
     this.timeLabel = this.el.querySelector('#timebar-time')!;
-    this.segLabels = this.el.querySelector('#timebar-segments')!;
+    this.blockLabels = this.el.querySelector('#timebar-blocks')!;
 
-    // Style the track
     this.bar.style.cssText = `
       flex: 1; height: 20px; background: rgba(255,255,255,0.08); border-radius: 3px;
       position: relative; cursor: pointer; margin: 0 8px; overflow: hidden;
@@ -60,22 +66,19 @@ export class Timebar {
       position: absolute; top: 0; bottom: 0; width: 3px; background: #c8a0ff;
       border-radius: 1px; pointer-events: none; z-index: 2;
     `;
-    this.segLabels.style.cssText = `
+    this.blockLabels.style.cssText = `
       position: absolute; top: 0; bottom: 0; left: 0; right: 0; z-index: 1;
     `;
 
-    // Style inner container
     const inner = this.el.querySelector('.timebar-inner') as HTMLDivElement;
     inner.style.cssText = 'display: flex; align-items: center; gap: 8px;';
 
-    // Style play/pause button
     const ppBtn = this.el.querySelector('#timebar-pp') as HTMLButtonElement;
     ppBtn.style.cssText = `
       background: none; border: 1px solid #666; color: #ccc; padding: 2px 6px;
       cursor: pointer; border-radius: 3px; font-size: 10px; min-width: 24px;
     `;
 
-    // Bind events
     ppBtn.addEventListener('click', () => {
       if (this.timeline.paused) {
         this.timeline.resume();
@@ -88,14 +91,12 @@ export class Timebar {
     document.addEventListener('mousemove', (e) => { if (this.dragging) this.doDrag(e); });
     document.addEventListener('mouseup', () => { this.dragging = false; });
 
-    // Toggle with 't' key
     window.addEventListener('keydown', (e) => {
       if (e.code === 'KeyT' && !e.ctrlKey && !e.metaKey) {
         this.toggle();
       }
     });
 
-    // Stop pointer events from reaching canvas
     this.el.addEventListener('mousedown', (e) => e.stopPropagation());
     this.el.addEventListener('click', (e) => e.stopPropagation());
   }
@@ -103,13 +104,13 @@ export class Timebar {
   toggle(): void {
     this.visible = !this.visible;
     this.el.style.display = this.visible ? 'block' : 'none';
-    if (this.visible) this.buildSegments();
+    if (this.visible) this.buildBlocks();
   }
 
   show(): void {
     this.visible = true;
     this.el.style.display = 'block';
-    this.buildSegments();
+    this.buildBlocks();
   }
 
   hide(): void {
@@ -117,7 +118,6 @@ export class Timebar {
     this.el.style.display = 'none';
   }
 
-  /** Call every frame to update cursor position + time label */
   update(): void {
     if (!this.visible || !this.timeline.started) return;
 
@@ -128,36 +128,46 @@ export class Timebar {
     this.cursor.style.left = `${pct}%`;
     this.timeLabel.textContent = `${this.fmt(pos)} / ${this.fmt(total)}`;
 
-    // Update play/pause button
     const ppBtn = this.el.querySelector('#timebar-pp') as HTMLButtonElement;
     ppBtn.textContent = this.timeline.paused ? '▶' : '⏸';
   }
 
-  /** Rebuild segment markers (call when timeline is built or changes) */
-  buildSegments(): void {
-    this.segLabels.innerHTML = '';
+  /** Rebuild block markers (call when timeline is built) */
+  buildBlocks(): void {
+    this.blockLabels.innerHTML = '';
     const total = this.timeline.totalDuration;
     if (total === 0) return;
 
-    for (let i = 0; i < this.timeline.segmentCount; i++) {
-      const seg = this.timeline.allSegments[i];
-      if (!seg) continue;
+    for (let i = 0; i < this.timeline.blockCount; i++) {
+      const block = this.timeline.allBlocks[i];
+      if (!block) continue;
 
-      const left = (seg.start / total) * 100;
-      const width = (seg.duration / total) * 100;
+      const left = (block.start / total) * 100;
+      const width = (block.duration / total) * 100;
+      const bg = BLOCK_COLORS[block.kind] ?? BLOCK_COLORS.transition;
 
       const div = document.createElement('div');
       div.style.cssText = `
         position: absolute; top: 0; bottom: 0;
         left: ${left}%; width: ${width}%;
+        background: ${bg};
         border-right: 1px solid rgba(255,255,255,0.2);
         display: flex; align-items: center; justify-content: center;
-        font-size: 9px; color: rgba(255,255,255,0.4); overflow: hidden;
+        font-size: 9px; color: rgba(255,255,255,0.5); overflow: hidden;
         text-overflow: ellipsis; white-space: nowrap; padding: 0 2px;
       `;
-      div.textContent = seg.stage.name;
-      div.title = `${seg.stage.name} (${this.fmt(seg.duration)})${seg.hasAudio ? ' 🎵' : ''}`;
-      this.segLabels.appendChild(div);
+      div.textContent = this.blockLabel(block);
+      div.title = `${block.kind}: ${block.stage.name} (${this.fmt(block.duration)})`;
+      this.blockLabels.appendChild(div);
+    }
+  }
+
+  private blockLabel(block: TimelineBlock): string {
+    switch (block.kind) {
+      case 'breathing': return `🫁 ${block.breathing?.phase ?? ''}`;
+      case 'interaction': return `⚡ ${block.interaction?.type ?? ''}`;
+      case 'narration': return block.stage.name;
+      case 'transition': return '…';
     }
   }
 

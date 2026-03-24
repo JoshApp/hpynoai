@@ -70,6 +70,19 @@ export class Text3D {
   // Static slots (prompts) — upper (0) and lower (1)
   private slots: [TextSlot | null, TextSlot | null] = [null, null];
 
+  // Focus mode — single-point word stream for hypnotic narration
+  private focusSprite: THREE.Sprite | null = null;
+  private focusText = '';
+  private focusOpacity = 0;
+  private focusTargetOpacity = 0;
+  private focusWords: Array<{ word: string; start: number; end: number }> = [];
+  private focusAudioRef: HTMLAudioElement | null = null;
+  private focusLineStart = 0;
+  private focusCurrentWord = '';
+  private focusActive = false;
+  private focusScalePunch = 0;  // 1 on word change, decays to 0
+  private focusBaseAspect = 1;
+
   // Cue — single persistent text that updates in place (breathing in/hold/out)
   private cueSprite: THREE.Sprite | null = null;
   private cueText = '';
@@ -382,6 +395,109 @@ export class Text3D {
   }
 
   // ════════════════════════════════════════════════════════
+  // Focus mode — single-point hypnotic word stream
+  // ════════════════════════════════════════════════════════
+
+  /**
+   * Start focus mode: one word at a time, crossfading at the same point.
+   * Words are timed to Whisper timestamps when available, otherwise
+   * spread evenly across the duration.
+   */
+  showFocus(
+    text: string,
+    duration: number,
+    wordTimings?: Array<{ word: string; start: number; end: number }>,
+    audioRef?: HTMLAudioElement | null,
+    audioLineStart?: number,
+  ): void {
+    // Clear any existing floating lines — focus replaces karaoke
+    this.fadeOutExistingLines();
+
+    const words = text.split(/\s+/).filter(w => w.length > 0);
+    if (words.length === 0) return;
+
+    // Build word timing array
+    if (wordTimings && wordTimings.length > 0) {
+      this.focusWords = wordTimings;
+    } else {
+      // Even spread fallback
+      const wordDur = duration / words.length;
+      this.focusWords = words.map((word, i) => ({
+        word,
+        start: i * wordDur,
+        end: (i + 1) * wordDur,
+      }));
+    }
+
+    this.focusAudioRef = audioRef ?? null;
+    this.focusLineStart = audioLineStart ?? 0;
+    this.focusActive = true;
+    this.focusCurrentWord = '';
+    this.focusOpacity = 0;
+    this.focusTargetOpacity = 0;
+
+    // Create the sprite if it doesn't exist
+    if (!this.focusSprite) {
+      // Start with a placeholder — will be redrawn on first word
+      const { texture, aspect } = this.createTexture('...');
+      const material = new THREE.SpriteMaterial({
+        map: texture,
+        transparent: true,
+        opacity: 0,
+        depthTest: false,
+        blending: THREE.AdditiveBlending,
+      });
+      this.focusSprite = new THREE.Sprite(material);
+      const scale = 0.3 * this._settings.scale;
+      this.focusSprite.scale.set(scale * aspect, scale, 1);
+      this.focusSprite.position.set(0, -0.25, this._settings.endZ - 0.15);
+      this.group.add(this.focusSprite);
+    }
+  }
+
+  /** Stop focus mode and clean up */
+  stopFocus(): void {
+    this.focusActive = false;
+    this.focusTargetOpacity = 0;
+    this.focusWords = [];
+    this.focusAudioRef = null;
+  }
+
+  /** Immediately remove focus sprite */
+  private clearFocus(): void {
+    if (this.focusSprite) {
+      this.group.remove(this.focusSprite);
+      const mat = this.focusSprite.material as THREE.SpriteMaterial;
+      mat.map?.dispose();
+      mat.dispose();
+      this.focusSprite = null;
+    }
+    this.focusActive = false;
+    this.focusCurrentWord = '';
+    this.focusOpacity = 0;
+    this.focusTargetOpacity = 0;
+    this.focusWords = [];
+  }
+
+  /** Redraw the focus sprite with a new word */
+  private renderFocusWord(word: string): void {
+    if (!this.focusSprite) return;
+
+    const { canvas, ctx, texture, aspect } = this.createTexture(word);
+    this.renderTextFull(ctx, canvas, word);
+    texture.needsUpdate = true;
+
+    // Replace the old texture
+    const mat = this.focusSprite.material as THREE.SpriteMaterial;
+    mat.map?.dispose();
+    mat.map = texture;
+    mat.needsUpdate = true;
+
+    // Store aspect — scale is applied in update() with punch
+    this.focusBaseAspect = aspect;
+  }
+
+  // ════════════════════════════════════════════════════════
   // Shared helpers
   // ════════════════════════════════════════════════════════
 
@@ -660,6 +776,71 @@ export class Text3D {
     // Reposition slots every frame (breath-driven Z movement)
     this.repositionSlots();
 
+    // ── Update focus mode ──
+    if (this.focusActive && this.focusSprite && this.focusWords.length > 0) {
+      // Get elapsed time from audio or fallback
+      let elapsed: number;
+      if (this.focusAudioRef) {
+        elapsed = this.focusAudioRef.currentTime - this.focusLineStart;
+      } else {
+        elapsed = now - this.focusLineStart;
+      }
+
+      // Find the current word
+      let activeWord = '';
+      for (let wi = 0; wi < this.focusWords.length; wi++) {
+        const w = this.focusWords[wi];
+        const nextStart = wi + 1 < this.focusWords.length
+          ? this.focusWords[wi + 1].start
+          : w.end + 0.5;
+        if (elapsed >= w.start && elapsed < nextStart) {
+          activeWord = w.word;
+          break;
+        }
+      }
+
+      // Past last word — begin fade out
+      const lastWord = this.focusWords[this.focusWords.length - 1];
+      if (elapsed >= lastWord.end + 0.5) {
+        this.focusTargetOpacity = 0;
+      }
+
+      // Swap word instantly, trigger scale punch
+      if (activeWord && activeWord !== this.focusCurrentWord) {
+        this.focusCurrentWord = activeWord;
+        this.renderFocusWord(activeWord);
+        this.focusTargetOpacity = 1;
+        this.focusScalePunch = 1;
+      }
+
+      // Decay scale punch (fast settle — ~0.15s)
+      this.focusScalePunch *= 0.88;
+      if (this.focusScalePunch < 0.01) this.focusScalePunch = 0;
+
+      // Smooth opacity — just fade in at start, hold steady, fade out at end
+      this.focusOpacity += (this.focusTargetOpacity - this.focusOpacity) * 0.15;
+
+      // Apply opacity (constant while words are flowing — no per-word flicker)
+      const breathMod = 0.8 + breathPulse * 0.2;
+      (this.focusSprite.material as THREE.SpriteMaterial).opacity =
+        Math.max(0, Math.min(0.85, this.focusOpacity * breathMod));
+
+      // Scale: base + subtle punch on word change
+      const baseScale = 0.3 * this._settings.scale;
+      const punch = 1 + this.focusScalePunch * 0.08; // 8% pop, settles quickly
+      this.focusSprite.scale.set(baseScale * this.focusBaseAspect * punch, baseScale * punch, 1);
+
+      // Gentle breath-driven Y movement
+      this.focusSprite.position.y = -0.25 + (breathPulse - 0.5) * 0.02;
+
+      // Clean up when fully faded after end
+      if (this.focusOpacity < 0.01 && this.focusTargetOpacity === 0) {
+        this.focusActive = false;
+      }
+    } else if (!this.focusActive && this.focusSprite && this.focusOpacity < 0.01) {
+      this.clearFocus();
+    }
+
     // ── Update cue ──
     if (this.cueSprite) {
       // Smooth fade
@@ -704,6 +885,9 @@ export class Text3D {
         slot.expireTime = 0;
       }
     }
+
+    // Focus mode — fade out
+    this.stopFocus();
   }
 
   /** Immediately remove all text (no fade). */
@@ -717,6 +901,7 @@ export class Text3D {
 
     this.removeSlot(0);
     this.removeSlot(1);
+    this.clearFocus();
   }
 
   private easeInOut(t: number): number {

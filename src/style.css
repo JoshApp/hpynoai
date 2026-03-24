@@ -40,33 +40,6 @@ html, body {
 }
 
 /* ── Breathing Guide ── */
-#breath-guide {
-  position: fixed;
-  bottom: 3rem;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 2s ease;
-}
-
-#breath-guide.visible {
-  opacity: 1;
-}
-
-#breath-circle {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: 1px solid rgba(200, 160, 255, 0.3);
-  animation: breathe 7s ease-in-out infinite;
-}
-
-@keyframes breathe {
-  0%, 100% { transform: scale(1); opacity: 0.3; }
-  50%      { transform: scale(2.5); opacity: 0.7; }
-}
 
 @keyframes spatial-pulse {
   0%, 100% { text-shadow: 0 0 10px rgba(128, 96, 170, 0.2); }
@@ -435,6 +408,37 @@ html, body {
 }
 
 /* ── Mute Button ── */
+#fullscreen-btn {
+  position: fixed;
+  bottom: 16px;
+  right: 62px;
+  z-index: 9998;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(10, 8, 16, 0.6);
+  border: 1px solid rgba(200, 160, 255, 0.15);
+  color: #c0b0e0;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  transition: background 0.2s, border-color 0.2s, opacity 0.3s;
+  opacity: 0.5;
+  padding: 0;
+  line-height: 1;
+  touch-action: manipulation;
+}
+
+#fullscreen-btn:hover {
+  opacity: 1;
+  background: rgba(10, 8, 16, 0.8);
+  border-color: rgba(200, 160, 255, 0.35);
+}
+
 #settings-mute-btn {
   position: fixed;
   bottom: 16px;
@@ -512,10 +516,15 @@ html, body {
   }
 
   #settings-mute-btn,
-  #settings-gear-btn {
+  #settings-gear-btn,
+  #fullscreen-btn {
     width: 44px;
     height: 44px;
     font-size: 20px;
+  }
+
+  #fullscreen-btn {
+    right: 66px;
   }
 }
 
@@ -529,7 +538,8 @@ html, body {
     bottom: calc(16px + env(safe-area-inset-bottom));
     left: calc(16px + env(safe-area-inset-left));
   }
-  #breath-guide {
-    bottom: calc(3rem + env(safe-area-inset-bottom));
+  #fullscreen-btn {
+    bottom: calc(16px + env(safe-area-inset-bottom));
+    right: calc(62px + env(safe-area-inset-right));
   }
 }

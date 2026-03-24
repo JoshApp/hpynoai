@@ -298,9 +298,8 @@ export class AudioEngine {
       });
     }));
 
-    this.busUnsubs.push(bus.on('stage:changed', ({ stage }) => {
-      this.setIntensity(stage.intensity);
-    }));
+    // NOTE: stage:changed is now handled by the pull-model animate loop.
+    // Audio intensity is set directly via setIntensity() from main.ts.
 
     this.busUnsubs.push(bus.on('session:ending', ({ fadeSec }) => {
       this.fadeOut(fadeSec ?? 2);

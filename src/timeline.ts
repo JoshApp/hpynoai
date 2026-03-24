@@ -1,93 +1,168 @@
 /**
- * Timeline — single source of truth for session progression.
+ * Timeline — block-based, single source of truth for session progression.
  *
- * Like a media player: one monotonic clock, everything derives from position.
- * Supports seeking, tab-away recovery, audio-driven clock, and clean state.
+ * The timeline is a flat array of typed blocks (narration, breathing, interaction,
+ * transition). Everything derives from position alone — breathing phase, text,
+ * intensity, interaction state. If a frame errors, the next frame re-derives
+ * the correct state from the clock and self-heals.
  *
  * Position sources (in priority order):
- *   1. Bound audio element's currentTime + segment offset (pre-recorded sessions)
+ *   1. Bound audio element's currentTime + block offset (pre-recorded sessions)
  *   2. Wall clock with pause compensation (TTS / no-audio sessions)
- *
- * All text, interactions, stage changes, and intensity are pre-computed at build().
- * update() just reads the clock and fires what's due. No timers, no races.
  */
 
 import { log } from './logger';
-import type { SessionStage, Interaction } from './session';
+import type {
+  SessionStage, Interaction, BreathPatternConfig,
+  TimelineBlock, NarrationBlockData, BreathingBlockData, InteractionBlockData,
+} from './session';
+import type { BreathStage } from './breath';
 
-// ── Types ────────────────────────────────────────────────────────
+// Re-export block type for consumers
+export type { TimelineBlock } from './session';
 
-export interface TimelineSegment {
-  index: number;
-  stage: SessionStage;
-  start: number;           // absolute start in timeline (seconds)
-  end: number;             // absolute end
-  duration: number;
-  hasAudio: boolean;
-}
-
-export interface TimelineEvent {
-  t: number;               // absolute time
-  type: 'text' | 'interaction' | 'segment-start';
-  text?: string;
-  interaction?: Interaction;
-  segmentIndex: number;
-}
+// ── Derived state — returned every frame ─────────────────────────
 
 export interface TimelineState {
   position: number;
-  segment: TimelineSegment;
-  segmentIndex: number;
-  segmentElapsed: number;
-  segmentProgress: number;  // 0-1
-  intensity: number;        // includes fractionation + interpolation
+  block: TimelineBlock;
+  blockIndex: number;
+  blockElapsed: number;
+  blockProgress: number;        // 0-1
+
+  // From block type + elapsed
+  currentText: string | null;
+  breathValue: number | null;   // 0-1 cosine-eased (breathing blocks only)
+  breathStage: BreathStage | null;
+  breathPattern: BreathPatternConfig | null;
+
+  // From parent stage
+  intensity: number;
   spiralSpeed: number;
-  breathCycle: number;
-  breathPattern: SessionStage['breathPattern'];
+
+  // Edge flags
+  blockJustChanged: boolean;
+  seeked: boolean;
   complete: boolean;
+
+  // Interaction state
+  atBoundary: boolean;          // paused at blocking interaction end
 }
 
 // ── Intensity helpers ────────────────────────────────────────────
 
-const FRAC_HOLD = 4;    // seconds to hold the fractionation dip
-const FRAC_RAMP = 3;    // seconds to ramp back up
+const FRAC_HOLD = 4;
+const FRAC_RAMP = 3;
 
+/** Calculate intensity from the block's parent stage, with fractionation + blending */
 function calcIntensity(
-  segments: TimelineSegment[],
-  segIdx: number,
-  segElapsed: number,
-  segProgress: number,
+  blocks: TimelineBlock[],
+  blockIdx: number,
+  pos: number,
+  totalDuration: number,
 ): number {
-  const seg = segments[segIdx];
-  const base = seg.stage.intensity;
+  const block = blocks[blockIdx];
+  const base = block.stage.intensity;
 
-  // Fractionation dip at stage start
+  // Fractionation dip: only at the start of a stage (first block for this stageIndex)
   let intensity = base;
-  const dip = seg.stage.fractionationDip;
-  if (dip != null && segElapsed < FRAC_HOLD + FRAC_RAMP) {
-    if (segElapsed < FRAC_HOLD) {
-      intensity = dip;
-    } else {
-      const rampT = (segElapsed - FRAC_HOLD) / FRAC_RAMP;
-      intensity = dip + (base - dip) * Math.min(1, rampT);
+  const dip = block.stage.fractionationDip;
+  if (dip != null) {
+    // Find the first block for this stage
+    let stageStart = block.start;
+    for (let i = blockIdx - 1; i >= 0; i--) {
+      if (blocks[i].stageIndex === block.stageIndex) stageStart = blocks[i].start;
+      else break;
+    }
+    const stageElapsed = pos - stageStart;
+    if (stageElapsed < FRAC_HOLD + FRAC_RAMP) {
+      if (stageElapsed < FRAC_HOLD) {
+        intensity = dip;
+      } else {
+        const rampT = (stageElapsed - FRAC_HOLD) / FRAC_RAMP;
+        intensity = dip + (base - dip) * Math.min(1, rampT);
+      }
     }
   }
 
-  // Interpolate toward next stage in the last 15%
-  if (segProgress > 0.85 && segIdx < segments.length - 1) {
-    const blendT = (segProgress - 0.85) / 0.15;
-    const nextIntensity = segments[segIdx + 1].stage.intensity;
-    intensity += (nextIntensity - intensity) * blendT;
+  // Blend toward next stage in last 15% of the final block of this stage
+  // Find the last block for this stage
+  let lastBlockForStage = blockIdx;
+  for (let i = blockIdx + 1; i < blocks.length; i++) {
+    if (blocks[i].stageIndex === block.stageIndex) lastBlockForStage = i;
+    else break;
+  }
+  if (blockIdx === lastBlockForStage) {
+    const stageEnd = blocks[lastBlockForStage].end;
+    let stageStart = block.start;
+    for (let i = blockIdx - 1; i >= 0; i--) {
+      if (blocks[i].stageIndex === block.stageIndex) stageStart = blocks[i].start;
+      else break;
+    }
+    const stageDuration = stageEnd - stageStart;
+    const stageProgress = stageDuration > 0 ? (pos - stageStart) / stageDuration : 1;
+    if (stageProgress > 0.85 && lastBlockForStage < blocks.length - 1) {
+      const blendT = (stageProgress - 0.85) / 0.15;
+      const nextStageBlock = blocks[lastBlockForStage + 1];
+      intensity += (nextStageBlock.stage.intensity - intensity) * blendT;
+    }
   }
 
   return intensity;
 }
 
-// ── Timeline ────────────────────────────────────────────────────
+// ── Breathing math (pure functions) ──────────────────────────────
+
+function cycleDuration(pat: BreathPatternConfig): number {
+  return pat.inhale + (pat.holdIn ?? 0) + pat.exhale + (pat.holdOut ?? 0);
+}
+
+function deriveBreath(
+  elapsed: number,
+  pat: BreathPatternConfig,
+): { value: number; stage: BreathStage } {
+  const cycle = cycleDuration(pat);
+  const t = ((elapsed % cycle) + cycle) % cycle; // handle negative from seeks
+
+  if (t < pat.inhale) {
+    const p = t / pat.inhale;
+    return { value: (1 - Math.cos(p * Math.PI)) / 2, stage: 'inhale' };
+  }
+  const afterInhale = pat.inhale;
+  const holdIn = pat.holdIn ?? 0;
+  if (t < afterInhale + holdIn) {
+    return { value: 1, stage: 'hold-in' };
+  }
+  const afterHoldIn = afterInhale + holdIn;
+  if (t < afterHoldIn + pat.exhale) {
+    const p = (t - afterHoldIn) / pat.exhale;
+    return { value: (1 + Math.cos(p * Math.PI)) / 2, stage: 'exhale' };
+  }
+  return { value: 0, stage: 'hold-out' };
+}
+
+/** Map breathStage to cue text */
+function breathCueText(stage: BreathStage): string {
+  switch (stage) {
+    case 'inhale': return 'in';
+    case 'hold-in': return 'hold';
+    case 'exhale': return 'out';
+    case 'hold-out': return 'hold';
+  }
+}
+
+// ── Block builder constants ──────────────────────────────────────
+
+const BREATHING_INTRO_DURATION = 3;   // seconds
+const BREATHING_OUTRO_DURATION = 5;   // seconds
+const DEFAULT_BREATHS = 4;
+const INTERACTION_MIN_DURATION = 5;   // seconds to show prompt text
+const TRANSITION_DURATION = 1;        // brief pause between stages
+
+// ── Timeline ─────────────────────────────────────────────────────
 
 export class Timeline {
-  private segments: TimelineSegment[] = [];
-  private events: TimelineEvent[] = [];
+  private blocks: TimelineBlock[] = [];
   private _totalDuration = 0;
 
   // Clock state
@@ -99,24 +174,23 @@ export class Timeline {
   private totalPauseDuration = 0;
   private speedMultiplier = 1;
 
+  // Pull-model: per-frame edge detection
+  private _prevBlockIndex = -1;
+  private _seeked = false;
+
   // Audio binding
   private audioElement: HTMLAudioElement | null = null;
-  private audioSegmentStart = 0; // timeline time where audio segment begins
+  private audioBlockStart = 0;
 
-  // Event tracking
-  private currentSegmentIndex = 0;
-  private nextEventIndex = 0;
-  private firedInteractions = new Set<number>();
-
-  // Callbacks
-  private _onSegmentChange: ((seg: TimelineSegment, prev: TimelineSegment | null) => void) | null = null;
-  private _onText: ((text: string, seg: TimelineSegment) => void) | null = null;
-  private _onInteraction: ((interaction: Interaction, seg: TimelineSegment) => void) | null = null;
-  private _onComplete: (() => void) | null = null;
+  // Block tracking
+  private currentBlockIndex = 0;
   private _completeFired = false;
 
+  // Interaction mode — controls whether interaction blocks are blocking
+  private _interactionMode = true;
+
   // ══════════════════════════════════════════════════════════════
-  // BUILD — pre-compute the entire timeline from session config
+  // BUILD — transform session stages into flat block array
   // ══════════════════════════════════════════════════════════════
 
   build(
@@ -124,65 +198,168 @@ export class Timeline {
     hasAudio: (name: string) => boolean,
     audioDuration: (name: string) => number | null,
   ): void {
-    this.segments = [];
-    this.events = [];
+    this.blocks = [];
     let cursor = 0;
 
-    for (let i = 0; i < stages.length; i++) {
-      const stage = stages[i];
+    for (let si = 0; si < stages.length; si++) {
+      const stage = stages[si];
       const stageHasAudio = hasAudio(stage.name);
-      const dur = audioDuration(stage.name) ?? stage.duration;
+      const stageAudioDur = audioDuration(stage.name);
+      const stageDur = stageAudioDur ?? stage.duration;
 
-      const segment: TimelineSegment = {
-        index: i,
-        stage,
-        start: cursor,
-        end: cursor + dur,
-        duration: dur,
-        hasAudio: stageHasAudio,
-      };
-      this.segments.push(segment);
+      // Sort interactions by triggerAt
+      const interactions = [...(stage.interactions ?? [])].sort((a, b) => a.triggerAt - b.triggerAt);
 
-      // Segment-start event
-      this.events.push({ t: cursor, type: 'segment-start', segmentIndex: i });
+      // Split stage into blocks around interactions
+      let stageOffset = 0;
 
-      // Pre-compute text events — cycle through stage.texts[] at textInterval
-      if (stage.texts.length > 0 && !stageHasAudio) {
-        // Only schedule text for non-audio stages (audio stages use word timestamps)
-        const interval = stage.textInterval ?? 7;
-        let textTime = cursor + interval;
-        let textIdx = 0;
-        while (textTime < cursor + dur - 1) { // stop 1s before end
-          this.events.push({
-            t: textTime,
-            type: 'text',
-            text: stage.texts[textIdx % stage.texts.length],
-            segmentIndex: i,
-          });
-          textIdx++;
-          textTime += interval;
+      for (const ix of interactions) {
+        // Narration block before this interaction
+        if (ix.triggerAt > stageOffset) {
+          const dur = ix.triggerAt - stageOffset;
+          cursor = this.addNarrationBlock(cursor, dur, stage, si, stageHasAudio, stageOffset);
+          stageOffset = ix.triggerAt;
+        }
+
+        // Interaction → block(s)
+        if (ix.type === 'breath-sync') {
+          // Breath-sync replaces narration with its own content (breathing blocks).
+          // The full stage audio plays AFTER breathing, so stageOffset stays at triggerAt.
+          cursor = this.addBreathingBlocks(cursor, stage, si, ix);
+          stageOffset = ix.triggerAt;
+        } else {
+          // Gates/focus/etc interrupt the narration flow at triggerAt.
+          // Audio already played up to this point, so advance past the interaction.
+          cursor = this.addInteractionBlock(cursor, stage, si, ix);
+          stageOffset = ix.triggerAt + ix.duration;
         }
       }
 
-      // Pre-compute interaction events
-      if (stage.interactions) {
-        for (const interaction of stage.interactions) {
-          this.events.push({
-            t: cursor + (interaction.triggerAt ?? 0),
-            type: 'interaction',
-            interaction,
-            segmentIndex: i,
-          });
-        }
+      // Remaining narration after last interaction
+      const remaining = stageDur - stageOffset;
+      if (remaining > 0) {
+        cursor = this.addNarrationBlock(cursor, remaining, stage, si, stageHasAudio, stageOffset);
       }
-
-      cursor += dur;
     }
 
-    this.events.sort((a, b) => a.t - b.t);
     this._totalDuration = cursor;
 
-    log.info('timeline', `Built: ${this.segments.length} segments, ${this.events.length} events, ${cursor.toFixed(1)}s`);
+    const kinds = { narration: 0, breathing: 0, interaction: 0, transition: 0 };
+    for (const b of this.blocks) kinds[b.kind]++;
+    log.info('timeline', `Built: ${this.blocks.length} blocks (${kinds.narration}N ${kinds.breathing}B ${kinds.interaction}I), ${cursor.toFixed(1)}s`);
+
+    // Debug: log each block for verification
+    for (let i = 0; i < this.blocks.length; i++) {
+      const b = this.blocks[i];
+      const extra = b.kind === 'breathing' ? ` (${b.breathing?.phase})`
+        : b.kind === 'interaction' ? ` (${b.interaction?.type})`
+        : b.narration?.hasAudio ? ' (audio)' : '';
+      log.info('timeline', `  [${i}] ${b.kind}${extra} ${b.stage.name} ${b.start.toFixed(1)}s → ${b.end.toFixed(1)}s (${b.duration.toFixed(1)}s)`);
+    }
+  }
+
+  private addNarrationBlock(
+    cursor: number, duration: number,
+    stage: SessionStage, stageIndex: number,
+    hasAudio: boolean, stageOffset: number,
+  ): number {
+    const block: TimelineBlock = {
+      kind: 'narration',
+      start: cursor, duration, end: cursor + duration,
+      stage, stageIndex,
+      narration: {
+        texts: stage.texts,
+        textInterval: stage.textInterval ?? 7,
+        hasAudio,
+        audioOffset: stageOffset, // where in the stage audio this block starts
+      },
+    };
+    this.blocks.push(block);
+    return cursor + duration;
+  }
+
+  private addBreathingBlocks(
+    cursor: number,
+    stage: SessionStage, stageIndex: number,
+    ix: Interaction,
+  ): number {
+    const pat = stage.breathPattern ?? { inhale: stage.breathCycle / 2, exhale: stage.breathCycle / 2 };
+    const cycle = cycleDuration(pat);
+    const breaths = ix.data?.count ?? DEFAULT_BREATHS;
+
+    // Intro block
+    const introBlock: TimelineBlock = {
+      kind: 'breathing',
+      start: cursor, duration: BREATHING_INTRO_DURATION, end: cursor + BREATHING_INTRO_DURATION,
+      stage, stageIndex,
+      breathing: {
+        phase: 'intro',
+        pattern: pat,
+        introText: 'let\u2019s breathe together',
+      },
+    };
+    this.blocks.push(introBlock);
+    cursor += BREATHING_INTRO_DURATION;
+
+    // Core block — N full breath cycles
+    const coreDur = cycle * breaths;
+    const coreBlock: TimelineBlock = {
+      kind: 'breathing',
+      start: cursor, duration: coreDur, end: cursor + coreDur,
+      stage, stageIndex,
+      breathing: {
+        phase: 'core',
+        pattern: pat,
+        breaths,
+      },
+    };
+    this.blocks.push(coreBlock);
+    cursor += coreDur;
+
+    // Outro block
+    const outroBlock: TimelineBlock = {
+      kind: 'breathing',
+      start: cursor, duration: BREATHING_OUTRO_DURATION, end: cursor + BREATHING_OUTRO_DURATION,
+      stage, stageIndex,
+      breathing: {
+        phase: 'outro',
+        pattern: pat,
+        outroTexts: ['continue breathing', 'just like that'],
+      },
+    };
+    this.blocks.push(outroBlock);
+    cursor += BREATHING_OUTRO_DURATION;
+
+    return cursor;
+  }
+
+  private addInteractionBlock(
+    cursor: number,
+    stage: SessionStage, stageIndex: number,
+    ix: Interaction,
+  ): number {
+    const minDur = ix.data?.count
+      ? (ix.data.count + 1) * 1.5  // countdown
+      : INTERACTION_MIN_DURATION;
+
+    const promptText = ix.data?.text
+      ?? ix.data?.affirmation
+      ?? (ix.type === 'focus-target' ? 'focus on the center' : 'do you want to go deeper?');
+
+    const block: TimelineBlock = {
+      kind: 'interaction',
+      start: cursor, duration: minDur, end: cursor + minDur,
+      stage, stageIndex,
+      interaction: {
+        type: ix.type,
+        promptText,
+        blocking: ix.type === 'gate' || ix.type === 'voice-gate',
+        minDuration: minDur,
+        data: ix.data,
+      },
+    };
+    this.blocks.push(block);
+    return cursor + minDur;
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -194,24 +371,18 @@ export class Timeline {
     this._paused = false;
     this._completeFired = false;
     this._position = 0;
-    this.currentSegmentIndex = 0;
-    this.nextEventIndex = 0;
-    this.firedInteractions.clear();
+    this.currentBlockIndex = 0;
+    this._prevBlockIndex = -1;
     this.wallStartTime = performance.now() / 1000;
     this.totalPauseDuration = 0;
     this.audioElement = null;
-    this.audioSegmentStart = 0;
-
-    if (this.segments.length > 0 && this._onSegmentChange) {
-      this._onSegmentChange(this.segments[0], null);
-    }
-
+    this.audioBlockStart = 0;
     log.info('timeline', 'Started');
   }
 
   pause(): void {
     if (this._paused) return;
-    this._position = this.readClock(); // snapshot
+    this._position = this.readClock();
     this._paused = true;
     this.pauseStartTime = performance.now() / 1000;
     log.info('timeline', `Paused at ${this._position.toFixed(1)}s`);
@@ -232,71 +403,51 @@ export class Timeline {
     log.info('timeline', 'Stopped');
   }
 
-  /** Seek to absolute time. Recalculates everything. */
   seek(t: number): void {
     const clamped = Math.max(0, Math.min(t, this._totalDuration));
     this._position = clamped;
+    this._seeked = true;
 
     // Reset wall clock baseline
     this.wallStartTime = performance.now() / 1000 - clamped;
     this.totalPauseDuration = 0;
 
-    // Find segment
-    const newIdx = this.findSegment(clamped);
-    const changed = newIdx !== this.currentSegmentIndex;
-    const prev = changed ? this.segments[this.currentSegmentIndex] : null;
-    this.currentSegmentIndex = newIdx;
+    // Unbind stale audio — will be re-bound after enterStage starts new audio
+    this.audioElement = null;
 
-    // Reset events — skip everything before the seek point
-    this.nextEventIndex = 0;
-    this.firedInteractions.clear();
-    for (let i = 0; i < this.events.length; i++) {
-      if (this.events[i].t <= clamped) {
-        this.nextEventIndex = i + 1;
-        if (this.events[i].type === 'interaction') {
-          this.firedInteractions.add(i);
-        }
-      } else {
-        break;
-      }
+    // Find block — only force blockJustChanged if the block actually changed.
+    // Same-block seeks just set the seeked flag (avoids flicker during scrubbing).
+    const newBlock = this.findBlock(clamped);
+    if (newBlock !== this.currentBlockIndex) {
+      this._prevBlockIndex = -1; // force blockJustChanged on next update()
     }
-
+    this.currentBlockIndex = newBlock;
     this._completeFired = false;
 
-    if (changed && this._onSegmentChange) {
-      this._onSegmentChange(this.segments[newIdx], prev);
-    }
-
-    log.info('timeline', `Seeked to ${clamped.toFixed(1)}s → segment ${newIdx}`);
+    log.info('timeline', `Seeked to ${clamped.toFixed(1)}s → block ${this.currentBlockIndex} (${this.blocks[this.currentBlockIndex]?.kind})`);
   }
 
-  /** Dev mode: change playback speed (1 = normal) */
   setSpeed(s: number): void {
-    // Snapshot position before speed change so it doesn't jump
     this._position = this.readClock();
     this.wallStartTime = performance.now() / 1000 - this._position;
     this.totalPauseDuration = 0;
     this.speedMultiplier = s;
   }
 
-  // ══════════════════════════════════════════════════════════════
-  // AUDIO BINDING — narration tells us when audio starts/stops
-  // ══════════════════════════════════════════════════════════════
-
-  /**
-   * Bind a playing audio element as clock source.
-   * The timeline position becomes: segmentStart + audio.currentTime
-   *
-   * @param audio The HTMLAudioElement currently playing
-   * @param segmentStart The timeline time where this segment begins
-   */
-  bindAudio(audio: HTMLAudioElement, segmentStart: number): void {
-    this.audioElement = audio;
-    this.audioSegmentStart = segmentStart;
-    log.info('timeline', `Audio bound at segment ${segmentStart.toFixed(1)}s`);
+  setInteractionMode(on: boolean): void {
+    this._interactionMode = on;
   }
 
-  /** Unbind audio — snapshot position and fall back to wall clock */
+  // ══════════════════════════════════════════════════════════════
+  // AUDIO BINDING
+  // ══════════════════════════════════════════════════════════════
+
+  bindAudio(audio: HTMLAudioElement, blockStart: number): void {
+    this.audioElement = audio;
+    this.audioBlockStart = blockStart;
+    log.info('timeline', `Audio bound at block start ${blockStart.toFixed(1)}s`);
+  }
+
   unbindAudio(): void {
     if (!this.audioElement) return;
     this._position = this.readClock();
@@ -306,68 +457,129 @@ export class Timeline {
     log.info('timeline', `Audio unbound at ${this._position.toFixed(1)}s`);
   }
 
-  /** Called by narration when stage audio ends — advance past the segment */
   audioEnded(): void {
     this.unbindAudio();
-    // Position is now at the end of the audio, update() will advance the segment
   }
 
   // ══════════════════════════════════════════════════════════════
-  // UPDATE — call every frame. Returns derived state.
+  // UPDATE — call every frame
   // ══════════════════════════════════════════════════════════════
 
   update(): TimelineState | null {
-    if (!this._started || this.segments.length === 0) return null;
-    if (this._paused) {
-      // Still return state so the renderer can draw the frozen frame
-      return this.deriveState(this._position);
+    if (!this._started || this.blocks.length === 0) return null;
+
+    const wasSeek = this._seeked;
+    this._seeked = false;
+
+    const pos = this._paused ? this._position : this.readClock();
+
+    // Advance block if needed
+    const block = this.blocks[this.currentBlockIndex];
+    if (!this._paused && pos >= block.end && this.currentBlockIndex < this.blocks.length - 1) {
+      this.currentBlockIndex++;
     }
 
-    const pos = this.readClock();
-
-    // Detect segment change
-    const seg = this.segments[this.currentSegmentIndex];
-    if (pos >= seg.end && this.currentSegmentIndex < this.segments.length - 1) {
-      const prev = seg;
-      this.currentSegmentIndex++;
-      const next = this.segments[this.currentSegmentIndex];
-      if (this._onSegmentChange) {
-        this._onSegmentChange(next, prev);
-      }
-    }
-
-    // Fire due events
-    this.fireEvents(pos);
+    const blockJustChanged = this.currentBlockIndex !== this._prevBlockIndex;
+    this._prevBlockIndex = this.currentBlockIndex;
 
     // Completion
     if (pos >= this._totalDuration && !this._completeFired) {
       this._completeFired = true;
-      if (this._onComplete) this._onComplete();
     }
 
-    return this.deriveState(pos);
+    return this.deriveState(pos, blockJustChanged, wasSeek);
   }
 
   // ══════════════════════════════════════════════════════════════
   // STATE DERIVATION — pure function from position
   // ══════════════════════════════════════════════════════════════
 
-  private deriveState(pos: number): TimelineState {
-    const seg = this.segments[this.currentSegmentIndex];
-    const elapsed = Math.max(0, pos - seg.start);
-    const progress = Math.min(1, elapsed / seg.duration);
+  private deriveState(pos: number, blockJustChanged: boolean, seeked: boolean): TimelineState {
+    const block = this.blocks[this.currentBlockIndex];
+    const elapsed = Math.max(0, pos - block.start);
+    const progress = block.duration > 0 ? Math.min(1, elapsed / block.duration) : 1;
+
+    // Derive block-type-specific fields
+    let currentText: string | null = null;
+    let breathValue: number | null = null;
+    let breathStage: BreathStage | null = null;
+    let atBoundary = false;
+
+    switch (block.kind) {
+      case 'narration': {
+        const data = block.narration!;
+        if (!data.hasAudio && data.texts.length > 0 && data.textInterval > 0) {
+          // Derive current text from elapsed position
+          const textIdx = Math.floor(elapsed / data.textInterval);
+          if (textIdx < data.texts.length) {
+            currentText = data.texts[textIdx % data.texts.length];
+          }
+        }
+        break;
+      }
+
+      case 'breathing': {
+        const data = block.breathing!;
+        switch (data.phase) {
+          case 'intro':
+            currentText = data.introText ?? null;
+            // Start at breathValue 0 during intro
+            breathValue = 0;
+            breathStage = 'inhale';
+            break;
+          case 'core': {
+            const breath = deriveBreath(elapsed, data.pattern);
+            breathValue = breath.value;
+            breathStage = breath.stage;
+            currentText = breathCueText(breath.stage);
+            break;
+          }
+          case 'outro': {
+            // Show outro texts in sequence
+            if (data.outroTexts && data.outroTexts.length > 0) {
+              const textDur = block.duration / data.outroTexts.length;
+              const idx = Math.min(Math.floor(elapsed / textDur), data.outroTexts.length - 1);
+              currentText = data.outroTexts[idx];
+            }
+            breathValue = 0;
+            breathStage = 'exhale';
+            break;
+          }
+        }
+        break;
+      }
+
+      case 'interaction': {
+        const data = block.interaction!;
+        currentText = data.promptText;
+        // Auto-pause at boundary when interaction mode is on and block is blocking
+        if (data.blocking && this._interactionMode && elapsed >= data.minDuration) {
+          atBoundary = true;
+        }
+        break;
+      }
+
+      case 'transition':
+        // Silent gap — nothing to derive
+        break;
+    }
 
     return {
       position: pos,
-      segment: seg,
-      segmentIndex: this.currentSegmentIndex,
-      segmentElapsed: elapsed,
-      segmentProgress: progress,
-      intensity: calcIntensity(this.segments, this.currentSegmentIndex, elapsed, progress),
-      spiralSpeed: seg.stage.spiralSpeed ?? 1,
-      breathCycle: seg.stage.breathCycle ?? 7,
-      breathPattern: seg.stage.breathPattern,
+      block,
+      blockIndex: this.currentBlockIndex,
+      blockElapsed: elapsed,
+      blockProgress: progress,
+      currentText,
+      breathValue,
+      breathStage,
+      breathPattern: block.stage.breathPattern ?? null,
+      intensity: calcIntensity(this.blocks, this.currentBlockIndex, pos, this._totalDuration),
+      spiralSpeed: block.stage.spiralSpeed ?? 1,
+      blockJustChanged,
+      seeked,
       complete: pos >= this._totalDuration,
+      atBoundary,
     };
   }
 
@@ -375,7 +587,6 @@ export class Timeline {
   // GETTERS
   // ══════════════════════════════════════════════════════════════
 
-  /** Current position — THE source of truth */
   get position(): number {
     if (this._paused) return this._position;
     return this.readClock();
@@ -384,99 +595,41 @@ export class Timeline {
   get started(): boolean { return this._started; }
   get paused(): boolean { return this._paused; }
   get totalDuration(): number { return this._totalDuration; }
-  get currentSegment(): TimelineSegment { return this.segments[this.currentSegmentIndex]; }
-  get currentIndex(): number { return this.currentSegmentIndex; }
-  get segmentCount(): number { return this.segments.length; }
-  get allSegments(): readonly TimelineSegment[] { return this.segments; }
+  get currentBlock(): TimelineBlock { return this.blocks[this.currentBlockIndex]; }
+  get currentIndex(): number { return this.currentBlockIndex; }
+  get blockCount(): number { return this.blocks.length; }
+  get allBlocks(): readonly TimelineBlock[] { return this.blocks; }
   get isAudioBound(): boolean { return this.audioElement !== null; }
-
-  // ══════════════════════════════════════════════════════════════
-  // CALLBACKS
-  // ══════════════════════════════════════════════════════════════
-
-  onSegmentChange(fn: (seg: TimelineSegment, prev: TimelineSegment | null) => void): void {
-    this._onSegmentChange = fn;
-  }
-
-  onText(fn: (text: string, seg: TimelineSegment) => void): void {
-    this._onText = fn;
-  }
-
-  onInteraction(fn: (interaction: Interaction, seg: TimelineSegment) => void): void {
-    this._onInteraction = fn;
-  }
-
-  onComplete(fn: () => void): void {
-    this._onComplete = fn;
-  }
 
   // ══════════════════════════════════════════════════════════════
   // INTERNAL
   // ══════════════════════════════════════════════════════════════
 
-  /** Read the current clock — audio or wall */
   private readClock(): number {
-    // Audio is the primary clock when bound
     if (this.audioElement && !this.audioElement.paused) {
-      return this.audioSegmentStart + this.audioElement.currentTime;
+      return this.audioBlockStart + this.audioElement.currentTime;
     }
-
-    // Wall clock with pause compensation and speed multiplier
     const wallNow = performance.now() / 1000;
     const rawElapsed = wallNow - this.wallStartTime - this.totalPauseDuration;
     return rawElapsed * this.speedMultiplier;
   }
 
-  private findSegment(t: number): number {
-    for (let i = this.segments.length - 1; i >= 0; i--) {
-      if (t >= this.segments[i].start) return i;
+  private findBlock(t: number): number {
+    for (let i = this.blocks.length - 1; i >= 0; i--) {
+      if (t >= this.blocks[i].start) return i;
     }
     return 0;
   }
-
-  private fireEvents(pos: number): void {
-    while (this.nextEventIndex < this.events.length) {
-      const evt = this.events[this.nextEventIndex];
-      if (evt.t > pos) break;
-
-      this.nextEventIndex++;
-
-      switch (evt.type) {
-        case 'text':
-          if (this._onText && evt.text) {
-            this._onText(evt.text, this.segments[evt.segmentIndex]);
-          }
-          break;
-
-        case 'interaction':
-          if (this._onInteraction && evt.interaction && !this.firedInteractions.has(this.nextEventIndex - 1)) {
-            this.firedInteractions.add(this.nextEventIndex - 1);
-            this._onInteraction(evt.interaction, this.segments[evt.segmentIndex]);
-          }
-          break;
-
-        case 'segment-start':
-          // Handled by segment change detection in update()
-          break;
-      }
-    }
-  }
-
-  // ══════════════════════════════════════════════════════════════
-  // CLEANUP
-  // ══════════════════════════════════════════════════════════════
 
   reset(): void {
     this._started = false;
     this._paused = false;
     this._position = 0;
     this._completeFired = false;
-    this.currentSegmentIndex = 0;
-    this.nextEventIndex = 0;
-    this.firedInteractions.clear();
+    this.currentBlockIndex = 0;
+    this._prevBlockIndex = -1;
     this.audioElement = null;
-    this.segments = [];
-    this.events = [];
+    this.blocks = [];
     this._totalDuration = 0;
   }
 }

@@ -10,7 +10,7 @@
  *   unsub(); // cleanup
  */
 
-import type { SessionConfig, SessionStage, Interaction } from './session';
+import type { SessionConfig } from './session';
 import type { HpynoSettings } from './settings';
 
 // ── Event map — every event name to its payload type ──────────
@@ -25,21 +25,14 @@ export interface HpynoEventMap {
   'session:ending': { fadeSec?: number };
   'session:ended': {};
 
-  // Stage progression
-  'stage:changed': { stage: SessionStage; index: number; total: number };
-  'stage:text': { text: string };
-  'stage:complete': {};
-
-  // Narration
+  // Narration — text display with optional karaoke word timing
   'narration:line': {
     text: string;
     words?: Array<{ word: string; start: number; end: number }>;
     audioStartTime?: number;
   };
-  'narration:stage-ended': { stageName: string };
 
   // Interactions
-  'interaction:trigger': { interaction: Interaction };
   'interaction:complete': { type: string };
 
   // Settings

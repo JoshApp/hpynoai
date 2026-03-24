@@ -70,22 +70,23 @@ export class DevMode {
   rebuildStageButtons(): void {
     const container = this.panel.querySelector('.dev-stage-btns');
     if (!container) return;
-    const sm = this.opts.timeline;
-    container.innerHTML = sm.stages
-      .map((s, i) => `<button class="dev-stage-btn" data-index="${i}">${s.name}</button>`)
+    const tl = this.opts.timeline;
+    container.innerHTML = tl.allBlocks
+      .map((b, i) => `<button class="dev-stage-btn" data-index="${i}">${b.stage.name} (${b.kind[0]})</button>`)
       .join('');
     container.querySelectorAll<HTMLButtonElement>('.dev-stage-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         const idx = parseInt(btn.dataset.index!, 10);
-        sm.jumpToStage(idx);
+        const block = tl.allBlocks[idx];
+        if (block) tl.seek(block.start);
       });
     });
   }
 
   private buildHTML(): string {
-    const sm = this.opts.timeline;
-    const stageButtons = sm.stages
-      .map((s, i) => `<button class="dev-stage-btn" data-index="${i}">${s.name}</button>`)
+    const tl = this.opts.timeline;
+    const stageButtons = tl.allBlocks
+      .map((b, i) => `<button class="dev-stage-btn" data-index="${i}">${b.stage.name} (${b.kind[0]})</button>`)
       .join('');
 
     return `
@@ -143,7 +144,8 @@ export class DevMode {
     this.panel.querySelectorAll<HTMLButtonElement>('.dev-stage-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         const idx = parseInt(btn.dataset.index!, 10);
-        this.opts.timeline.jumpToStage(idx);
+        const block = this.opts.timeline.allBlocks[idx];
+        if (block) this.opts.timeline.seek(block.start);
       });
     });
 
@@ -151,7 +153,7 @@ export class DevMode {
     this.panel.querySelectorAll<HTMLButtonElement>('.dev-speed-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         this.speedMultiplier = parseInt(btn.dataset.speed!, 10);
-        this.opts.timeline.setSpeedMultiplier(this.speedMultiplier);
+        this.opts.timeline.setSpeed(this.speedMultiplier);
         this.elSpeed.textContent = `${this.speedMultiplier}x`;
         this.panel.querySelectorAll('.dev-speed-btn').forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
@@ -225,15 +227,16 @@ export class DevMode {
 
     if (!this.visible) return;
 
-    const sm = this.opts.timeline;
-    const stage = sm.currentStage;
+    const tl = this.opts.timeline;
+    const block = tl.currentBlock;
+    const stage = block?.stage;
     const intensity = this.opts.getIntensity();
-    const elapsed = (now - this.startTime) / 1000;
-    const breathCycle = sm.breathCycle;
+    const elapsed = tl.position;
+    const breathCycle = stage?.breathCycle ?? 7;
     const breathPhase = (performance.now() / 1000) * (2 * Math.PI / breathCycle);
     const breathLabel = Math.sin(breathPhase) > 0 ? 'inhale' : 'exhale';
 
-    this.elStage.textContent = `${stage.name} [${sm.currentIndex + 1}/${sm.stageCount}]`;
+    this.elStage.textContent = `${stage?.name ?? '—'} [${block?.kind ?? '?'}] ${tl.currentIndex + 1}/${tl.blockCount}`;
     this.elIntensity.textContent = intensity.toFixed(3);
     this.elBreath.textContent = `${breathLabel} (${breathCycle.toFixed(1)}s)`;
     this.elElapsed.textContent = this.formatTime(elapsed);

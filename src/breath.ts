@@ -184,19 +184,22 @@ export class BreathController {
   connectBus(bus: import('./events').EventBus): void {
     for (const u of this.busUnsubs) u();
     this.busUnsubs = [];
+    // NOTE: stage:changed is now handled by the pull-model animate loop
+    // in main.ts. Breath pattern is set directly via setPattern/setSimpleCycle.
+  }
 
-    this.busUnsubs.push(bus.on('stage:changed', ({ stage }) => {
-      if (stage.breathPattern) {
-        this.setPattern({
-          inhale: stage.breathPattern.inhale,
-          holdIn: stage.breathPattern.holdIn ?? 0,
-          exhale: stage.breathPattern.exhale,
-          holdOut: stage.breathPattern.holdOut ?? 0,
-        });
-      } else {
-        this.setSimpleCycle(stage.breathCycle);
-      }
-    }));
+  /** Called by the animate loop when segment changes. Applies the stage's breath config. */
+  applyStage(stage: import('./session').SessionStage): void {
+    if (stage.breathPattern) {
+      this.setPattern({
+        inhale: stage.breathPattern.inhale,
+        holdIn: stage.breathPattern.holdIn ?? 0,
+        exhale: stage.breathPattern.exhale,
+        holdOut: stage.breathPattern.holdOut ?? 0,
+      });
+    } else {
+      this.setSimpleCycle(stage.breathCycle);
+    }
   }
 
   dispose(): void {
