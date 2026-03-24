@@ -29,7 +29,27 @@ import type { StateMachine } from './state-machine';
 import type { InputController } from './input';
 import type { GpuParticles } from './gpu-particles';
 
+/** Auth state exposed by AuthManager (created by auth.ts when Supabase is configured) */
+export interface AuthState {
+  user: { id: string; email?: string; name?: string; avatar?: string } | null;
+  isAuthenticated: boolean;
+  isAnonymous: boolean;
+  loading: boolean;
+}
+
+/** Minimal interface the auth UI binds to — implemented by AuthManager */
+export interface AuthManagerLike {
+  getState(): AuthState;
+  onChange(listener: (state: AuthState) => void): () => void;
+  signInWithGoogle(): void;
+  signOut(): void;
+  linkGoogle(): void;
+}
+
 export interface HotState {
+  // Auth
+  authManager?: AuthManagerLike;
+
   // Event system
   eventBus?: EventBus;
   stateMachine?: StateMachine;
