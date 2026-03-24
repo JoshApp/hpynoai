@@ -42,6 +42,7 @@ import { initConsoleProtocol, teardownConsoleProtocol } from './console-protocol
 import { auth } from './auth';
 import { showPostSessionPrompt, autoAnonymousSignIn } from './post-session-prompt';
 import { SettingsSync } from './settings-sync';
+import { supabase } from './supabase';
 
 // ══════════════════════════════════════════════════════════════════════
 // ERROR BOUNDARIES — check before anything else
@@ -1382,8 +1383,8 @@ function boot(): void {
 
   const phase = appState.phase;
 
-  // Initialize auth (no-op until Supabase client is wired in)
-  auth.init();
+  // Initialize auth with Supabase client (gracefully degrades if null)
+  auth.init(supabase);
 
   if (isHMR) {
     log.info('hmr', `Restoring phase: ${phase}`);
