@@ -5,6 +5,7 @@
  */
 
 import { hotState, type AuthState } from './hot-state';
+import { openPortal, startCheckout } from './payments';
 
 export interface HpynoSettings {
   // Camera
@@ -99,6 +100,7 @@ export class SettingsManager {
   private calibrateHandler: (() => void) | null = null;
   private sliderDefs: Array<{ key: keyof HpynoSettings; unit?: string }> = [];
   private authUnsub: (() => void) | null = null;
+  private accessTokenProvider: (() => string | null) | null = null;
 
   constructor() {
     this.settings = this.load();
@@ -153,6 +155,15 @@ export class SettingsManager {
   /** Set callback for the calibrate button */
   onCalibrate(handler: () => void): void {
     this.calibrateHandler = handler;
+  }
+
+  /** Set provider for the current user's Supabase access token */
+  setAccessTokenProvider(provider: () => string | null): void {
+    this.accessTokenProvider = provider;
+  }
+
+  private getAccessToken(): string | null {
+    return this.accessTokenProvider ? this.accessTokenProvider() : null;
   }
 
   /** Refresh all panel UI to match current settings */
@@ -337,6 +348,11 @@ export class SettingsManager {
         <div class="settings-group">
           <button id="settings-calibrate" class="settings-btn-calibrate">calibrate experience</button>
         </div>
+        <div class="settings-group" id="settings-subscription-section" style="display:none">
+          <div class="settings-group-title">subscription</div>
+          <button id="settings-upgrade" class="settings-btn-calibrate">upgrade to premium</button>
+          <button id="settings-manage-sub" class="settings-btn-reset">manage subscription</button>
+        </div>
         <div class="settings-group">
           <button id="settings-reset" class="settings-btn-reset">reset to defaults</button>
           <button id="settings-reset-calibration" class="settings-btn-reset">reset auto-calibration</button>
@@ -399,6 +415,24 @@ export class SettingsManager {
 
       panel.querySelector('#settings-calibrate')!.addEventListener('click', () => {
         if (this.calibrateHandler) this.calibrateHandler();
+      });
+
+      panel.querySelector('#settings-upgrade')!.addEventListener('click', () => {
+        const token = this.getAccessToken();
+        if (!token) {
+          alert('Please sign in to upgrade.');
+          return;
+        }
+        startCheckout(token, 'monthly').catch(err => alert(err.message));
+      });
+
+      panel.querySelector('#settings-manage-sub')!.addEventListener('click', () => {
+        const token = this.getAccessToken();
+        if (!token) {
+          alert('Please sign in to manage your subscription.');
+          return;
+        }
+        openPortal(token).catch(err => alert(err.message));
       });
 
       panel.querySelector('#settings-reset-calibration')!.addEventListener('click', () => {
@@ -473,15 +507,21 @@ export class SettingsManager {
 
     const section = this.panel.querySelector<HTMLDivElement>('#settings-account-section');
     const content = this.panel.querySelector<HTMLDivElement>('#settings-account-content');
+    const subSection = this.panel.querySelector<HTMLDivElement>('#settings-subscription-section');
     if (!section || !content) return;
 
     const render = (state: AuthState) => {
       content.innerHTML = '';
       if (state.loading) {
         section.style.display = 'none';
+        if (subSection) subSection.style.display = 'none';
         return;
       }
       section.style.display = '';
+      // Show subscription section only for authenticated (non-anonymous) users
+      if (subSection) {
+        subSection.style.display = (state.isAuthenticated && !state.isAnonymous) ? '' : 'none';
+      }
 
       if (state.isAuthenticated && !state.isAnonymous && state.user) {
         const info = document.createElement('div');

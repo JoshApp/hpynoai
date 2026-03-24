@@ -44,6 +44,7 @@ import { showPostSessionPrompt, autoAnonymousSignIn } from './post-session-promp
 import { SettingsSync } from './settings-sync';
 import { supabase } from './supabase';
 import { Entitlements } from './entitlements';
+import { checkPaymentReturn } from './payments';
 
 // ══════════════════════════════════════════════════════════════════════
 // ERROR BOUNDARIES — check before anything else
@@ -110,6 +111,16 @@ hotState.favorites = favorites;
 const entitlements = hotState.entitlements ?? new Entitlements(null);
 hotState.entitlements = entitlements;
 entitlements.init();
+
+// Check for payment redirect return (checkout success/cancel or portal return)
+const paymentStatus = checkPaymentReturn();
+if (paymentStatus === 'success') {
+  log.info('payment', 'Checkout completed successfully');
+} else if (paymentStatus === 'cancelled') {
+  log.info('payment', 'Checkout was cancelled');
+} else if (paymentStatus === 'return') {
+  log.info('payment', 'Returned from customer portal');
+}
 
 const mouse = { x: 0, y: 0 };
 
@@ -1391,6 +1402,9 @@ function boot(): void {
 
   // Initialize auth with Supabase client (gracefully degrades if null)
   auth.init(supabase);
+
+  // Wire auth access token into settings so payment buttons work
+  settings.setAccessTokenProvider(() => auth.getAccessToken());
 
   if (isHMR) {
     log.info('hmr', `Restoring phase: ${phase}`);
