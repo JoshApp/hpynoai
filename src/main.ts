@@ -34,6 +34,7 @@ import { LoadingIndicator } from './loading';
 import { log } from './logger';
 import { createHypnoAPI, type HypnoAPI } from './api';
 import { TelemetryAggregator } from './telemetry';
+import { FrameProfiler } from './frame-profiler';
 
 // ══════════════════════════════════════════════════════════════════════
 // ERROR BOUNDARIES — check before anything else
@@ -361,6 +362,7 @@ function applyTheme(session: SessionConfig): void {
 const timeline = new Timeline();
 let hypnoApi: HypnoAPI | null = null;
 const telemetry = new TelemetryAggregator();
+const profiler = new FrameProfiler();
 
 // Pull-model: timeline callbacks removed. The animate loop reads TimelineState
 // each frame and drives narration, text, breath, interactions directly.
@@ -603,12 +605,14 @@ function animate(): void {
   if (!isRunning) return;
   hotState.animFrameId = requestAnimationFrame(animate);
 
+  profiler.beginFrame();
   const time = performance.now() / 1000;
   const s = settings.current;
 
   // ── Pull-model: timeline is the single source of truth ──
   const tlState = timeline.update();
   mic.update();
+  profiler.mark('timeline');
   // NOTE: narration.update() is called AFTER block change handling below,
   // so stopStagePlayback() runs before narration can fire stale text events.
   const intensity = intensityOverride ?? (tlState?.intensity ?? 0.12);
@@ -760,13 +764,16 @@ function animate(): void {
 
   // Narration update AFTER block handling — prevents stale text events
   narration.update();
+  profiler.mark('narration');
 
   // ── Per-frame updates (independent of pull-model) ──
   const micSig = mic.signals;
   if (micSig.active) breath.setFromMic(micSig.breathPhase);
   breath.update(time);
+  profiler.mark('breath');
 
   const audioBands = audio.analyzer?.update() ?? null;
+  profiler.mark('audio');
 
   const rawDt = lastAnimTime > 0 ? time - lastAnimTime : 1 / 60;
   const dt = Math.min(rawDt, 0.1);
@@ -776,10 +783,13 @@ function animate(): void {
   // Update scene objects
   text3d.setSettings({ startZ: s.narrationStartZ, endZ: s.narrationEndZ, scale: s.narrationScale });
   text3d.update(intensity, breath.phase);
+  profiler.mark('text3d');
   interactions.setDepth(s.interactionDepth);
   interactions.setScale(s.interactionScale);
   interactions.update(time, intensity, breath.value);
+  profiler.mark('interactions');
   ambient.update();
+  profiler.mark('ambient');
   if (guidedCal) guidedCal.update(time);
   transition.update();
   devMode.update();
@@ -803,6 +813,8 @@ function animate(): void {
     intensityMult: transition.state.intensityMult,
   };
   renderPipeline.renderSession(frame);
+  profiler.mark('render');
+  profiler.endFrame();
 
   // Telemetry capture (~10fps via internal throttle)
   telemetry.capture({
@@ -1039,6 +1051,9 @@ onCleanup(() => document.removeEventListener('visibilitychange', onVisibilityCha
 // EXPOSE INITIAL API — minimal surface before session starts
 // ══════════════════════════════════════════════════════════════════════
 window.__HYPNO__ = createHypnoAPI({ timeline, machine, interactions, breath, narration, bus });
+
+// EXPOSE FRAME PROFILER — accessible via window.__HYPNO_PROFILER__
+(window as unknown as Record<string, unknown>).__HYPNO_PROFILER__ = profiler;
 
 // ══════════════════════════════════════════════════════════════════════
 // GO
