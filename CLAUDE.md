@@ -97,3 +97,39 @@ Audio manifests at `public/audio/{session}/manifest.json` map text → WAV files
 - **DevMode** (backtick or `?dev`): Timeline scrubbing, intensity override, FPS, speed multiplier
 - **Timebar** (T key): Visual timeline progress bar
 - **URL params**: `?minimal` for reduced visuals, `?dev` for debug panel
+
+## Supabase (local)
+
+Requires Docker running.
+
+```bash
+npm run supabase:start   # Start local Supabase (Postgres, Auth, Edge Functions)
+npm run supabase:stop    # Stop local Supabase
+npm run supabase:reset   # Drop DB + re-run all migrations + seed
+```
+
+After `supabase:start`, the CLI prints the local URLs and keys:
+
+| Service       | URL                          |
+|---------------|------------------------------|
+| API           | http://127.0.0.1:54321       |
+| Studio        | http://127.0.0.1:54323       |
+| Inbucket      | http://127.0.0.1:54324       |
+| DB (Postgres) | postgresql://postgres:postgres@127.0.0.1:54322/postgres |
+
+Copy the `anon key` from the output into `.env`:
+
+```
+VITE_SUPABASE_URL=http://127.0.0.1:54321
+VITE_SUPABASE_ANON_KEY=<anon-key>
+```
+
+## Migrations
+
+SQL migration files live in `supabase/migrations/`. To create a new migration:
+
+```bash
+npx supabase migration new <name>
+# Edit the generated .sql file, then:
+npm run supabase:reset   # Apply from scratch
+```
