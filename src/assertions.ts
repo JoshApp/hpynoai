@@ -19,8 +19,12 @@ import type { HypnoAPI } from './api';
 import type { AudioEngine } from './audio';
 import type { NarrationEngine } from './narration';
 import type * as THREE from 'three';
+import { BaselineManager } from './baseline';
+import type { BaselineSnapshot, BaselineComparison, ToleranceConfig } from './baseline';
 
 // ── Types ────────────────────────────────────────────────────────
+
+export type { BaselineSnapshot, BaselineComparison, ToleranceConfig } from './baseline';
 
 export type AssertOp = 'eq' | 'gt' | 'lt' | 'contains' | 'truthy' | 'range';
 
@@ -395,6 +399,7 @@ export class AssertionEngine {
   private results: AssertionResult[] = [];
   private api: HypnoAPI;
   private telemetry: TelemetryAggregator;
+  readonly baseline: BaselineManager;
 
   /** Visual assertion helpers — available after setSubsystems() */
   visual: VisualAssertions | null = null;
@@ -404,6 +409,7 @@ export class AssertionEngine {
   constructor(api: HypnoAPI, telemetry: TelemetryAggregator) {
     this.api = api;
     this.telemetry = telemetry;
+    this.baseline = new BaselineManager(api, telemetry);
   }
 
   /** Wire in subsystem references for visual/audio assertions. */
