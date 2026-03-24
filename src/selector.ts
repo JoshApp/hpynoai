@@ -5,6 +5,7 @@ import type { ExperienceLevel } from './experience-level';
 import { LEVEL_LABELS } from './experience-level';
 import type { EventBus } from './events';
 import { hotState, type AuthState } from './hot-state';
+import type { Favorites } from './favorites';
 
 /**
  * Immersive 3D session selector — the landing IS the experience.
@@ -32,6 +33,8 @@ export class SessionSelector {
   private disposed = false;
   private bus: EventBus;
   private unsubs: Array<() => void> = [];
+  private favorites: Favorites | null = null;
+  private heartSprites: THREE.Sprite[] = [];
 
   // Auth UI overlay (DOM, not 3D)
   private authOverlay: HTMLDivElement | null = null;
@@ -78,6 +81,13 @@ export class SessionSelector {
   setPresenceControl(setter: (x: number, y: number, z: number) => void, pulse?: () => void): void {
     this._setPresenceTarget = setter;
     this._pulsePresence = pulse ?? null;
+  }
+
+  setFavorites(favorites: Favorites): void {
+    this.favorites = favorites;
+    // Listen for external changes (e.g. sync) and update heart visuals
+    const unsub = favorites.onChange(() => this.updateHeartStates());
+    this.unsubs.push(unsub);
   }
 
   setDepth(z: number): void {
@@ -147,6 +157,17 @@ export class SessionSelector {
       const labelMat = label.material as THREE.SpriteMaterial;
       const labelAlpha = focused ? 0.9 : Math.max(0.1, 0.5 - absDiff * 0.2);
       labelMat.opacity += (labelAlpha - labelMat.opacity) * lerp;
+
+      // Heart follows orb, upper-right corner
+      const heart = this.heartSprites[i];
+      if (heart && heart.visible) {
+        heart.position.x += (targetX + 0.12 - heart.position.x) * lerp;
+        heart.position.z += (targetZ + 0.01 - heart.position.z) * lerp;
+        heart.position.y += (targetY + 0.08 - heart.position.y) * lerp;
+        const heartMat = heart.material as THREE.SpriteMaterial;
+        const heartAlpha = focused ? 0.9 : Math.max(0.1, 0.4 - absDiff * 0.15);
+        heartMat.opacity += (heartAlpha - heartMat.opacity) * lerp;
+      }
     }
 
     // Move presence to focused orb position
@@ -193,6 +214,7 @@ export class SessionSelector {
     this.allSprites = [];
     this.orbSprites = [];
     this.orbLabels = [];
+    this.heartSprites = [];
   }
 
   // ══════════════════════════════════════════
@@ -363,6 +385,20 @@ export class SessionSelector {
       this.group.add(label);
       this.orbLabels.push(label);
       this.allSprites.push(label);
+
+      // Heart icon for favorites
+      const isFav = this.favorites?.isFavorite(s.id) ?? false;
+      const heart = SpriteText.create(isFav ? '\u2764' : '\u2661', {
+        height: 0.04, fontSize: 32, color: isFav ? '#ff6b8a' : '#887aaa',
+        glow: isFav ? 'rgba(255,107,138,0.5)' : 'rgba(136,122,170,0.2)',
+        additive: false,
+      });
+      heart.position.set(posX + 0.12, posY + 0.08, posZ + 0.01);
+      heart.userData.sessionId = s.id;
+      SpriteText.setOpacity(heart, 0);
+      this.group.add(heart);
+      this.heartSprites.push(heart);
+      this.allSprites.push(heart);
     }
 
     // Fade in all at once — no stagger, they're already positioned
@@ -374,6 +410,10 @@ export class SessionSelector {
         this.fadeIn(this.orbSprites[i], 0.5, 800);
         this.fadeIn(this.orbLabels[i], 0.5, 800);
       }
+      // Heart fades in on all orbs
+      if (this.heartSprites[i]) {
+        this.fadeIn(this.heartSprites[i], 0.7, 800);
+      }
     }
 
     this.selectedIndex = 0;
@@ -383,12 +423,13 @@ export class SessionSelector {
     if (this.disposed) return;
     const session = this.sessions[selected];
 
-    // ── Selection: fade all orbs/labels, pulse the wisp ──
+    // ── Selection: fade all orbs/labels/hearts, pulse the wisp ──
     question.visible = false;
     if (this.descSprite) this.animateOut(this.descSprite, 400);
     for (let i = 0; i < this.orbSprites.length; i++) {
       this.animateOut(this.orbSprites[i], 500);
       this.animateOut(this.orbLabels[i], 500);
+      if (this.heartSprites[i]) this.animateOut(this.heartSprites[i], 500);
     }
 
     // Pulse the wisp on selection
@@ -603,11 +644,18 @@ export class SessionSelector {
 
   private waitForChoice(): Promise<number> {
     return new Promise(resolve => {
-      const raycast = (cx: number, cy: number): number => {
+      const raycastOrbs = (cx: number, cy: number): number => {
         this.pointer.set((cx / this.canvas.clientWidth) * 2 - 1, -(cy / this.canvas.clientHeight) * 2 + 1);
         this.raycaster.setFromCamera(this.pointer, this.camera);
         const hits = this.raycaster.intersectObjects(this.orbSprites);
         return hits.length > 0 ? this.orbSprites.indexOf(hits[0].object as THREE.Sprite) : -1;
+      };
+
+      const raycastHearts = (cx: number, cy: number): number => {
+        this.pointer.set((cx / this.canvas.clientWidth) * 2 - 1, -(cy / this.canvas.clientHeight) * 2 + 1);
+        this.raycaster.setFromCamera(this.pointer, this.camera);
+        const hits = this.raycaster.intersectObjects(this.heartSprites);
+        return hits.length > 0 ? this.heartSprites.indexOf(hits[0].object as THREE.Sprite) : -1;
       };
 
       let resolved = false;
@@ -627,9 +675,20 @@ export class SessionSelector {
         this.selectedIndex = (this.selectedIndex + 1) % this.sessions.length;
       }));
 
-      // Tap/click: raycast on orbs, or confirm current selection
+      // Tap/click: check hearts first (smaller target, higher priority), then orbs
       subs.push(this.bus.on('input:tap', ({ clientX, clientY }) => {
-        const idx = raycast(clientX, clientY);
+        // Check heart hit first
+        const heartIdx = raycastHearts(clientX, clientY);
+        if (heartIdx >= 0 && this.favorites) {
+          const sessionId = this.sessions[heartIdx]?.id;
+          if (sessionId) {
+            this.favorites.toggle(sessionId);
+            this.updateHeartVisual(heartIdx);
+          }
+          return; // Don't select session when tapping heart
+        }
+        // Otherwise, select/confirm via orb or current
+        const idx = raycastOrbs(clientX, clientY);
         done(idx >= 0 ? idx : this.selectedIndex);
       }));
 
@@ -640,6 +699,43 @@ export class SessionSelector {
 
       this.unsubs.push(...subs);
     });
+  }
+
+  /** Update a single heart sprite to reflect current favorite state. */
+  private updateHeartVisual(index: number): void {
+    const heart = this.heartSprites[index];
+    const session = this.sessions[index];
+    if (!heart || !session) return;
+    const isFav = this.favorites?.isFavorite(session.id) ?? false;
+
+    // Replace the sprite's texture with the updated heart character
+    const oldMat = heart.material as THREE.SpriteMaterial;
+    const opacity = oldMat.opacity;
+    const newHeart = SpriteText.create(isFav ? '\u2764' : '\u2661', {
+      height: 0.04, fontSize: 32, color: isFav ? '#ff6b8a' : '#887aaa',
+      glow: isFav ? 'rgba(255,107,138,0.5)' : 'rgba(136,122,170,0.2)',
+      additive: false,
+    });
+    // Copy texture from new sprite to existing sprite
+    const newMat = newHeart.material as THREE.SpriteMaterial;
+    oldMat.map?.dispose();
+    oldMat.map = newMat.map;
+    oldMat.color.copy(newMat.color);
+    oldMat.opacity = opacity;
+    oldMat.needsUpdate = true;
+    // Copy scale
+    heart.scale.copy(newHeart.scale);
+    heart.userData._targetScale = newHeart.scale.clone();
+    // Dispose temp sprite
+    newMat.map = null;
+    newMat.dispose();
+  }
+
+  /** Update all heart sprites (called on external favorites change). */
+  private updateHeartStates(): void {
+    for (let i = 0; i < this.heartSprites.length; i++) {
+      this.updateHeartVisual(i);
+    }
   }
 
   private sleep(ms: number): Promise<void> {
