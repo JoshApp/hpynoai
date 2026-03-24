@@ -36,6 +36,7 @@ import { createHypnoAPI, type HypnoAPI } from './api';
 import { TelemetryAggregator } from './telemetry';
 import { FrameProfiler } from './frame-profiler';
 import { parseIsolationParams, type IsolationConfig, type ShaderIsolation } from './isolation';
+import { initConsoleProtocol } from './console-protocol';
 
 // ══════════════════════════════════════════════════════════════════════
 // ERROR BOUNDARIES — check before anything else
@@ -547,6 +548,9 @@ function startSession(session: SessionConfig): void {
     // Reset telemetry for new session and expose on window
     telemetry.reset();
     (window as any).__HYPNO_TELEMETRY__ = telemetry;
+
+    // Start structured console protocol for AI agent consumption
+    initConsoleProtocol(hypnoApi, telemetry);
 
     doneLoading();
     isRunning = true;
@@ -1176,6 +1180,7 @@ function boot(): void {
         // Re-create API for HMR
         hypnoApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, audio, bus });
         window.__HYPNO__ = hypnoApi;
+        initConsoleProtocol(hypnoApi, telemetry);
 
         isRunning = true;
         animate();
@@ -1304,7 +1309,9 @@ onCleanup(() => document.removeEventListener('visibilitychange', onVisibilityCha
 // ══════════════════════════════════════════════════════════════════════
 // EXPOSE INITIAL API — minimal surface before session starts
 // ══════════════════════════════════════════════════════════════════════
-window.__HYPNO__ = createHypnoAPI({ timeline, machine, interactions, breath, narration, audio, bus });
+const initialApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, audio, bus });
+window.__HYPNO__ = initialApi;
+initConsoleProtocol(initialApi, telemetry);
 
 // EXPOSE FRAME PROFILER — accessible via window.__HYPNO_PROFILER__
 (window as unknown as Record<string, unknown>).__HYPNO_PROFILER__ = profiler;
