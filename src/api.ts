@@ -1,30 +1,29 @@
 /**
- * window.__HYPNO__ — programmatic API for AI agents via Chrome DevTools.
+ * window.__HYPNO__ — programmatic API for AI agents and test harnesses.
  *
- * All return values are plain JSON-serializable objects (no class instances,
- * no circular refs) so `evaluate_script` can pass them back over CDP.
+ * Exposes timeline control, state queries, event subscriptions, and
+ * a ring-buffer event log for poll-based consumers (Chrome DevTools evaluate_script).
  */
 
-import type { Timeline, TimelineBlock } from './timeline';
+import type { Timeline, TimelineState, TimelineBlock } from './timeline';
 import type { StateMachine } from './state-machine';
 import type { InteractionManager } from './interactions';
 import type { BreathController } from './breath';
 import type { NarrationEngine } from './narration';
 import type { EventBus } from './events';
 
-export interface HypnoAPIDeps {
-  timeline: Timeline;
-  machine: StateMachine;
-  interactions: InteractionManager;
-  breath: BreathController;
-  narration: NarrationEngine;
-  bus: EventBus;
-}
+// ── Public types (all JSON-serializable) ────────────────────────
 
 export interface TimelineSnapshot {
   position: number;
   blockIndex: number;
-  block: { kind: string; stageName: string; start: number; end: number; duration: number };
+  block: {
+    kind: string;
+    stageName: string;
+    start: number;
+    end: number;
+    duration: number;
+  };
   blockElapsed: number;
   blockProgress: number;
   intensity: number;
@@ -45,39 +44,128 @@ export interface BlockInfo {
   duration: number;
 }
 
-function blockToInfo(b: TimelineBlock, index: number): BlockInfo {
+export type HypnoEvent =
+  | 'block:changed'
+  | 'interaction:boundary'
+  | 'interaction:complete'
+  | 'narration:line'
+  | 'session:started'
+  | 'session:ended'
+  | 'state:update';
+
+export interface EventLogEntry {
+  event: string;
+  data: unknown;
+  timestamp: number;
+}
+
+// ── Event log ring buffer ───────────────────────────────────────
+
+const MAX_LOG_ENTRIES = 200;
+
+class EventLog {
+  private entries: EventLogEntry[] = [];
+
+  push(event: string, data: unknown): void {
+    if (this.entries.length >= MAX_LOG_ENTRIES) {
+      this.entries.shift();
+    }
+    this.entries.push({ event, data, timestamp: Date.now() });
+  }
+
+  get(since?: number): EventLogEntry[] {
+    if (since == null) return [...this.entries];
+    return this.entries.filter(e => e.timestamp > since);
+  }
+
+  clear(): void {
+    this.entries = [];
+  }
+}
+
+// ── Factory deps ────────────────────────────────────────────────
+
+export interface HypnoAPIDeps {
+  timeline: Timeline;
+  machine: StateMachine;
+  interactions: InteractionManager;
+  breath: BreathController;
+  narration: NarrationEngine;
+  bus: EventBus;
+}
+
+// ── Helpers ─────────────────────────────────────────────────────
+
+function stateToSnapshot(state: TimelineState, timeline: Timeline): TimelineSnapshot {
+  const block = state.block;
+  const breathPattern = state.breathPattern;
+  const cycleDuration = breathPattern
+    ? breathPattern.inhale + (breathPattern.holdIn ?? 0) + breathPattern.exhale + (breathPattern.holdOut ?? 0)
+    : 0;
+
   return {
-    index,
-    kind: b.kind,
-    stageName: b.stage.name,
-    start: b.start,
-    end: b.end,
-    duration: b.duration,
+    position: state.position,
+    blockIndex: state.blockIndex,
+    block: {
+      kind: block.kind,
+      stageName: block.stage.name,
+      start: block.start,
+      end: block.end,
+      duration: block.duration,
+    },
+    blockElapsed: state.blockElapsed,
+    blockProgress: state.blockProgress,
+    intensity: state.intensity,
+    breath: state.breathValue != null && state.breathStage != null
+      ? { value: state.breathValue, stage: state.breathStage, cycleDuration }
+      : null,
+    currentText: state.currentText,
+    speed: timeline.speed,
+    paused: timeline.paused,
+    complete: state.complete,
+    atBoundary: state.atBoundary,
   };
 }
 
-export interface HypnoAPI {
-  seek(seconds: number): void;
-  seekBlock(index: number): void;
-  seekBlockByType(type: string, direction?: 'next' | 'prev'): void;
-  seekStage(name: string): void;
-  play(): void;
-  pause(): void;
-  step(direction?: 1 | -1): void;
-  setSpeed(multiplier: number): void;
-  getState(): TimelineSnapshot | null;
-  getBlocks(): BlockInfo[];
-  getStages(): string[];
-  isPlaying(): boolean;
-  getSessionId(): string | null;
-  getPhase(): string;
-  skipInteraction(): void;
+function blockToInfo(block: TimelineBlock, index: number): BlockInfo {
+  return {
+    index,
+    kind: block.kind,
+    stageName: block.stage.name,
+    start: block.start,
+    end: block.end,
+    duration: block.duration,
+  };
 }
 
-export function createHypnoAPI(deps: HypnoAPIDeps): HypnoAPI {
-  const { timeline, machine, interactions } = deps;
+// ── Factory ─────────────────────────────────────────────────────
 
-  return {
+export function createHypnoAPI(deps: HypnoAPIDeps) {
+  const { timeline, machine, interactions, bus } = deps;
+  const eventLog = new EventLog();
+
+  // Event subscribers
+  type Callback = (data: unknown) => void;
+  const subscribers = new Map<string, Set<Callback>>();
+
+  function emit(event: string, data: unknown): void {
+    eventLog.push(event, data);
+    const subs = subscribers.get(event);
+    if (subs) {
+      for (const cb of subs) {
+        try { cb(data); } catch { /* swallow */ }
+      }
+    }
+  }
+
+  // Track frame count for state:update throttle (every 6th frame ≈ 10fps at 60fps)
+  let frameCount = 0;
+  let lastBlockIndex = -1;
+  let wasAtBoundary = false;
+
+  const api = {
+    // ── Timeline Control ──────────────────────────────────────
+
     seek(seconds: number): void {
       if (!timeline.started) return;
       timeline.seek(seconds);
@@ -85,15 +173,18 @@ export function createHypnoAPI(deps: HypnoAPIDeps): HypnoAPI {
 
     seekBlock(index: number): void {
       const blocks = timeline.allBlocks;
-      if (index < 0 || index >= blocks.length) return;
-      timeline.seek(blocks[index].start);
+      if (index >= 0 && index < blocks.length) {
+        timeline.seek(blocks[index].start);
+      }
     },
 
-    seekBlockByType(type: string, direction: 'next' | 'prev' = 'next'): void {
+    seekBlockByType(
+      type: 'narration' | 'breathing' | 'interaction' | 'transition',
+      direction: 'next' | 'prev' = 'next',
+    ): void {
       const blocks = timeline.allBlocks;
       if (blocks.length === 0) return;
       const current = timeline.currentIndex;
-
       if (direction === 'next') {
         for (let i = current + 1; i < blocks.length; i++) {
           if (blocks[i].kind === type) { timeline.seek(blocks[i].start); return; }
@@ -132,44 +223,12 @@ export function createHypnoAPI(deps: HypnoAPIDeps): HypnoAPI {
       timeline.setSpeed(multiplier);
     },
 
+    // ── State Queries ─────────────────────────────────────────
+
     getState(): TimelineSnapshot | null {
-      const s = timeline.lastState;
-      if (!s) {
-        if (timeline.started) return null;
-        // Not in a session — return minimal state
-        return null;
-      }
-
-      const breathData = s.breathValue !== null && s.breathStage
-        ? {
-            value: s.breathValue,
-            stage: s.breathStage,
-            cycleDuration: s.breathPattern
-              ? s.breathPattern.inhale + (s.breathPattern.holdIn ?? 0) + s.breathPattern.exhale + (s.breathPattern.holdOut ?? 0)
-              : 0,
-          }
-        : null;
-
-      return {
-        position: s.position,
-        blockIndex: s.blockIndex,
-        block: {
-          kind: s.block.kind,
-          stageName: s.block.stage.name,
-          start: s.block.start,
-          end: s.block.end,
-          duration: s.block.duration,
-        },
-        blockElapsed: s.blockElapsed,
-        blockProgress: s.blockProgress,
-        intensity: s.intensity,
-        breath: breathData,
-        currentText: s.currentText,
-        speed: timeline.speed,
-        paused: timeline.paused,
-        complete: s.complete,
-        atBoundary: s.atBoundary,
-      };
+      const state = timeline.lastState;
+      if (!state) return null;
+      return stateToSnapshot(state, timeline);
     },
 
     getBlocks(): BlockInfo[] {
@@ -179,10 +238,10 @@ export function createHypnoAPI(deps: HypnoAPIDeps): HypnoAPI {
     getStages(): string[] {
       const seen = new Set<string>();
       const result: string[] = [];
-      for (const b of timeline.allBlocks) {
-        if (!seen.has(b.stage.name)) {
-          seen.add(b.stage.name);
-          result.push(b.stage.name);
+      for (const block of timeline.allBlocks) {
+        if (!seen.has(block.stage.name)) {
+          seen.add(block.stage.name);
+          result.push(block.stage.name);
         }
       }
       return result;
@@ -200,11 +259,86 @@ export function createHypnoAPI(deps: HypnoAPIDeps): HypnoAPI {
       return machine.phase;
     },
 
+    // ── Interactions ──────────────────────────────────────────
+
     skipInteraction(): void {
       interactions.skip();
+      if (timeline.paused) timeline.resume();
+    },
+
+    // ── Event Subscriptions ───────────────────────────────────
+
+    on(event: HypnoEvent, callback: (data: unknown) => void): () => void {
+      if (!subscribers.has(event)) {
+        subscribers.set(event, new Set());
+      }
+      const set = subscribers.get(event)!;
+      set.add(callback);
+      return () => set.delete(callback);
+    },
+
+    // ── Event Log Buffer ──────────────────────────────────────
+
+    getEventLog(since?: number): EventLogEntry[] {
+      return eventLog.get(since);
+    },
+
+    clearEventLog(): void {
+      eventLog.clear();
+    },
+
+    // ── Internal: called from animate() ───────────────────────
+
+    /** @internal — called every frame from animate loop */
+    _onFrame(state: TimelineState): void {
+      frameCount++;
+
+      // block:changed
+      if (state.blockIndex !== lastBlockIndex) {
+        lastBlockIndex = state.blockIndex;
+        emit('block:changed', blockToInfo(state.block, state.blockIndex));
+      }
+
+      // interaction:boundary
+      if (state.atBoundary && !wasAtBoundary) {
+        emit('interaction:boundary', {
+          blockIndex: state.blockIndex,
+          type: state.block.interaction?.type ?? null,
+        });
+      }
+      wasAtBoundary = state.atBoundary;
+
+      // state:update — throttled to every 6th frame (~10fps at 60fps)
+      if (frameCount % 6 === 0) {
+        emit('state:update', stateToSnapshot(state, timeline));
+      }
     },
   };
+
+  // ── Bridge internal bus events to public API events ─────────
+
+  bus.on('interaction:complete', (payload) => {
+    emit('interaction:complete', { type: payload.type });
+  });
+
+  bus.on('narration:line', (payload) => {
+    emit('narration:line', { text: payload.text });
+  });
+
+  bus.on('session:started', (payload) => {
+    emit('session:started', { sessionId: payload.session.id, name: payload.session.name });
+  });
+
+  bus.on('session:ended', () => {
+    emit('session:ended', {});
+  });
+
+  return api;
 }
+
+export type HypnoAPI = ReturnType<typeof createHypnoAPI>;
+
+// ── Declare on window ───────────────────────────────────────────
 
 declare global {
   interface Window {
