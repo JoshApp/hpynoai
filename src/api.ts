@@ -170,6 +170,7 @@ export function createHypnoAPI(deps: HypnoAPIDeps) {
 
   // Frame timing for health check
   let lastFrameTs = 0;        // performance.now() of last _onFrame call
+  let frameReceived = false;  // true after first _onFrame/_onBackgroundFrame call
   let fpsAccum = 0;           // frames counted in current second
   let fpsValue = 0;           // last computed FPS
   let fpsWindowStart = 0;     // start of current 1s window
@@ -323,8 +324,9 @@ export function createHypnoAPI(deps: HypnoAPIDeps) {
       const now = performance.now();
 
       // Renderer: is the loop running and keeping up?
-      const lastFrameMs = lastFrameTs > 0 ? now - lastFrameTs : Infinity;
-      const rendererOk = lastFrameMs < 500 && fpsValue > 10;
+      // Before any frame arrives, treat renderer as ok (not yet measurable)
+      const lastFrameMs = frameReceived ? now - lastFrameTs : 0;
+      const rendererOk = !frameReceived || (lastFrameMs < 500 && fpsValue > 10);
 
       // Audio: context running and analyzer connected?
       const ctx = audio.context;
@@ -438,6 +440,7 @@ export function createHypnoAPI(deps: HypnoAPIDeps) {
       // Track frame timing for healthCheck
       const now = performance.now();
       lastFrameTs = now;
+      frameReceived = true;
       fpsAccum++;
       if (now - fpsWindowStart >= 1000) {
         fpsValue = fpsAccum;
@@ -472,6 +475,7 @@ export function createHypnoAPI(deps: HypnoAPIDeps) {
     _onBackgroundFrame(): void {
       const now = performance.now();
       lastFrameTs = now;
+      frameReceived = true;
       fpsAccum++;
       if (now - fpsWindowStart >= 1000) {
         fpsValue = fpsAccum;
