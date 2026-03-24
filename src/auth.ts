@@ -214,3 +214,5 @@ if (!g[HOT_KEY]) g[HOT_KEY] = {};
 export const auth: AuthManager =
   (g[HOT_KEY].auth as AuthManager) ?? new AuthManager();
 g[HOT_KEY].auth = auth;
+// Also expose as authManager for UI consumers (selector.ts, settings.ts)
+g[HOT_KEY].authManager = auth;
