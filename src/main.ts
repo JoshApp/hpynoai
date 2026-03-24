@@ -568,7 +568,7 @@ function startSession(session: SessionConfig): void {
     devMode.rebuildStageButtons();
 
     // Expose programmatic API on window for AI agents / test harnesses
-    hypnoApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, audio, telemetry, bus, canvas, mic });
+    hypnoApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, audio, telemetry, bus, canvas, mic, profiler });
     window.__HYPNO__ = hypnoApi;
     wireAssertSubsystems(hypnoApi);
 
@@ -1147,7 +1147,7 @@ function bootTimelineIsolation(config: { mode: 'block' | 'stage'; session: strin
     timebar.buildBlocks();
     devMode.rebuildStageButtons();
 
-    hypnoApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, audio, telemetry, bus, canvas, mic });
+    hypnoApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, audio, telemetry, bus, canvas, mic, profiler });
     window.__HYPNO__ = hypnoApi;
     wireAssertSubsystems(hypnoApi);
 
@@ -1358,7 +1358,7 @@ function bootInteractionIsolation(config: { mode: 'interaction'; type: string; b
     timebar.buildBlocks();
     devMode.rebuildStageButtons();
 
-    hypnoApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, audio, telemetry, bus, canvas, mic });
+    hypnoApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, audio, telemetry, bus, canvas, mic, profiler });
     window.__HYPNO__ = hypnoApi;
     wireAssertSubsystems(hypnoApi);
 
@@ -1417,7 +1417,7 @@ function boot(): void {
         }
 
         // Re-create API for HMR
-        hypnoApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, audio, telemetry, bus, canvas, mic });
+        hypnoApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, audio, telemetry, bus, canvas, mic, profiler });
         window.__HYPNO__ = hypnoApi;
         initConsoleProtocol(hypnoApi, telemetry);
         wireAssertSubsystems(hypnoApi);
@@ -1554,7 +1554,7 @@ onCleanup(() => document.removeEventListener('visibilitychange', onVisibilityCha
 // ══════════════════════════════════════════════════════════════════════
 // EXPOSE INITIAL API — minimal surface before session starts
 // ══════════════════════════════════════════════════════════════════════
-const initialApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, audio, telemetry, bus, canvas, mic });
+const initialApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, audio, telemetry, bus, canvas, mic, profiler });
 window.__HYPNO__ = initialApi;
 initConsoleProtocol(initialApi, telemetry);
 wireAssertSubsystems(initialApi);
