@@ -38,6 +38,7 @@ import { FrameProfiler } from './frame-profiler';
 import { parseIsolationParams, type IsolationConfig, type ShaderIsolation } from './isolation';
 import { initConsoleProtocol, teardownConsoleProtocol } from './console-protocol';
 import { auth } from './auth';
+import { showPostSessionPrompt, autoAnonymousSignIn } from './post-session-prompt';
 
 // ══════════════════════════════════════════════════════════════════════
 // ERROR BOUNDARIES — check before anything else
@@ -893,6 +894,9 @@ function cleanupSession(): void {
   if (_breathClip) { _breathClip.pause(); _breathClip = null; }
   activeSession = null;
 
+  // Suggest sign-in to anonymous users after session completes
+  showPostSessionPrompt();
+
   bootSelector();
 }
 
@@ -1434,6 +1438,9 @@ function bootSelector(): void {
   selector.setExperienceLevelControl((level) => {
     settings.updateBatch({ experienceLevel: level });
   });
+
+  // Auto-sign-in anonymously on first visit (no-op if already authenticated)
+  autoAnonymousSignIn();
 
   // Tell presence to enter menu mode via bus
   bus.emit('selector:ready', {});
