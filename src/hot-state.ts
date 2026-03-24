@@ -28,6 +28,7 @@ import type { EventBus } from './events';
 import type { StateMachine } from './state-machine';
 import type { InputController } from './input';
 import type { GpuParticles } from './gpu-particles';
+import type { Favorites } from './favorites';
 
 /** Auth state exposed by AuthManager (created by auth.ts when Supabase is configured) */
 export interface AuthState {
@@ -85,6 +86,9 @@ export interface HotState {
   compositeQuad?: THREE.Mesh;
   overlayScene?: THREE.Scene;
   fadeOverlay?: THREE.Mesh;
+
+  // Data modules
+  favorites?: Favorites;
 
   // Runtime state
   isRunning?: boolean;

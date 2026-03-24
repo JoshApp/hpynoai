@@ -37,6 +37,7 @@ import { sessionHistory } from './history';
 import { TelemetryAggregator } from './telemetry';
 import { FrameProfiler } from './frame-profiler';
 import { parseIsolationParams, type IsolationConfig, type ShaderIsolation } from './isolation';
+import { Favorites } from './favorites';
 import { initConsoleProtocol, teardownConsoleProtocol } from './console-protocol';
 import { auth } from './auth';
 import { showPostSessionPrompt, autoAnonymousSignIn } from './post-session-prompt';
@@ -99,6 +100,9 @@ hotState.settings = settings;
 const settingsSync = new SettingsSync(null, settings);
 settingsSync.init();
 onCleanup(() => settingsSync.dispose());
+
+const favorites = hotState.favorites ?? new Favorites(null);
+hotState.favorites = favorites;
 
 const mouse = { x: 0, y: 0 };
 
@@ -1452,6 +1456,8 @@ function bootSelector(): void {
 
   selector = new SessionSelector(sessions, startSession, overlayScene, camera, canvas, bus);
   hotState.selector = selector;
+
+  selector.setFavorites(favorites);
 
   selector.setExperienceLevelControl((level) => {
     settings.updateBatch({ experienceLevel: level });
