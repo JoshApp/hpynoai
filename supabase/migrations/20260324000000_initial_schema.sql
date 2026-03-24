@@ -10,6 +10,7 @@ create table public.profiles (
   display_name text,
   avatar_url text,
   experience_level text default 'listen' check (experience_level in ('listen', 'watch', 'breathe', 'immerse')),
+  stripe_customer_id text,
   created_at timestamptz default now() not null,
   updated_at timestamptz default now() not null
 );
