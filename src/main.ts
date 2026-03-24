@@ -36,7 +36,7 @@ import { createHypnoAPI, type HypnoAPI } from './api';
 import { TelemetryAggregator } from './telemetry';
 import { FrameProfiler } from './frame-profiler';
 import { parseIsolationParams, type IsolationConfig, type ShaderIsolation } from './isolation';
-import { initConsoleProtocol } from './console-protocol';
+import { initConsoleProtocol, teardownConsoleProtocol } from './console-protocol';
 
 // ══════════════════════════════════════════════════════════════════════
 // ERROR BOUNDARIES — check before anything else
@@ -52,6 +52,7 @@ if (hotState.animFrameId) cancelAnimationFrame(hotState.animFrameId);
 if (hotState.bgAnimFrameId) cancelAnimationFrame(hotState.bgAnimFrameId);
 hotState.animFrameId = undefined;
 hotState.bgAnimFrameId = undefined;
+teardownConsoleProtocol();
 if (hotState.cleanupFns) {
   for (const fn of hotState.cleanupFns) fn();
 }
@@ -1520,6 +1521,7 @@ const initialApi = createHypnoAPI({ timeline, machine, interactions, breath, nar
 window.__HYPNO__ = initialApi;
 initConsoleProtocol(initialApi, telemetry);
 wireAssertSubsystems(initialApi);
+onCleanup(() => teardownConsoleProtocol());
 
 // EXPOSE FRAME PROFILER — accessible via window.__HYPNO_PROFILER__
 (window as unknown as Record<string, unknown>).__HYPNO_PROFILER__ = profiler;
