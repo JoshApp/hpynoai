@@ -40,6 +40,7 @@ interface SupabaseAuthClient {
 }
 
 interface SupabaseSession {
+  access_token: string;
   user: {
     id: string;
     email?: string;
@@ -72,6 +73,7 @@ export class AuthManager {
   private _listeners = new Set<AuthListener>();
   private _client: SupabaseLike | null = null;
   private _unsubscribe: (() => void) | null = null;
+  private _accessToken: string | null = null;
 
   /**
    * Initialize auth. Pass a Supabase client to enable authentication.
@@ -155,6 +157,11 @@ export class AuthManager {
     return this._state;
   }
 
+  /** Current Supabase access token, or null if not authenticated. */
+  getAccessToken(): string | null {
+    return this._accessToken;
+  }
+
   /** Subscribe to auth state changes. Returns unsubscribe function. */
   onChange(listener: AuthListener): () => void {
     this._listeners.add(listener);
@@ -172,6 +179,7 @@ export class AuthManager {
   private _applySession(session: SupabaseSession | null): void {
     if (!session) {
       this._state = { ...UNAUTHENTICATED };
+      this._accessToken = null;
     } else {
       const u = session.user;
       const meta = u.user_metadata ?? {};
@@ -186,6 +194,7 @@ export class AuthManager {
         isAnonymous: !!u.is_anonymous,
         loading: false,
       };
+      this._accessToken = session.access_token;
     }
     this._notify();
   }

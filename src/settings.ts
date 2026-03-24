@@ -348,7 +348,7 @@ export class SettingsManager {
         <div class="settings-group">
           <button id="settings-calibrate" class="settings-btn-calibrate">calibrate experience</button>
         </div>
-        <div class="settings-group">
+        <div class="settings-group" id="settings-subscription-section" style="display:none">
           <div class="settings-group-title">subscription</div>
           <button id="settings-upgrade" class="settings-btn-calibrate">upgrade to premium</button>
           <button id="settings-manage-sub" class="settings-btn-reset">manage subscription</button>
@@ -507,15 +507,21 @@ export class SettingsManager {
 
     const section = this.panel.querySelector<HTMLDivElement>('#settings-account-section');
     const content = this.panel.querySelector<HTMLDivElement>('#settings-account-content');
+    const subSection = this.panel.querySelector<HTMLDivElement>('#settings-subscription-section');
     if (!section || !content) return;
 
     const render = (state: AuthState) => {
       content.innerHTML = '';
       if (state.loading) {
         section.style.display = 'none';
+        if (subSection) subSection.style.display = 'none';
         return;
       }
       section.style.display = '';
+      // Show subscription section only for authenticated (non-anonymous) users
+      if (subSection) {
+        subSection.style.display = (state.isAuthenticated && !state.isAnonymous) ? '' : 'none';
+      }
 
       if (state.isAuthenticated && !state.isAnonymous && state.user) {
         const info = document.createElement('div');

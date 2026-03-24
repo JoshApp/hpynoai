@@ -1403,6 +1403,9 @@ function boot(): void {
   // Initialize auth with Supabase client (gracefully degrades if null)
   auth.init(supabase);
 
+  // Wire auth access token into settings so payment buttons work
+  settings.setAccessTokenProvider(() => auth.getAccessToken());
+
   if (isHMR) {
     log.info('hmr', `Restoring phase: ${phase}`);
   }

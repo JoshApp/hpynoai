@@ -76,21 +76,22 @@ export function checkPaymentReturn(): 'success' | 'cancelled' | 'return' | null 
   const checkout = params.get('checkout');
   const payment = params.get('payment');
 
+  let result: 'success' | 'cancelled' | 'return' | null = null;
+
   if (checkout === 'success' || checkout === 'cancelled') {
-    // Clean up URL params without reload
+    result = checkout;
+  } else if (payment === 'return') {
+    result = 'return';
+  }
+
+  if (result) {
+    // Clean up all payment-related URL params without reload
     const url = new URL(window.location.href);
     url.searchParams.delete('checkout');
     url.searchParams.delete('session_id');
-    window.history.replaceState({}, '', url.toString());
-    return checkout;
-  }
-
-  if (payment === 'return') {
-    const url = new URL(window.location.href);
     url.searchParams.delete('payment');
     window.history.replaceState({}, '', url.toString());
-    return 'return';
   }
 
-  return null;
+  return result;
 }
