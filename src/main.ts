@@ -40,6 +40,7 @@ import { parseIsolationParams, type IsolationConfig, type ShaderIsolation } from
 import { initConsoleProtocol, teardownConsoleProtocol } from './console-protocol';
 import { auth } from './auth';
 import { showPostSessionPrompt, autoAnonymousSignIn } from './post-session-prompt';
+import { SettingsSync } from './settings-sync';
 
 // ══════════════════════════════════════════════════════════════════════
 // ERROR BOUNDARIES — check before anything else
@@ -92,6 +93,12 @@ const canvas = document.getElementById('scene') as HTMLCanvasElement;
 // ══════════════════════════════════════════════════════════════════════
 const settings = hotState.settings ?? new SettingsManager();
 hotState.settings = settings;
+
+// Settings sync — wire Supabase client here when available (null = no-op mode)
+// TODO: Replace null with Supabase client from src/supabase.ts when #3225 lands
+const settingsSync = new SettingsSync(null, settings);
+settingsSync.init();
+onCleanup(() => settingsSync.dispose());
 
 const mouse = { x: 0, y: 0 };
 
