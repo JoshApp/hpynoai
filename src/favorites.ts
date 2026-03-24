@@ -8,6 +8,8 @@
  * HMR-safe: persists via hotState.
  */
 
+import { hotState } from './hot-state';
+
 const STORAGE_KEY = 'hpyno-favorites';
 
 type Listener = (favorites: string[]) => void;
@@ -46,13 +48,13 @@ export class Favorites {
   async syncFromRemote(): Promise<void> {
     if (!this.supabase) return;
     try {
-      const client = this.supabase as { from: (table: string) => { select: (cols: string) => { data: Array<{ session_id: string }> | null; error: unknown } } };
-      const { data, error } = await (client.from('favorites').select('session_id') as unknown as Promise<{ data: Array<{ session_id: string }> | null; error: unknown }>);
+      const client = this.supabase as { from: (table: string) => { select: (cols: string) => { data: Array<{ session_type: string }> | null; error: unknown } } };
+      const { data, error } = await (client.from('favorites').select('session_type') as unknown as Promise<{ data: Array<{ session_type: string }> | null; error: unknown }>);
       if (error || !data) return;
       let changed = false;
       for (const row of data) {
-        if (!this.favorites.has(row.session_id)) {
-          this.favorites.add(row.session_id);
+        if (!this.favorites.has(row.session_type)) {
+          this.favorites.add(row.session_type);
           changed = true;
         }
       }
@@ -96,11 +98,18 @@ export class Favorites {
 
   private async syncToRemote(): Promise<void> {
     if (!this.supabase) return;
+    const auth = hotState.authManager;
+    const state = auth?.getState();
+    if (!state?.isAuthenticated || state.isAnonymous || !state.user) return;
+    const userId = state.user.id;
     try {
-      const client = this.supabase as { from: (table: string) => { upsert: (rows: unknown[]) => unknown; delete: () => { match: (filter: unknown) => unknown } } };
-      const rows = [...this.favorites].map(id => ({ session_id: id }));
+      const client = this.supabase as { from: (table: string) => { upsert: (rows: unknown[], opts?: unknown) => unknown; delete: () => { match: (filter: unknown) => unknown } } };
+      const rows = [...this.favorites].map(sessionType => ({
+        user_id: userId,
+        session_type: sessionType,
+      }));
       if (rows.length > 0) {
-        await (client.from('favorites').upsert(rows) as unknown as Promise<unknown>);
+        await (client.from('favorites').upsert(rows, { onConflict: 'user_id,session_type' }) as unknown as Promise<unknown>);
       }
     } catch {
       // Remote sync is best-effort
