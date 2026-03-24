@@ -178,6 +178,9 @@ export class Timeline {
   private _prevBlockIndex = -1;
   private _seeked = false;
 
+  // Cached last state for external consumers (API)
+  private _lastState: TimelineState | null = null;
+
   // Audio binding
   private audioElement: HTMLAudioElement | null = null;
   private audioBlockStart = 0;
@@ -487,7 +490,9 @@ export class Timeline {
       this._completeFired = true;
     }
 
-    return this.deriveState(pos, blockJustChanged, wasSeek);
+    const state = this.deriveState(pos, blockJustChanged, wasSeek);
+    this._lastState = state;
+    return state;
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -600,6 +605,8 @@ export class Timeline {
   get blockCount(): number { return this.blocks.length; }
   get allBlocks(): readonly TimelineBlock[] { return this.blocks; }
   get isAudioBound(): boolean { return this.audioElement !== null; }
+  get speed(): number { return this.speedMultiplier; }
+  get lastState(): TimelineState | null { return this._lastState; }
 
   // ══════════════════════════════════════════════════════════════
   // INTERNAL
@@ -631,5 +638,6 @@ export class Timeline {
     this.audioElement = null;
     this.blocks = [];
     this._totalDuration = 0;
+    this._lastState = null;
   }
 }

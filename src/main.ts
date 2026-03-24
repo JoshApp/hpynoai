@@ -32,6 +32,7 @@ import { checkWebGL, installGlobalErrorHandler } from './error-boundary';
 import { registerServiceWorker } from './sw-register';
 import { LoadingIndicator } from './loading';
 import { log } from './logger';
+import { createHypnoAPI } from './api';
 
 // ══════════════════════════════════════════════════════════════════════
 // ERROR BOUNDARIES — check before anything else
@@ -534,6 +535,10 @@ function startSession(session: SessionConfig): void {
     isRunning = true;
     machine.transition('session');
     bus.emit('session:started', { session });
+
+    // Expose programmatic API for AI agents (Chrome DevTools evaluate_script)
+    window.__HYPNO__ = createHypnoAPI({ timeline, machine, interactions, breath, narration, bus });
+
     timeline.start();
     animate();
   });
@@ -993,6 +998,11 @@ const onVisibilityChange = () => {
 };
 document.addEventListener('visibilitychange', onVisibilityChange);
 onCleanup(() => document.removeEventListener('visibilitychange', onVisibilityChange));
+
+// ══════════════════════════════════════════════════════════════════════
+// EXPOSE INITIAL API — minimal surface before session starts
+// ══════════════════════════════════════════════════════════════════════
+window.__HYPNO__ = createHypnoAPI({ timeline, machine, interactions, breath, narration, bus });
 
 // ══════════════════════════════════════════════════════════════════════
 // GO
