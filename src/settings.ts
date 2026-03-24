@@ -4,6 +4,8 @@
  * Toggle: press 's' key or click the gear.
  */
 
+import { hotState, type AuthState } from './hot-state';
+
 export interface HpynoSettings {
   // Camera
   cameraZ: number;
@@ -96,6 +98,7 @@ export class SettingsManager {
   private visible = false;
   private calibrateHandler: (() => void) | null = null;
   private sliderDefs: Array<{ key: keyof HpynoSettings; unit?: string }> = [];
+  private authUnsub: (() => void) | null = null;
 
   constructor() {
     this.settings = this.load();
@@ -107,6 +110,7 @@ export class SettingsManager {
     document.body.appendChild(this.gearBtn);
     this.bindKeys();
     this.updateMuteButton();
+    this.bindAuthSection();
   }
 
   get current(): Readonly<HpynoSettings> {
@@ -315,6 +319,10 @@ export class SettingsManager {
             </button>
           </div>
         </div>
+        <div class="settings-group" id="settings-account-section" style="display:none">
+          <div class="settings-group-title">account</div>
+          <div id="settings-account-content"></div>
+        </div>
         <div class="settings-group">
           <div class="settings-group-title">features</div>
           <div class="settings-row settings-toggle-row">
@@ -457,6 +465,68 @@ export class SettingsManager {
         this.toggleMute();
       }
     });
+  }
+
+  private bindAuthSection(): void {
+    const auth = hotState.authManager;
+    if (!auth) return; // No auth — section stays hidden
+
+    const section = this.panel.querySelector<HTMLDivElement>('#settings-account-section');
+    const content = this.panel.querySelector<HTMLDivElement>('#settings-account-content');
+    if (!section || !content) return;
+
+    const render = (state: AuthState) => {
+      content.innerHTML = '';
+      if (state.loading) {
+        section.style.display = 'none';
+        return;
+      }
+      section.style.display = '';
+
+      if (state.isAuthenticated && !state.isAnonymous && state.user) {
+        const info = document.createElement('div');
+        info.className = 'settings-account-info';
+        if (state.user.name) {
+          const nameEl = document.createElement('div');
+          nameEl.className = 'settings-account-name';
+          nameEl.textContent = state.user.name;
+          info.appendChild(nameEl);
+        }
+        if (state.user.email) {
+          const emailEl = document.createElement('div');
+          emailEl.className = 'settings-account-email';
+          emailEl.textContent = state.user.email;
+          info.appendChild(emailEl);
+        }
+        content.appendChild(info);
+
+        const signOutBtn = document.createElement('button');
+        signOutBtn.className = 'settings-btn-reset settings-auth-btn';
+        signOutBtn.textContent = 'sign out';
+        signOutBtn.addEventListener('click', () => auth.signOut());
+        content.appendChild(signOutBtn);
+      } else if (state.isAnonymous) {
+        const anon = document.createElement('div');
+        anon.className = 'settings-account-anon';
+        anon.textContent = 'browsing anonymously';
+        content.appendChild(anon);
+
+        const linkBtn = document.createElement('button');
+        linkBtn.className = 'settings-btn-google settings-auth-btn';
+        linkBtn.textContent = 'link google account';
+        linkBtn.addEventListener('click', () => auth.linkGoogle());
+        content.appendChild(linkBtn);
+      } else {
+        const signInBtn = document.createElement('button');
+        signInBtn.className = 'settings-btn-google settings-auth-btn';
+        signInBtn.textContent = 'sign in with google';
+        signInBtn.addEventListener('click', () => auth.signInWithGoogle());
+        content.appendChild(signInBtn);
+      }
+    };
+
+    render(auth.getState());
+    this.authUnsub = auth.onChange(render);
   }
 
   show(): void {

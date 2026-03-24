@@ -501,6 +501,143 @@ html, body {
   border-color: rgba(200, 160, 255, 0.35);
 }
 
+/* ── Auth Overlay (selector screen) ── */
+#auth-overlay {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 9997;
+  pointer-events: auto;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 11px;
+  user-select: none;
+}
+
+#auth-overlay .auth-signed-in {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba(10, 8, 16, 0.5);
+  border: 1px solid rgba(200, 160, 255, 0.1);
+  border-radius: 20px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+#auth-overlay .auth-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid rgba(200, 160, 255, 0.2);
+}
+
+#auth-overlay .auth-initial {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(200, 160, 255, 0.15);
+  border: 1px solid rgba(200, 160, 255, 0.25);
+  color: #c8a0ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+#auth-overlay .auth-name {
+  color: #c0b0e0;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#auth-overlay .auth-sign-out {
+  background: none;
+  border: none;
+  color: #887aaa;
+  font-family: inherit;
+  font-size: 10px;
+  cursor: pointer;
+  padding: 2px 4px;
+  transition: color 0.2s;
+}
+
+#auth-overlay .auth-sign-out:hover {
+  color: #c8a0ff;
+}
+
+#auth-overlay .auth-sign-in {
+  padding: 6px 14px;
+  background: rgba(10, 8, 16, 0.5);
+  border: 1px solid rgba(200, 160, 255, 0.12);
+  border-radius: 16px;
+  color: #a090c0;
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+  opacity: 0.6;
+}
+
+#auth-overlay .auth-sign-in:hover {
+  opacity: 1;
+  color: #c8a0ff;
+  border-color: rgba(200, 160, 255, 0.3);
+  background: rgba(10, 8, 16, 0.7);
+}
+
+/* ── Settings Account Section ── */
+#settings-panel .settings-account-info {
+  margin-bottom: 8px;
+}
+
+#settings-panel .settings-account-name {
+  color: #c0b0e0;
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+#settings-panel .settings-account-email {
+  color: #887aaa;
+  font-size: 10px;
+}
+
+#settings-panel .settings-account-anon {
+  color: #887aaa;
+  font-size: 10px;
+  font-style: italic;
+  margin-bottom: 8px;
+}
+
+#settings-panel .settings-auth-btn {
+  margin-top: 4px;
+}
+
+#settings-panel .settings-btn-google {
+  width: 100%;
+  padding: 6px 8px;
+  background: rgba(168, 230, 207, 0.06);
+  border: 1px solid rgba(168, 230, 207, 0.15);
+  color: #a8e6cf;
+  font-family: inherit;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+#settings-panel .settings-btn-google:hover {
+  background: rgba(168, 230, 207, 0.12);
+  border-color: rgba(168, 230, 207, 0.3);
+}
+
 /* ── Mobile Responsive ── */
 @media (max-width: 600px) {
   #settings-panel {
@@ -512,6 +649,11 @@ html, body {
 
   #dev-panel {
     width: calc(100vw - 24px);
+    right: 12px;
+  }
+
+  #auth-overlay {
+    top: 12px;
     right: 12px;
   }
 
@@ -541,5 +683,9 @@ html, body {
   #fullscreen-btn {
     bottom: calc(16px + env(safe-area-inset-bottom));
     right: calc(62px + env(safe-area-inset-right));
+  }
+  #auth-overlay {
+    top: calc(16px + env(safe-area-inset-top));
+    right: calc(16px + env(safe-area-inset-right));
   }
 }

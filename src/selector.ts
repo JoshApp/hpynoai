@@ -4,6 +4,7 @@ import { SpriteText, createOrbSprite } from './sprite-text';
 import type { ExperienceLevel } from './experience-level';
 import { LEVEL_LABELS } from './experience-level';
 import type { EventBus } from './events';
+import { hotState, type AuthState } from './hot-state';
 
 /**
  * Immersive 3D session selector — the landing IS the experience.
@@ -32,6 +33,10 @@ export class SessionSelector {
   private bus: EventBus;
   private unsubs: Array<() => void> = [];
 
+  // Auth UI overlay (DOM, not 3D)
+  private authOverlay: HTMLDivElement | null = null;
+  private authUnsub: (() => void) | null = null;
+
   // Tunnel control callbacks
   private _setThemeColors: ((colors: {
     c1: [number, number, number]; c2: [number, number, number];
@@ -58,6 +63,7 @@ export class SessionSelector {
     this.bus = bus;
     this.group = new THREE.Group();
     this.scene.add(this.group);
+    this.createAuthOverlay();
     this.startSequence();
   }
 
@@ -176,6 +182,7 @@ export class SessionSelector {
 
   dispose(): void {
     this.disposed = true;
+    this.destroyAuthOverlay();
     for (const unsub of this.unsubs) unsub();
     this.unsubs = [];
     for (const sprite of this.allSprites) {
@@ -186,6 +193,79 @@ export class SessionSelector {
     this.allSprites = [];
     this.orbSprites = [];
     this.orbLabels = [];
+  }
+
+  // ══════════════════════════════════════════
+  // Auth UI overlay (DOM)
+  // ══════════════════════════════════════════
+
+  private createAuthOverlay(): void {
+    const auth = hotState.authManager;
+    if (!auth) return; // No auth manager — degrade gracefully (no UI)
+
+    const overlay = document.createElement('div');
+    overlay.id = 'auth-overlay';
+    document.body.appendChild(overlay);
+    this.authOverlay = overlay;
+
+    // Stop pointer events from leaking to canvas
+    for (const evt of ['mousedown', 'click', 'touchstart', 'pointerdown'] as const) {
+      overlay.addEventListener(evt, (e) => e.stopPropagation());
+    }
+
+    const render = (state: AuthState) => {
+      overlay.innerHTML = '';
+      if (state.loading) {
+        overlay.style.display = 'none';
+        return;
+      }
+      overlay.style.display = '';
+      if (state.isAuthenticated && !state.isAnonymous && state.user) {
+        const wrap = document.createElement('div');
+        wrap.className = 'auth-signed-in';
+
+        if (state.user.avatar) {
+          const img = document.createElement('img');
+          img.className = 'auth-avatar';
+          img.src = state.user.avatar;
+          img.alt = '';
+          wrap.appendChild(img);
+        } else {
+          const init = document.createElement('span');
+          init.className = 'auth-initial';
+          init.textContent = (state.user.name?.[0] ?? state.user.email?.[0] ?? '?').toUpperCase();
+          wrap.appendChild(init);
+        }
+
+        const name = document.createElement('span');
+        name.className = 'auth-name';
+        name.textContent = state.user.name ?? state.user.email ?? 'User';
+        wrap.appendChild(name);
+
+        const signOutBtn = document.createElement('button');
+        signOutBtn.className = 'auth-sign-out';
+        signOutBtn.title = 'Sign out';
+        signOutBtn.textContent = 'sign out';
+        signOutBtn.addEventListener('click', () => auth.signOut());
+        wrap.appendChild(signOutBtn);
+
+        overlay.appendChild(wrap);
+      } else {
+        const signInBtn = document.createElement('button');
+        signInBtn.className = 'auth-sign-in';
+        signInBtn.textContent = 'sign in';
+        signInBtn.addEventListener('click', () => auth.signInWithGoogle());
+        overlay.appendChild(signInBtn);
+      }
+    };
+
+    render(auth.getState());
+    this.authUnsub = auth.onChange(render);
+  }
+
+  private destroyAuthOverlay(): void {
+    if (this.authUnsub) { this.authUnsub(); this.authUnsub = null; }
+    if (this.authOverlay) { this.authOverlay.remove(); this.authOverlay = null; }
   }
 
   // ══════════════════════════════════════════
