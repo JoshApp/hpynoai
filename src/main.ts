@@ -538,7 +538,7 @@ function startSession(session: SessionConfig): void {
     devMode.rebuildStageButtons();
 
     // Expose programmatic API on window for AI agents / test harnesses
-    hypnoApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, bus });
+    hypnoApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, audio, bus });
     window.__HYPNO__ = hypnoApi;
 
     // Reset telemetry for new session and expose on window
@@ -597,6 +597,7 @@ function animateBackground(): void {
     targetColors,
   };
   renderPipeline.renderBackground(frame);
+  hypnoApi?._onBackgroundFrame();
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -1149,7 +1150,7 @@ function boot(): void {
         }
 
         // Re-create API for HMR
-        hypnoApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, bus });
+        hypnoApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, audio, bus });
         window.__HYPNO__ = hypnoApi;
 
         isRunning = true;
@@ -1279,7 +1280,7 @@ onCleanup(() => document.removeEventListener('visibilitychange', onVisibilityCha
 // ══════════════════════════════════════════════════════════════════════
 // EXPOSE INITIAL API — minimal surface before session starts
 // ══════════════════════════════════════════════════════════════════════
-window.__HYPNO__ = createHypnoAPI({ timeline, machine, interactions, breath, narration, bus });
+window.__HYPNO__ = createHypnoAPI({ timeline, machine, interactions, breath, narration, audio, bus });
 
 // EXPOSE FRAME PROFILER — accessible via window.__HYPNO_PROFILER__
 (window as unknown as Record<string, unknown>).__HYPNO_PROFILER__ = profiler;

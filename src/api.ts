@@ -10,7 +10,9 @@ import type { StateMachine } from './state-machine';
 import type { InteractionManager } from './interactions';
 import type { BreathController } from './breath';
 import type { NarrationEngine } from './narration';
+import type { AudioEngine } from './audio';
 import type { EventBus } from './events';
+import { log } from './logger';
 
 // ── Public types (all JSON-serializable) ────────────────────────
 
@@ -59,6 +61,19 @@ export interface EventLogEntry {
   timestamp: number;
 }
 
+export interface HealthReport {
+  healthy: boolean;
+  checks: {
+    renderer: { ok: boolean; fps: number; lastFrameMs: number };
+    audio: { ok: boolean; state: string; hasAnalyzer: boolean };
+    timeline: { ok: boolean; started: boolean; paused: boolean; position: number };
+    errors: { ok: boolean; count: number; recent: string[] };
+  };
+  uptime: number;
+  sessionId: string | null;
+  phase: string;
+}
+
 // ── Event log ring buffer ───────────────────────────────────────
 
 const MAX_LOG_ENTRIES = 200;
@@ -91,6 +106,7 @@ export interface HypnoAPIDeps {
   interactions: InteractionManager;
   breath: BreathController;
   narration: NarrationEngine;
+  audio: AudioEngine;
   bus: EventBus;
 }
 
@@ -140,9 +156,17 @@ function blockToInfo(block: TimelineBlock, index: number): BlockInfo {
 
 // ── Factory ─────────────────────────────────────────────────────
 
+const PAGE_LOAD_TIME = performance.now();
+
 export function createHypnoAPI(deps: HypnoAPIDeps) {
-  const { timeline, machine, interactions, bus } = deps;
+  const { timeline, machine, interactions, audio, bus } = deps;
   const eventLog = new EventLog();
+
+  // Frame timing for health check
+  let lastFrameTs = 0;        // performance.now() of last _onFrame call
+  let fpsAccum = 0;           // frames counted in current second
+  let fpsValue = 0;           // last computed FPS
+  let fpsWindowStart = 0;     // start of current 1s window
 
   // Event subscribers
   type Callback = (data: unknown) => void;
@@ -287,10 +311,61 @@ export function createHypnoAPI(deps: HypnoAPIDeps) {
       eventLog.clear();
     },
 
+    // ── Health Check ──────────────────────────────────────────
+
+    healthCheck(): HealthReport {
+      const now = performance.now();
+
+      // Renderer: is the loop running and keeping up?
+      const lastFrameMs = lastFrameTs > 0 ? now - lastFrameTs : Infinity;
+      const rendererOk = lastFrameMs < 500 && fpsValue > 10;
+
+      // Audio: context running and analyzer connected?
+      const ctx = audio.context;
+      const audioState = ctx?.state ?? 'closed';
+      const hasAnalyzer = audio.analyzer != null;
+      const audioOk = audioState === 'running' && hasAnalyzer;
+
+      // Timeline: started, no NaN in position?
+      const tlState = timeline.lastState;
+      const tlStarted = timeline.started;
+      const tlPaused = timeline.paused;
+      const tlPosition = tlState?.position ?? 0;
+      const timelineOk = !tlStarted || (!Number.isNaN(tlPosition) && !Number.isNaN(tlState?.intensity));
+
+      // Errors: recent error/warn count from logger
+      const recentErrors = log.errors(5);
+      const errorCount = recentErrors.length;
+      const errorsOk = recentErrors.filter(e => e.level === 'error').length === 0;
+
+      return {
+        healthy: rendererOk && audioOk && timelineOk && errorsOk,
+        checks: {
+          renderer: { ok: rendererOk, fps: fpsValue, lastFrameMs: Math.round(lastFrameMs) },
+          audio: { ok: audioOk, state: audioState, hasAnalyzer },
+          timeline: { ok: timelineOk, started: tlStarted, paused: tlPaused, position: tlPosition },
+          errors: { ok: errorsOk, count: errorCount, recent: recentErrors.map(e => `[${e.tag}] ${e.msg}`) },
+        },
+        uptime: Math.round((now - PAGE_LOAD_TIME) / 1000),
+        sessionId: machine.sessionId,
+        phase: machine.phase,
+      };
+    },
+
     // ── Internal: called from animate() ───────────────────────
 
     /** @internal — called every frame from animate loop */
     _onFrame(state: TimelineState): void {
+      // Track frame timing for healthCheck
+      const now = performance.now();
+      lastFrameTs = now;
+      fpsAccum++;
+      if (now - fpsWindowStart >= 1000) {
+        fpsValue = fpsAccum;
+        fpsAccum = 0;
+        fpsWindowStart = now;
+      }
+
       frameCount++;
 
       // block:changed
@@ -311,6 +386,18 @@ export function createHypnoAPI(deps: HypnoAPIDeps) {
       // state:update — throttled to every 6th frame (~10fps at 60fps)
       if (frameCount % 6 === 0) {
         emit('state:update', stateToSnapshot(state, timeline));
+      }
+    },
+
+    /** @internal — called every frame from background loop (no timeline state) */
+    _onBackgroundFrame(): void {
+      const now = performance.now();
+      lastFrameTs = now;
+      fpsAccum++;
+      if (now - fpsWindowStart >= 1000) {
+        fpsValue = fpsAccum;
+        fpsAccum = 0;
+        fpsWindowStart = now;
       }
     },
   };
