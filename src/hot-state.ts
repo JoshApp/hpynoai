@@ -42,6 +42,7 @@ export interface AuthManagerLike {
   getState(): AuthState;
   onChange(listener: (state: AuthState) => void): () => void;
   signInWithGoogle(): void;
+  signInAnonymously(): void;
   signOut(): void;
   linkGoogle(): void;
 }

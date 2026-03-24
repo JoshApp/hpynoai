@@ -638,6 +638,70 @@ html, body {
   border-color: rgba(168, 230, 207, 0.3);
 }
 
+/* ── Post-Session Sign-In Prompt ── */
+#post-session-prompt {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: rgba(10, 8, 16, 0.85);
+  border: 1px solid rgba(200, 160, 255, 0.12);
+  border-radius: 24px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 11px;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  pointer-events: auto;
+  white-space: nowrap;
+}
+
+#post-session-prompt.visible {
+  opacity: 1;
+}
+
+#post-session-prompt .psp-text {
+  color: #a090c0;
+}
+
+#post-session-prompt .psp-sign-in {
+  padding: 4px 12px;
+  background: rgba(168, 230, 207, 0.1);
+  border: 1px solid rgba(168, 230, 207, 0.25);
+  border-radius: 12px;
+  color: #a8e6cf;
+  font-family: inherit;
+  font-size: 10px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+#post-session-prompt .psp-sign-in:hover {
+  background: rgba(168, 230, 207, 0.2);
+  border-color: rgba(168, 230, 207, 0.4);
+}
+
+#post-session-prompt .psp-dismiss {
+  background: none;
+  border: none;
+  color: #887aaa;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+#post-session-prompt .psp-dismiss:hover {
+  color: #c8a0ff;
+}
+
 /* ── Mobile Responsive ── */
 @media (max-width: 600px) {
   #settings-panel {
@@ -655,6 +719,16 @@ html, body {
   #auth-overlay {
     top: 12px;
     right: 12px;
+  }
+
+  #post-session-prompt {
+    left: 12px;
+    right: 12px;
+    transform: none;
+    white-space: normal;
+    flex-wrap: wrap;
+    justify-content: center;
+    border-radius: 16px;
   }
 
   #settings-mute-btn,
