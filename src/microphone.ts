@@ -64,19 +64,27 @@ export class MicrophoneEngine {
   private humThreshold = 0.03;
   private _active = false;
 
+  // ── Simulated signal injection (for AI agent testing) ──
+  private _injectedHum = false;
+
+  /** Inject a simulated signal, bypassing actual mic input. */
+  injectSignal(type: 'hum', active: boolean): void {
+    if (type === 'hum') this._injectedHum = active;
+  }
+
   get signals(): MicSignals {
     const now = performance.now() / 1000;
     return {
       breathPhase: this._breathPhase,
       breathRate: this._breathRate,
-      isVocalizing: this._isVocalizing,
-      isHumming: this._isHumming,
-      humFrequency: this._humFrequency,
+      isVocalizing: this._isVocalizing || this._injectedHum,
+      isHumming: this._isHumming || this._injectedHum,
+      humFrequency: this._injectedHum && !this._isHumming ? 200 : this._humFrequency,
       silenceDuration: this._active ? now - this.lastVocalizationTime : 0,
-      volume: this._volume,
+      volume: this._injectedHum ? Math.max(this._volume, 0.08) : this._volume,
       pitchStability: this._pitchStability,
       tranceEstimate: this._tranceEstimate,
-      active: this._active,
+      active: this._active || this._injectedHum,
     };
   }
 

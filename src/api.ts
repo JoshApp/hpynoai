@@ -15,6 +15,7 @@ import type { TelemetryAggregator } from './telemetry';
 import type { EventBus } from './events';
 import { log } from './logger';
 import { AssertionEngine } from './assertions';
+import type { MicrophoneEngine } from './microphone';
 
 // ── Public types (all JSON-serializable) ────────────────────────
 
@@ -111,6 +112,8 @@ export interface HypnoAPIDeps {
   audio: AudioEngine;
   telemetry: TelemetryAggregator;
   bus: EventBus;
+  canvas?: HTMLCanvasElement;
+  mic?: MicrophoneEngine;
 }
 
 // ── Helpers ─────────────────────────────────────────────────────
@@ -162,7 +165,7 @@ function blockToInfo(block: TimelineBlock, index: number): BlockInfo {
 const PAGE_LOAD_TIME = performance.now();
 
 export function createHypnoAPI(deps: HypnoAPIDeps) {
-  const { timeline, machine, interactions, audio, telemetry, bus } = deps;
+  const { timeline, machine, interactions, audio, telemetry, bus, canvas, mic } = deps;
   const eventLog = new EventLog();
 
   // Frame timing for health check
@@ -358,6 +361,75 @@ export function createHypnoAPI(deps: HypnoAPIDeps) {
     // ── Assertions ────────────────────────────────────────────
     // Initialized after api object is created (see below)
     assert: null as unknown as AssertionEngine,
+
+    // ── Input Simulation (for AI agents via Chrome DevTools) ───
+
+    simulate: {
+      /** Dispatch a click at viewport coordinates. */
+      click(x: number, y: number): void {
+        const target = canvas ?? document.querySelector('canvas');
+        if (!target) return;
+        target.dispatchEvent(new MouseEvent('click', {
+          clientX: x, clientY: y, bubbles: true, cancelable: true,
+        }));
+      },
+
+      /** Dispatch keydown + keyup for the given key code (e.g. "Space", "Enter", "ArrowRight"). */
+      key(key: string): void {
+        const opts: KeyboardEventInit = { code: key, key, bubbles: true, cancelable: true };
+        document.dispatchEvent(new KeyboardEvent('keydown', opts));
+        document.dispatchEvent(new KeyboardEvent('keyup', opts));
+      },
+
+      /** Simulate breath-in (same as holding Space / touching screen). */
+      breathIn(): void {
+        if (!machine.is('session', 'transitioning')) return;
+        bus.emit('input:hold-start', {});
+      },
+
+      /** Simulate breath-out (same as releasing Space / lifting touch). */
+      breathOut(): void {
+        if (!machine.is('session', 'transitioning')) return;
+        bus.emit('input:hold-end', {});
+      },
+
+      /** Simulate sustained hum signal for the given duration (default 5000ms). */
+      hum(durationMs?: number): void {
+        if (!machine.is('session', 'transitioning')) return;
+        bus.emit('input:hold-start', {});
+        mic?.injectSignal('hum', true);
+        const dur = durationMs ?? 5000;
+        setTimeout(() => {
+          bus.emit('input:hold-end', {});
+          mic?.injectSignal('hum', false);
+        }, dur);
+      },
+
+      /** Confirm / advance past a blocking gate interaction. */
+      confirmGate(): void {
+        if (!machine.is('session', 'transitioning')) return;
+        bus.emit('input:confirm', {});
+      },
+
+      /** Select a session in the carousel by ID. No-op if not in selector phase. */
+      selectSession(_id: string): void {
+        if (!machine.is('selector')) return;
+        bus.emit('input:confirm', {});
+      },
+
+      /** Dispatch a click on the canvas — unlocks AudioContext on first user gesture. */
+      tapAnywhere(): void {
+        const target = canvas ?? document.querySelector('canvas');
+        if (!target) return;
+        const rect = target.getBoundingClientRect();
+        target.dispatchEvent(new MouseEvent('click', {
+          clientX: rect.left + rect.width / 2,
+          clientY: rect.top + rect.height / 2,
+          bubbles: true,
+          cancelable: true,
+        }));
+      },
+    },
 
     // ── Internal: called from animate() ───────────────────────
 
