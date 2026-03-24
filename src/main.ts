@@ -37,6 +37,7 @@ import { TelemetryAggregator } from './telemetry';
 import { FrameProfiler } from './frame-profiler';
 import { parseIsolationParams, type IsolationConfig, type ShaderIsolation } from './isolation';
 import { initConsoleProtocol, teardownConsoleProtocol } from './console-protocol';
+import { auth } from './auth';
 
 // ══════════════════════════════════════════════════════════════════════
 // ERROR BOUNDARIES — check before anything else
@@ -61,6 +62,7 @@ hotState.cleanupFns = [];
 function onCleanup(fn: () => void): void {
   hotState.cleanupFns!.push(fn);
 }
+onCleanup(() => auth.destroy());
 
 const isHMR = !!hotState.renderer;
 
@@ -1353,6 +1355,9 @@ function boot(): void {
   }
 
   const phase = appState.phase;
+
+  // Initialize auth (no-op until Supabase client is wired in)
+  auth.init();
 
   if (isHMR) {
     log.info('hmr', `Restoring phase: ${phase}`);
