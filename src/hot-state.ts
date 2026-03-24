@@ -30,6 +30,7 @@ import type { InputController } from './input';
 import type { GpuParticles } from './gpu-particles';
 import type { Favorites } from './favorites';
 import type { Entitlements } from './entitlements';
+import type { UpgradePrompt } from './upgrade-prompt';
 
 /** Auth state exposed by AuthManager (created by auth.ts when Supabase is configured) */
 export interface AuthState {
@@ -81,6 +82,7 @@ export interface HotState {
   selector?: SessionSelector;
   settings?: SettingsManager;
   entitlements?: Entitlements;
+  upgradePrompt?: UpgradePrompt;
 
   // Visual layers
   gpuParticles?: GpuParticles;
