@@ -94,20 +94,21 @@ export class SettingsSync {
     if (!state.isAuthenticated || state.isAnonymous || !state.user) return;
 
     const now = new Date().toISOString();
+    const settingsJson = JSON.stringify(this.pendingWrite);
     const payload = {
-      user_id: state.user.id,
-      settings_json: JSON.stringify(this.pendingWrite),
+      id: state.user.id,
+      settings: JSON.parse(settingsJson),
       updated_at: now,
     };
     this.pendingWrite = null;
 
     const { error } = await this.supabase
       .from('user_settings')
-      .upsert(payload, { onConflict: 'user_id' });
+      .upsert(payload, { onConflict: 'id' });
 
     if (error) {
       // Re-queue for retry on next write
-      this.pendingWrite = JSON.parse(payload.settings_json);
+      this.pendingWrite = JSON.parse(settingsJson);
       return;
     }
 
@@ -120,8 +121,8 @@ export class SettingsSync {
 
     const { data, error } = await this.supabase
       .from('user_settings')
-      .select('settings_json, updated_at')
-      .eq('user_id', userId)
+      .select('settings, updated_at')
+      .eq('id', userId)
       .single();
 
     if (error || !data) return; // No remote settings yet — local is authoritative
@@ -132,7 +133,9 @@ export class SettingsSync {
     // Remote wins only if it has a newer timestamp
     if (remoteUpdatedAt && (!localUpdatedAt || remoteUpdatedAt > localUpdatedAt)) {
       try {
-        const remoteSettings = JSON.parse(data.settings_json as string) as Partial<HpynoSettings>;
+        // settings column is JSONB — already parsed by Supabase client, but may be string from REST
+        const raw = data.settings;
+        const remoteSettings = (typeof raw === 'string' ? JSON.parse(raw) : raw) as Partial<HpynoSettings>;
         this.settingsManager.updateBatch(remoteSettings);
         localStorage.setItem(UPDATED_AT_KEY, remoteUpdatedAt);
       } catch {
