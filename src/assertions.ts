@@ -16,6 +16,9 @@
 
 import type { TelemetryAggregator, TelemetrySnapshot } from './telemetry';
 import type { HypnoAPI } from './api';
+import type { AudioEngine } from './audio';
+import type { NarrationEngine } from './narration';
+import type * as THREE from 'three';
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -174,6 +177,218 @@ function formatMessage(pass: boolean, path: string, op: AssertOp, expected: unkn
   return `[${verb}] ${path} ${op} ${expStr} (actual: ${JSON.stringify(actual)})`;
 }
 
+// ── Subsystem deps for visual/audio assertions ──────────────────
+
+export interface AssertionSubsystemDeps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  renderer: THREE.WebGLRenderer;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  tunnelUniforms: Record<string, { value: any }>;
+  audio: AudioEngine;
+  narration: NarrationEngine;
+}
+
+// ── Visual Assertions ────────────────────────────────────────────
+
+class VisualAssertions {
+  private results: AssertionResult[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private renderer: THREE.WebGLRenderer;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private tunnelUniforms: Record<string, { value: any }>;
+  private telemetry: TelemetryAggregator;
+
+  constructor(
+    results: AssertionResult[],
+    renderer: THREE.WebGLRenderer,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    tunnelUniforms: Record<string, { value: any }>,
+    telemetry: TelemetryAggregator,
+  ) {
+    this.results = results;
+    this.renderer = renderer;
+    this.tunnelUniforms = tunnelUniforms;
+    this.telemetry = telemetry;
+  }
+
+  /** Check that the center of the canvas has brightness above a threshold (0-255). */
+  centerBrightness(threshold = 10): AssertionResult {
+    const gl = this.renderer.getContext();
+    const w = gl.drawingBufferWidth;
+    const h = gl.drawingBufferHeight;
+    const cx = Math.floor(w / 2);
+    const cy = Math.floor(h / 2);
+
+    // Sample a 4x4 patch at center
+    const size = 4;
+    const pixels = new Uint8Array(size * size * 4);
+    gl.readPixels(cx - size / 2, cy - size / 2, size, size, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+
+    // Average brightness (luminance approximation)
+    let totalBrightness = 0;
+    for (let i = 0; i < pixels.length; i += 4) {
+      totalBrightness += pixels[i] * 0.299 + pixels[i + 1] * 0.587 + pixels[i + 2] * 0.114;
+    }
+    const avgBrightness = totalBrightness / (size * size);
+    const pass = avgBrightness > threshold;
+
+    const result: AssertionResult = {
+      pass,
+      path: 'visual.centerBrightness',
+      op: 'gt',
+      expected: threshold,
+      actual: Math.round(avgBrightness),
+      message: `[${pass ? 'PASS' : 'FAIL'}] visual.centerBrightness gt ${threshold} (actual: ${Math.round(avgBrightness)})`,
+      telemetrySnapshot: pass ? undefined : this.telemetry.getLatest(),
+    };
+    this.results.push(result);
+    return result;
+  }
+
+  /** Check that the screen is fully black (fade complete). Threshold is max average brightness. */
+  fadeComplete(threshold = 5): AssertionResult {
+    const gl = this.renderer.getContext();
+    const w = gl.drawingBufferWidth;
+    const h = gl.drawingBufferHeight;
+
+    // Sample 5 points (center + 4 corners offset inward)
+    const points = [
+      [Math.floor(w / 2), Math.floor(h / 2)],
+      [Math.floor(w * 0.25), Math.floor(h * 0.25)],
+      [Math.floor(w * 0.75), Math.floor(h * 0.25)],
+      [Math.floor(w * 0.25), Math.floor(h * 0.75)],
+      [Math.floor(w * 0.75), Math.floor(h * 0.75)],
+    ];
+
+    let maxBrightness = 0;
+    const pixel = new Uint8Array(4);
+    for (const [x, y] of points) {
+      gl.readPixels(x, y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+      const brightness = pixel[0] * 0.299 + pixel[1] * 0.587 + pixel[2] * 0.114;
+      if (brightness > maxBrightness) maxBrightness = brightness;
+    }
+
+    const pass = maxBrightness <= threshold;
+    const result: AssertionResult = {
+      pass,
+      path: 'visual.fadeComplete',
+      op: 'lt',
+      expected: threshold,
+      actual: Math.round(maxBrightness),
+      message: `[${pass ? 'PASS' : 'FAIL'}] visual.fadeComplete — max brightness ${Math.round(maxBrightness)} (threshold: ${threshold})`,
+      telemetrySnapshot: pass ? undefined : this.telemetry.getLatest(),
+    };
+    this.results.push(result);
+    return result;
+  }
+
+  /** Check a raw shader uniform value. */
+  shaderUniform(name: string, expected: unknown, op: AssertOp = 'eq'): AssertionResult {
+    const uniform = this.tunnelUniforms[name];
+    let actual: unknown = undefined;
+
+    if (uniform) {
+      const val = uniform.value;
+      // Convert Three.js types to plain values for comparison
+      if (val != null && typeof val === 'object' && 'x' in val && 'y' in val) {
+        actual = 'z' in val ? { x: val.x, y: val.y, z: val.z } : { x: val.x, y: val.y };
+      } else {
+        actual = val;
+      }
+    }
+
+    const pass = evaluate(actual, expected, op);
+    const result: AssertionResult = {
+      pass,
+      path: `visual.uniform.${name}`,
+      op,
+      expected,
+      actual,
+      message: formatMessage(pass, `visual.uniform.${name}`, op, expected, actual),
+      telemetrySnapshot: pass ? undefined : this.telemetry.getLatest(),
+    };
+    this.results.push(result);
+    return result;
+  }
+}
+
+// ── Audio Assertions ─────────────────────────────────────────────
+
+class AudioAssertions {
+  private results: AssertionResult[];
+  private audio: AudioEngine;
+  private narration: NarrationEngine;
+  private telemetry: TelemetryAggregator;
+
+  constructor(
+    results: AssertionResult[],
+    audio: AudioEngine,
+    narration: NarrationEngine,
+    telemetry: TelemetryAggregator,
+  ) {
+    this.results = results;
+    this.audio = audio;
+    this.narration = narration;
+    this.telemetry = telemetry;
+  }
+
+  /** Check that the binaural beat frequency is within a Hz range. */
+  binauralInRange(lowHz: number, highHz: number): AssertionResult {
+    const state = this.audio.getBinauralState();
+    const beatFreq = state?.beatFreq ?? 0;
+    const pass = state != null && state.enabled && beatFreq >= lowHz && beatFreq <= highHz;
+
+    const result: AssertionResult = {
+      pass,
+      path: 'audio.binauralFreq',
+      op: 'range',
+      expected: [lowHz, highHz],
+      actual: state ? { enabled: state.enabled, beatFreq: Math.round(beatFreq * 100) / 100 } : null,
+      message: `[${pass ? 'PASS' : 'FAIL'}] audio.binauralFreq in [${lowHz}, ${highHz}]Hz (actual: ${state ? `${beatFreq.toFixed(2)}Hz, enabled=${state.enabled}` : 'not initialized'})`,
+      telemetrySnapshot: pass ? undefined : this.telemetry.getLatest(),
+    };
+    this.results.push(result);
+    return result;
+  }
+
+  /** Check that an audio analyzer band is above a threshold (0-1). */
+  bandAbove(band: 'energy' | 'bass' | 'mid' | 'high', threshold: number): AssertionResult {
+    const bands = this.audio.analyzer?.update();
+    const actual = bands ? bands[band] : 0;
+    const pass = actual > threshold;
+
+    const result: AssertionResult = {
+      pass,
+      path: `audio.${band}`,
+      op: 'gt',
+      expected: threshold,
+      actual: Math.round(actual * 1000) / 1000,
+      message: `[${pass ? 'PASS' : 'FAIL'}] audio.${band} gt ${threshold} (actual: ${actual.toFixed(3)})`,
+      telemetrySnapshot: pass ? undefined : this.telemetry.getLatest(),
+    };
+    this.results.push(result);
+    return result;
+  }
+
+  /** Check if narration audio is currently playing. */
+  narrationPlaying(): AssertionResult {
+    const state = this.narration.state;
+    const pass = state.isSpeaking;
+
+    const result: AssertionResult = {
+      pass,
+      path: 'audio.narrationPlaying',
+      op: 'truthy',
+      expected: true,
+      actual: state.isSpeaking,
+      message: `[${pass ? 'PASS' : 'FAIL'}] audio.narrationPlaying (isSpeaking: ${state.isSpeaking}, text: "${state.currentText.slice(0, 50)}")`,
+      telemetrySnapshot: pass ? undefined : this.telemetry.getLatest(),
+    };
+    this.results.push(result);
+    return result;
+  }
+}
+
 // ── Assertion Engine ─────────────────────────────────────────────
 
 export class AssertionEngine {
@@ -181,9 +396,20 @@ export class AssertionEngine {
   private api: HypnoAPI;
   private telemetry: TelemetryAggregator;
 
+  /** Visual assertion helpers — available after setSubsystems() */
+  visual: VisualAssertions | null = null;
+  /** Audio assertion helpers — available after setSubsystems() */
+  audio: AudioAssertions | null = null;
+
   constructor(api: HypnoAPI, telemetry: TelemetryAggregator) {
     this.api = api;
     this.telemetry = telemetry;
+  }
+
+  /** Wire in subsystem references for visual/audio assertions. */
+  setSubsystems(deps: AssertionSubsystemDeps): void {
+    this.visual = new VisualAssertions(this.results, deps.renderer, deps.tunnelUniforms, this.telemetry);
+    this.audio = new AudioAssertions(this.results, deps.audio, deps.narration, this.telemetry);
   }
 
   /** Immediate state assertion — checks current value at path. */

@@ -366,6 +366,13 @@ let hypnoApi: HypnoAPI | null = null;
 const telemetry = new TelemetryAggregator();
 const profiler = new FrameProfiler();
 
+/** Wire assertion engine subsystem deps after API (re-)creation. */
+function wireAssertSubsystems(api: HypnoAPI): void {
+  api.assert?.setSubsystems({
+    renderer, tunnelUniforms: tunnelMaterial.uniforms, audio, narration,
+  });
+}
+
 // Pull-model: timeline callbacks removed. The animate loop reads TimelineState
 // each frame and drives narration, text, breath, interactions directly.
 // If any frame errors, the next frame derives the correct state from position.
@@ -544,6 +551,7 @@ function startSession(session: SessionConfig): void {
     // Expose programmatic API on window for AI agents / test harnesses
     hypnoApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, audio, telemetry, bus, canvas, mic });
     window.__HYPNO__ = hypnoApi;
+    wireAssertSubsystems(hypnoApi);
 
     // Reset telemetry for new session and expose on window
     telemetry.reset();
@@ -1111,6 +1119,7 @@ function bootTimelineIsolation(config: { mode: 'block' | 'stage'; session: strin
 
     hypnoApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, audio, telemetry, bus, canvas, mic });
     window.__HYPNO__ = hypnoApi;
+    wireAssertSubsystems(hypnoApi);
 
     doneLoading();
 
@@ -1321,6 +1330,7 @@ function bootInteractionIsolation(config: { mode: 'interaction'; type: string; b
 
     hypnoApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, audio, telemetry, bus, canvas, mic });
     window.__HYPNO__ = hypnoApi;
+    wireAssertSubsystems(hypnoApi);
 
     doneLoading();
     isRunning = true;
@@ -1377,6 +1387,7 @@ function boot(): void {
         hypnoApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, audio, telemetry, bus, canvas, mic });
         window.__HYPNO__ = hypnoApi;
         initConsoleProtocol(hypnoApi, telemetry);
+        wireAssertSubsystems(hypnoApi);
 
         isRunning = true;
         animate();
@@ -1508,6 +1519,7 @@ onCleanup(() => document.removeEventListener('visibilitychange', onVisibilityCha
 const initialApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, audio, telemetry, bus, canvas, mic });
 window.__HYPNO__ = initialApi;
 initConsoleProtocol(initialApi, telemetry);
+wireAssertSubsystems(initialApi);
 
 // EXPOSE FRAME PROFILER — accessible via window.__HYPNO_PROFILER__
 (window as unknown as Record<string, unknown>).__HYPNO_PROFILER__ = profiler;
