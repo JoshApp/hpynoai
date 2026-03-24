@@ -29,6 +29,7 @@ import type { StateMachine } from './state-machine';
 import type { InputController } from './input';
 import type { GpuParticles } from './gpu-particles';
 import type { Favorites } from './favorites';
+import type { Entitlements } from './entitlements';
 
 /** Auth state exposed by AuthManager (created by auth.ts when Supabase is configured) */
 export interface AuthState {
@@ -79,6 +80,7 @@ export interface HotState {
   devMode?: DevMode;
   selector?: SessionSelector;
   settings?: SettingsManager;
+  entitlements?: Entitlements;
 
   // Visual layers
   gpuParticles?: GpuParticles;
