@@ -924,15 +924,49 @@ function bootIsolation(config: IsolationConfig): void {
   }
 }
 
-/** Shader-only mode: render tunnel at fixed params, no timeline */
+/** Shader-only mode: render tunnel at fixed/animated params, no timeline */
 function bootShaderIsolation(config: ShaderIsolation): void {
   setPhase('session');
   machine.transition('session');
   isRunning = true;
 
-  const fixedIntensity = config.intensity;
-  const fixedBreath = config.breath;
-  const fixedSpiralSpeed = config.spiralSpeed;
+  // If breathPattern is set, drive animated breathing via BreathController
+  if (config.breathPattern) {
+    breath.setPattern({
+      inhale: config.breathPattern.inhale,
+      holdIn: config.breathPattern.holdIn ?? 0,
+      exhale: config.breathPattern.exhale,
+      holdOut: config.breathPattern.holdOut ?? 0,
+    });
+  }
+
+  // Feedback warp control
+  if (!config.feedback) {
+    feedback.disabled = true;
+  }
+
+  // Presence wisp visibility
+  presence.mesh.visible = config.presence;
+
+  // Simulated audio bands (static)
+  const simBands = config.bands;
+
+  let shaderIntensity = config.intensity;
+  let shaderSpiralSpeed = config.spiralSpeed;
+
+  // Build on-screen sliders for live tweaking
+  const panel = buildShaderPanel({
+    intensity: shaderIntensity,
+    spiralSpeed: shaderSpiralSpeed,
+    breath: config.breathPattern ? null : config.breath,
+  }, (key, val) => {
+    if (key === 'intensity') shaderIntensity = val;
+    else if (key === 'spiralSpeed') shaderSpiralSpeed = val;
+    else if (key === 'breath') staticBreath = val;
+  });
+  onCleanup(() => panel.remove());
+
+  let staticBreath = config.breath;
 
   function animateShader(): void {
     if (!isRunning) return;
@@ -944,15 +978,24 @@ function bootShaderIsolation(config: ShaderIsolation): void {
     const dt = Math.min(rawDt, 0.1);
     lastAnimTime = time;
 
-    spiralAngle += dt * fixedSpiralSpeed * s.spiralSpeedMult * 0.5;
+    spiralAngle += dt * shaderSpiralSpeed * s.spiralSpeedMult * 0.5;
     breath.update(time);
+
+    // Use animated breath if pattern set, otherwise static value
+    const breathVal = config.breathPattern ? breath.value : staticBreath;
+    const breathPh = config.breathPattern ? breath.phase : staticBreath;
 
     const frame: FrameState = {
       time, dt, settings: s,
-      breathPhase: fixedBreath, breathValue: fixedBreath, breathStage: breath.stage,
-      intensity: fixedIntensity, spiralAngle, spiralSpeed: fixedSpiralSpeed,
+      breathPhase: breathPh, breathValue: breathVal, breathStage: breath.stage,
+      intensity: shaderIntensity, spiralAngle, spiralSpeed: shaderSpiralSpeed,
       mouseX: mouse.x, mouseY: mouse.y,
-      audioBands: null, voiceEnergy: 0, micBoost: 0,
+      audioBands: simBands ? {
+        energy: (simBands[0] + simBands[1] + simBands[2]) / 3,
+        bass: simBands[0], mid: simBands[1], high: simBands[2],
+        spectrum: new Float32Array(0), isPeak: false, voicePresence: 0,
+      } : null,
+      voiceEnergy: 0, micBoost: 0,
       breathSyncActive: 0, breathSyncFill: 0, breathSyncProgress: 0,
       fadeAmount: 0, intensityMult: 1,
     };
@@ -961,6 +1004,55 @@ function bootShaderIsolation(config: ShaderIsolation): void {
   }
 
   animateShader();
+}
+
+/** Build a minimal slider panel for shader isolation mode */
+function buildShaderPanel(
+  defaults: { intensity: number; spiralSpeed: number; breath: number | null },
+  onChange: (key: string, val: number) => void,
+): HTMLElement {
+  const panel = document.createElement('div');
+  panel.id = 'isolation-panel';
+  panel.style.cssText = 'position:fixed;top:10px;right:10px;background:rgba(0,0,0,0.8);color:#ccc;padding:12px;border-radius:8px;font:12px monospace;z-index:10000;min-width:200px;';
+
+  const title = document.createElement('div');
+  title.textContent = 'Shader Isolation';
+  title.style.cssText = 'color:#fff;font-weight:bold;margin-bottom:8px;';
+  panel.appendChild(title);
+
+  function addSlider(label: string, key: string, min: number, max: number, step: number, initial: number): void {
+    const row = document.createElement('div');
+    row.style.cssText = 'margin:4px 0;display:flex;align-items:center;gap:6px;';
+    const lbl = document.createElement('span');
+    lbl.textContent = label;
+    lbl.style.cssText = 'width:60px;';
+    const input = document.createElement('input');
+    input.type = 'range';
+    input.min = String(min);
+    input.max = String(max);
+    input.step = String(step);
+    input.value = String(initial);
+    input.style.cssText = 'flex:1;';
+    const val = document.createElement('span');
+    val.textContent = initial.toFixed(2);
+    val.style.cssText = 'width:40px;text-align:right;';
+    input.addEventListener('input', () => {
+      const v = parseFloat(input.value);
+      val.textContent = v.toFixed(2);
+      onChange(key, v);
+    });
+    row.append(lbl, input, val);
+    panel.appendChild(row);
+  }
+
+  addSlider('Intensity', 'intensity', 0, 1, 0.01, defaults.intensity);
+  addSlider('Spiral', 'spiralSpeed', 0, 5, 0.1, defaults.spiralSpeed);
+  if (defaults.breath !== null) {
+    addSlider('Breath', 'breath', 0, 1, 0.01, defaults.breath);
+  }
+
+  document.body.appendChild(panel);
+  return panel;
 }
 
 /** Block or stage isolation: load a session, build timeline, play only the target segment */
@@ -1046,7 +1138,7 @@ function bootTimelineIsolation(config: { mode: 'block' | 'stage'; session: strin
   });
 }
 
-/** Audio-only isolation: no renderer, just audio engine */
+/** Audio-only isolation: audio engine with DOM control panel */
 function bootAudioIsolation(config: { mode: 'audio'; profile: string; component: string }): void {
   const session = getSession(config.profile);
   if (!session) {
@@ -1068,9 +1160,113 @@ function bootAudioIsolation(config: { mode: 'audio'; profile: string; component:
 
     log.info('isolation', `Audio isolation: profile=${config.profile}, component=${config.component}`);
 
+    // Build DOM control panel
+    const panel = buildAudioPanel(config.component, session.audio);
+    onCleanup(() => panel.remove());
+
     // Render a minimal background so the page isn't blank
     animateBackground();
   });
+}
+
+/** Build DOM panel for audio isolation with play/pause, volume, and frequency display */
+function buildAudioPanel(component: string, profile: import('./session').AudioProfile): HTMLElement {
+  const panel = document.createElement('div');
+  panel.id = 'isolation-audio-panel';
+  panel.style.cssText = 'position:fixed;top:10px;right:10px;background:rgba(0,0,0,0.85);color:#ccc;padding:16px;border-radius:8px;font:12px monospace;z-index:10000;min-width:240px;';
+
+  const title = document.createElement('div');
+  title.textContent = `Audio Isolation: ${component}`;
+  title.style.cssText = 'color:#fff;font-weight:bold;margin-bottom:10px;';
+  panel.appendChild(title);
+
+  // Profile info
+  const info = document.createElement('div');
+  info.style.cssText = 'margin-bottom:8px;font-size:11px;color:#888;';
+  info.innerHTML = `Carrier: ${profile.carrierFreq}Hz | Binaural: ${profile.binauralRange[0]}-${profile.binauralRange[1]}Hz<br>Drone: ${profile.droneFreq}Hz + ${profile.droneFifth}Hz`;
+  panel.appendChild(info);
+
+  // Play/Pause button
+  const playBtn = document.createElement('button');
+  playBtn.textContent = 'Mute';
+  playBtn.style.cssText = 'background:#333;color:#fff;border:1px solid #555;padding:6px 16px;border-radius:4px;cursor:pointer;margin-bottom:8px;';
+  let muted = false;
+  playBtn.addEventListener('click', () => {
+    muted = !muted;
+    audio.setMuted(muted);
+    playBtn.textContent = muted ? 'Unmute' : 'Mute';
+  });
+  panel.appendChild(playBtn);
+
+  // Volume slider
+  const volRow = document.createElement('div');
+  volRow.style.cssText = 'margin:6px 0;display:flex;align-items:center;gap:6px;';
+  const volLabel = document.createElement('span');
+  volLabel.textContent = 'Volume';
+  volLabel.style.cssText = 'width:50px;';
+  const volSlider = document.createElement('input');
+  volSlider.type = 'range';
+  volSlider.min = '0';
+  volSlider.max = '1';
+  volSlider.step = '0.01';
+  volSlider.value = '0.5';
+  volSlider.style.cssText = 'flex:1;';
+  const volVal = document.createElement('span');
+  volVal.textContent = '0.50';
+  volVal.style.cssText = 'width:35px;text-align:right;';
+  volSlider.addEventListener('input', () => {
+    const v = parseFloat(volSlider.value);
+    volVal.textContent = v.toFixed(2);
+    audio.setMasterVolume(v);
+  });
+  volRow.append(volLabel, volSlider, volVal);
+  panel.appendChild(volRow);
+
+  // Intensity slider
+  const intRow = document.createElement('div');
+  intRow.style.cssText = 'margin:6px 0;display:flex;align-items:center;gap:6px;';
+  const intLabel = document.createElement('span');
+  intLabel.textContent = 'Intensity';
+  intLabel.style.cssText = 'width:50px;';
+  const intSlider = document.createElement('input');
+  intSlider.type = 'range';
+  intSlider.min = '0';
+  intSlider.max = '1';
+  intSlider.step = '0.01';
+  intSlider.value = '0.5';
+  intSlider.style.cssText = 'flex:1;';
+  const intVal = document.createElement('span');
+  intVal.textContent = '0.50';
+  intVal.style.cssText = 'width:35px;text-align:right;';
+  intSlider.addEventListener('input', () => {
+    const v = parseFloat(intSlider.value);
+    intVal.textContent = v.toFixed(2);
+    audio.setIntensity(v);
+  });
+  intRow.append(intLabel, intSlider, intVal);
+  panel.appendChild(intRow);
+
+  // Frequency analyzer readout (text-based, updated every 500ms)
+  const analyzerDiv = document.createElement('div');
+  analyzerDiv.style.cssText = 'margin-top:10px;padding:6px;background:#111;border-radius:4px;font-size:11px;line-height:1.4;';
+  analyzerDiv.textContent = 'Analyzer: waiting...';
+  panel.appendChild(analyzerDiv);
+
+  const updateAnalyzer = setInterval(() => {
+    const bands = audio.analyzer?.bands;
+    if (bands) {
+      const bar = (v: number) => '█'.repeat(Math.round(v * 10)).padEnd(10, '░');
+      analyzerDiv.innerHTML =
+        `Bass  ${bar(bands.bass)} ${bands.bass.toFixed(2)}<br>` +
+        `Mid   ${bar(bands.mid)} ${bands.mid.toFixed(2)}<br>` +
+        `High  ${bar(bands.high)} ${bands.high.toFixed(2)}<br>` +
+        `<span style="color:#888">Energy: ${bands.energy.toFixed(2)}</span>`;
+    }
+  }, 200);
+  onCleanup(() => clearInterval(updateAnalyzer));
+
+  document.body.appendChild(panel);
+  return panel;
 }
 
 /** Interaction sandbox: single-block timeline with the requested interaction type */
