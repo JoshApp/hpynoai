@@ -36,7 +36,23 @@ function emit(category: ProtocolCategory, type: string, data: unknown): void {
     ts: Date.now(),
     data,
   };
-  console.log(`[HYPNO:${category}]`, JSON.stringify(msg));
+  try {
+    console.log(`[HYPNO:${category}]`, JSON.stringify(msg));
+  } catch (err) {
+    // Serialization failed (circular ref, huge object, etc.) — emit error instead
+    // Use a plain object to avoid re-triggering the same failure
+    const fallback = {
+      category: 'error' as const,
+      type: 'serialization_failure',
+      ts: Date.now(),
+      data: {
+        originalCategory: category,
+        originalType: type,
+        error: err instanceof Error ? err.message : String(err),
+      },
+    };
+    console.log('[HYPNO:error]', JSON.stringify(fallback));
+  }
 }
 
 // ── Unsubscribe tracking ─────────────────────────────────────────────
