@@ -65,7 +65,7 @@ export type IsolationConfig =
 /** Parse "4-2-6-2" into a BreathPatternConfig */
 function parseBreathPattern(s: string): BreathPatternConfig | null {
   const parts = s.split('-').map(Number);
-  if (parts.length < 2 || parts.some(isNaN)) return null;
+  if (parts.length < 2 || parts.some(n => !isFinite(n) || n < 0)) return null;
   return {
     inhale: parts[0],
     holdIn: parts[1] ?? 0,
