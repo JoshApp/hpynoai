@@ -33,6 +33,7 @@ import { registerServiceWorker } from './sw-register';
 import { LoadingIndicator } from './loading';
 import { log } from './logger';
 import { createHypnoAPI, type HypnoAPI } from './api';
+import { TelemetryAggregator } from './telemetry';
 
 // ══════════════════════════════════════════════════════════════════════
 // ERROR BOUNDARIES — check before anything else
@@ -359,6 +360,7 @@ function applyTheme(session: SessionConfig): void {
 // ══════════════════════════════════════════════════════════════════════
 const timeline = new Timeline();
 let hypnoApi: HypnoAPI | null = null;
+const telemetry = new TelemetryAggregator();
 
 // Pull-model: timeline callbacks removed. The animate loop reads TimelineState
 // each frame and drives narration, text, breath, interactions directly.
@@ -535,6 +537,10 @@ function startSession(session: SessionConfig): void {
     // Expose programmatic API on window for AI agents / test harnesses
     hypnoApi = createHypnoAPI({ timeline, machine, interactions, breath, narration, bus });
     window.__HYPNO__ = hypnoApi;
+
+    // Reset telemetry for new session and expose on window
+    telemetry.reset();
+    (window as any).__HYPNO_TELEMETRY__ = telemetry;
 
     doneLoading();
     isRunning = true;
@@ -797,6 +803,27 @@ function animate(): void {
     intensityMult: transition.state.intensityMult,
   };
   renderPipeline.renderSession(frame);
+
+  // Telemetry capture (~10fps via internal throttle)
+  telemetry.capture({
+    timelineState: tlState,
+    audioBands,
+    breathValue: breath.value,
+    breathStage: breath.stage,
+    breathCycleDuration: breath.cycleDuration,
+    narration: narration.state,
+    interactions: {
+      breathSyncActive: iState.breathSyncActive,
+      breathSyncFill: iState.breathSyncFill,
+      humSyncActive: iState.humSyncActive,
+      humProgress: iState.humProgress,
+    },
+    feedbackDisabled: feedback.disabled,
+    dt,
+    phase: machine.phase,
+    epoch: machine.epoch,
+    paused: timeline.paused,
+  });
 
   appState.stageIndex = timeline.currentIndex;
   timebar.update();
