@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>HPYNO Audio Debug</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0a0a12; color: #c0b0e0; font: 13px/1.5 monospace; padding: 16px; }
+h1 { font-size: 16px; margin-bottom: 8px; color: #e0d0ff; }
+.controls { display: flex; gap: 8px; align-items: center; margin: 12px 0; flex-wrap: wrap; }
+button { background: rgba(200,160,255,0.1); border: 1px solid rgba(200,160,255,0.3); color: #c8a0ff; padding: 4px 12px; cursor: pointer; border-radius: 3px; font: inherit; }
+button:hover { background: rgba(200,160,255,0.2); }
+button.active { background: rgba(200,160,255,0.3); border-color: #c8a0ff; }
+select { background: #1a1a2e; color: #c0b0e0; border: 1px solid rgba(200,160,255,0.3); padding: 4px 8px; border-radius: 3px; font: inherit; }
+.time { color: #a090c0; min-width: 100px; }
+.stage-container { margin: 16px 0; }
+.stage-header { font-size: 14px; color: #e0d0ff; margin: 12px 0 4px; display: flex; gap: 12px; align-items: baseline; }
+.stage-header span { font-size: 11px; color: #806090; }
+
+/* Timeline canvas */
+.timeline { position: relative; height: 140px; background: #12121e; border: 1px solid rgba(200,160,255,0.15); border-radius: 4px; margin: 4px 0; cursor: pointer; overflow: hidden; }
+.timeline canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+.cursor { position: absolute; top: 0; bottom: 0; width: 2px; background: #c8a0ff; pointer-events: none; z-index: 10; transition: left 0.05s linear; }
+
+/* Word list */
+.words { display: flex; flex-wrap: wrap; gap: 2px 6px; margin: 6px 0; font-size: 11px; }
+.word { padding: 1px 4px; border-radius: 2px; background: rgba(200,160,255,0.05); color: #908070; transition: all 0.1s; }
+.word.active { background: rgba(200,160,255,0.25); color: #e0d0ff; }
+.word.cmd { border-bottom: 1px solid #ff8060; color: #ffa080; }
+.word.cmd.active { background: rgba(255,128,96,0.25); color: #ffc0a0; }
+
+/* Legend */
+.legend { display: flex; gap: 16px; font-size: 11px; color: #806090; margin: 8px 0; flex-wrap: wrap; }
+.legend-item { display: flex; align-items: center; gap: 4px; }
+.legend-swatch { width: 12px; height: 12px; border-radius: 2px; }
+
+/* Info panel */
+.info { background: #12121e; border: 1px solid rgba(200,160,255,0.1); border-radius: 4px; padding: 8px 12px; margin: 8px 0; font-size: 11px; }
+.info-row { display: flex; gap: 20px; }
+.info-label { color: #806090; min-width: 80px; }
+</style>
+</head>
+<body>
+
+<h1>HPYNO Audio Debug</h1>
+
+<div class="controls">
+  <select id="session-select">
+    <option value="relax">relax (original)</option>
+    <option value="relax-v2" selected>relax-v2 (post-processed)</option>
+  </select>
+  <button id="btn-play">&#9654; Play</button>
+  <button id="btn-stop">&#9632; Stop</button>
+  <span class="time" id="time-display">0:00.0 / 0:00</span>
+  <span style="color:#806090">|</span>
+  <button id="btn-prev">&laquo; Prev</button>
+  <button id="btn-next">Next &raquo;</button>
+  <span class="time" id="stage-label">--</span>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-swatch" style="background:rgba(100,160,255,0.3)"></div> speech</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:rgba(255,200,100,0.3)"></div> pause/gap</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:rgba(255,100,80,0.4)"></div> CMD emphasis</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:rgba(100,255,100,0.2)"></div> slice boundary</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:rgba(80,200,255,0.25)"></div> reverb tail</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:rgba(255,160,255,0.2)"></div> inserted pause</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:rgba(180,100,255,0.15);border:1px dashed rgba(180,100,255,0.4)"></div> time-stretched</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#c8a0ff"></div> playback cursor</div>
+</div>
+
+<div id="stages-container"></div>
+
+<script>
+const sessionSelect = document.getElementById('session-select');
+const container = document.getElementById('stages-container');
+const timeDisplay = document.getElementById('time-display');
+const stageLabel = document.getElementById('stage-label');
+
+let manifest = null;
+let currentStageIdx = 0;
+let audio = null;
+let animFrame = null;
+
+// CMD phrases per session (mirrors the script)
+const CMD_PHRASES = {
+  'relax-v2': {
+    settle: ['just here', 'just now'],
+    induction: ['to relax'],
+    deepening: ['let it soften', 'let it go', 'permission to stop trying', 'let yourself sink'],
+    trance: ['just allow this to happen', 'deeper now', 'everything carries you deeper'],
+    deep: ['pure stillness', 'complete peace'],
+  },
+  'relax': {
+    // original has no CMD markers
+  }
+};
+
+let stageEffects = {};  // stageName → effects JSON
+
+async function loadSession(id) {
+  const resp = await fetch(`audio/${id}/manifest.json`);
+  manifest = await resp.json();
+
+  // Load effects metadata for each stage (if available)
+  stageEffects = {};
+  for (const stage of manifest.stages) {
+    const filename = stage.file.split('/').pop().replace('.mp3', '').replace('.wav', '');
+    try {
+      const eresp = await fetch(`audio/${id}/${filename}.effects.json`);
+      if (eresp.ok) stageEffects[stage.name] = await eresp.json();
+    } catch { /* no effects file */ }
+  }
+
+  render();
+}
+
+function cleanWord(w) {
+  return w.replace(/[.,!?]+$/g, '').replace(/\.\.\./g, '').replace(/\u2026/g, '').trim().toLowerCase();
+}
+
+function isCmdWord(word, stageName, sessionId) {
+  const phrases = (CMD_PHRASES[sessionId] || {})[stageName] || [];
+  const clean = cleanWord(word);
+  for (const phrase of phrases) {
+    const words = phrase.split(/\s+/).map(w => cleanWord(w)).filter(Boolean);
+    if (words.includes(clean)) return true;
+  }
+  return false;
+}
+
+function render() {
+  container.innerHTML = '';
+  if (!manifest) return;
+
+  manifest.stages.forEach((stage, si) => {
+    const div = document.createElement('div');
+    div.className = 'stage-container';
+    div.dataset.stageIdx = si;
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'stage-header';
+    header.innerHTML = `${stage.name} <span>${stage.duration.toFixed(1)}s &middot; ${stage.lines.length} lines</span>`;
+    div.appendChild(header);
+
+    // Timeline canvas
+    const timeline = document.createElement('div');
+    timeline.className = 'timeline';
+    timeline.dataset.stageIdx = si;
+
+    const canvas = document.createElement('canvas');
+    timeline.appendChild(canvas);
+
+    const cursor = document.createElement('div');
+    cursor.className = 'cursor';
+    cursor.style.left = '0%';
+    timeline.appendChild(cursor);
+
+    div.appendChild(timeline);
+    drawTimeline(canvas, stage);
+
+    // Click to seek
+    timeline.addEventListener('click', (e) => {
+      const rect = timeline.getBoundingClientRect();
+      const pct = (e.clientX - rect.left) / rect.width;
+      const time = pct * stage.duration;
+      playStage(si, time);
+    });
+
+    // Words with timing
+    const wordsDiv = document.createElement('div');
+    wordsDiv.className = 'words';
+    wordsDiv.dataset.stageIdx = si;
+
+    const stageFx = stageEffects[stage.name] || {};
+    const fxCmdWords = stageFx.cmd_words || [];
+
+    for (const line of stage.lines) {
+      if (!line.words) continue;
+      for (const w of line.words) {
+        const span = document.createElement('span');
+        span.className = 'word';
+        span.textContent = w.word;
+        const absStart = line.startTime + w.start;
+        const absEnd = line.startTime + w.end;
+        span.dataset.start = absStart;
+        span.dataset.end = absEnd;
+        // Use precise effects data for CMD marking
+        const isCmd = fxCmdWords.length
+          ? fxCmdWords.some(c => absStart >= c.start - 0.05 && absEnd <= c.end + 0.05)
+          : isCmdWord(w.word, stage.name, manifest.session);
+        if (isCmd) span.classList.add('cmd');
+        wordsDiv.appendChild(span);
+      }
+      // Add a thin separator between lines
+      const sep = document.createElement('span');
+      sep.style.cssText = 'width:1px;height:14px;background:rgba(200,160,255,0.15);margin:0 4px;';
+      wordsDiv.appendChild(sep);
+    }
+    div.appendChild(wordsDiv);
+
+    // Info
+    const info = document.createElement('div');
+    info.className = 'info';
+    const gaps = countGaps(stage);
+    const cmdCount = countCmds(stage, manifest.session);
+    const fx = stageEffects[stage.name] || {};
+    const fxParts = [];
+    if (fx.speed && fx.speed !== 1.0) fxParts.push(`stretch: ${(fx.speed*100).toFixed(0)}%`);
+    if (fx.pauses_inserted?.length) fxParts.push(`pauses: ${fx.pauses_inserted.length} inserted`);
+    if (fx.reverb_regions?.length) fxParts.push(`reverb: ${fx.reverb_regions.length} tails`);
+    if (fx.cmd_words?.length) fxParts.push(`cmds: ${fx.cmd_words.length} emphasized`);
+    if (fx.whisper_layer) fxParts.push('whisper sublayer');
+
+    info.innerHTML = `
+      <div class="info-row">
+        <span><span class="info-label">lines:</span> ${stage.lines.length}</span>
+        <span><span class="info-label">words:</span> ${stage.lines.reduce((n,l) => n + (l.words?.length || 0), 0)}</span>
+        <span><span class="info-label">gaps &gt;0.5s:</span> ${gaps.count} (avg ${gaps.avg.toFixed(1)}s)</span>
+        <span><span class="info-label">effects:</span> ${fxParts.length ? fxParts.join(' · ') : 'none'}</span>
+      </div>
+    `;
+    div.appendChild(info);
+
+    container.appendChild(div);
+  });
+}
+
+function drawTimeline(canvas, stage) {
+  // Wait for layout
+  requestAnimationFrame(() => {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    canvas.style.width = rect.width + 'px';
+    canvas.style.height = rect.height + 'px';
+
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    const W = rect.width;
+    const H = rect.height;
+    const dur = stage.duration;
+
+    // Background
+    ctx.fillStyle = '#12121e';
+    ctx.fillRect(0, 0, W, H);
+
+    const fx = stageEffects[stage.name] || {};
+
+    // ── Layer 0: Time-stretch indicator (full-width dashed border) ──
+    if (fx.speed && fx.speed !== 1.0) {
+      ctx.fillStyle = 'rgba(180,100,255,0.08)';
+      ctx.fillRect(0, 0, W, H);
+      ctx.strokeStyle = 'rgba(180,100,255,0.3)';
+      ctx.setLineDash([4, 4]);
+      ctx.strokeRect(1, 1, W - 2, H - 2);
+      ctx.setLineDash([]);
+      // Label
+      ctx.fillStyle = 'rgba(180,100,255,0.5)';
+      ctx.font = '9px monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(`${(fx.speed * 100).toFixed(0)}% speed (rubberband)`, W - 4, H - 4);
+    }
+
+    // ── Layer 1: Inserted pauses (pink bands) ──
+    if (fx.pauses_inserted) {
+      for (const p of fx.pauses_inserted) {
+        const pauseDur = p.duration ?? p.added ?? 0;
+        const x = (p.at / dur) * W;
+        const w = Math.max(2, (pauseDur / dur) * W);
+        ctx.fillStyle = 'rgba(255,160,255,0.15)';
+        ctx.fillRect(x, 0, w, H);
+        ctx.strokeStyle = 'rgba(255,160,255,0.3)';
+        ctx.setLineDash([2, 2]);
+        ctx.beginPath();
+        ctx.moveTo(x, 0); ctx.lineTo(x, H);
+        ctx.moveTo(x + w, 0); ctx.lineTo(x + w, H);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        if (w > 20) {
+          ctx.fillStyle = 'rgba(255,160,255,0.5)';
+          ctx.font = '8px monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText(`${pauseDur.toFixed(1)}s`, x + w/2, 20);
+        }
+      }
+    }
+
+    // ── Layer 2: Reverb tails (cyan gradient bands) ──
+    if (fx.reverb_regions) {
+      for (const r of fx.reverb_regions) {
+        const x = (r.start / dur) * W;
+        const w = Math.max(1, ((r.end - r.start) / dur) * W);
+        const grad = ctx.createLinearGradient(x, 0, x + w, 0);
+        grad.addColorStop(0, 'rgba(80,200,255,0.0)');
+        grad.addColorStop(0.15, 'rgba(80,200,255,0.2)');
+        grad.addColorStop(1, 'rgba(80,200,255,0.0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(x, H - 30, w, 25);
+      }
+    }
+
+    // ── Layer 3: Gaps (silence) as yellow bands ──
+    const allWords = [];
+    for (const line of stage.lines) {
+      if (!line.words) continue;
+      for (const w of line.words) {
+        allWords.push({
+          word: w.word,
+          absStart: line.startTime + w.start,
+          absEnd: line.startTime + w.end,
+        });
+      }
+    }
+
+    for (let i = 1; i < allWords.length; i++) {
+      const gapStart = allWords[i-1].absEnd;
+      const gapEnd = allWords[i].absStart;
+      const gap = gapEnd - gapStart;
+      if (gap > 0.3) {
+        const x = (gapStart / dur) * W;
+        const w = Math.max(1, (gap / dur) * W);
+        const alpha = Math.min(0.4, gap * 0.1);
+        ctx.fillStyle = `rgba(255,200,100,${alpha})`;
+        ctx.fillRect(x, 0, w, H);
+
+        if (gap > 0.8) {
+          ctx.fillStyle = 'rgba(255,200,100,0.6)';
+          ctx.font = '9px monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText(`${gap.toFixed(1)}s`, x + w/2, H - 35);
+        }
+      }
+    }
+
+    // ── Layer 4: Speech words ──
+    for (const w of allWords) {
+      const x = (w.absStart / dur) * W;
+      const width = Math.max(1, ((w.absEnd - w.absStart) / dur) * W);
+      ctx.fillStyle = 'rgba(100,160,255,0.3)';
+      ctx.fillRect(x, 10, width, H - 40);
+    }
+
+    // ── Layer 4b: CMD emphasis regions (from effects data only) ──
+    if (fx.cmd_words?.length) {
+      // Group by proximity (words within 0.5s = same phrase)
+      const groups = [];
+      let cur = { start: fx.cmd_words[0].start, end: fx.cmd_words[0].end };
+      for (let i = 1; i < fx.cmd_words.length; i++) {
+        const c = fx.cmd_words[i];
+        if (c.start - cur.end < 0.5) {
+          cur.end = c.end;
+        } else {
+          groups.push(cur);
+          cur = { start: c.start, end: c.end };
+        }
+      }
+      groups.push(cur);
+
+      for (const g of groups) {
+        const x = (g.start / dur) * W;
+        const w = Math.max(2, ((g.end - g.start) / dur) * W);
+        // Fill
+        ctx.fillStyle = 'rgba(255,100,80,0.2)';
+        ctx.fillRect(x, 8, w, H - 36);
+        // Border
+        ctx.strokeStyle = 'rgba(255,100,80,0.5)';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(x, 8, w, H - 36);
+      }
+    }
+
+    // ── Layer 5: Slice boundaries ──
+    for (const line of stage.lines) {
+      const x = (line.startTime / dur) * W;
+      ctx.strokeStyle = 'rgba(100,255,100,0.25)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, H);
+      ctx.stroke();
+    }
+
+    // ── Layer 6: Labels ──
+    ctx.font = '10px monospace';
+    ctx.fillStyle = 'rgba(200,160,255,0.5)';
+    ctx.textAlign = 'left';
+    for (let i = 0; i < stage.lines.length; i++) {
+      const line = stage.lines[i];
+      const x = (line.startTime / dur) * W + 3;
+      const text = line.text.length > 30 ? line.text.substring(0, 30) + '...' : line.text;
+      ctx.fillText(text, x, 10);
+    }
+
+    // Whisper layer indicator
+    if (fx.whisper_layer) {
+      ctx.fillStyle = 'rgba(200,100,255,0.4)';
+      ctx.font = '9px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText('\u266B whisper sublayer active', 4, H - 4);
+    }
+
+    // Time ruler
+    ctx.fillStyle = 'rgba(200,160,255,0.2)';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    const step = dur > 60 ? 10 : dur > 30 ? 5 : 2;
+    for (let t = 0; t <= dur; t += step) {
+      const x = (t / dur) * W;
+      ctx.fillRect(x, H - 1, 1, -5);
+      ctx.fillText(`${t}s`, x, H - 8);
+    }
+  });
+}
+
+function countGaps(stage) {
+  const allWords = [];
+  for (const line of stage.lines) {
+    if (!line.words) continue;
+    for (const w of line.words) {
+      allWords.push({ absStart: line.startTime + w.start, absEnd: line.startTime + w.end });
+    }
+  }
+  let count = 0, total = 0;
+  for (let i = 1; i < allWords.length; i++) {
+    const gap = allWords[i].absStart - allWords[i-1].absEnd;
+    if (gap > 0.5) { count++; total += gap; }
+  }
+  return { count, avg: count > 0 ? total / count : 0 };
+}
+
+function countCmds(stage, sessionId) {
+  let n = 0;
+  for (const line of stage.lines) {
+    if (!line.words) continue;
+    for (const w of line.words) {
+      if (isCmdWord(w.word, stage.name, sessionId)) n++;
+    }
+  }
+  return n;
+}
+
+// ── Playback ──
+
+function playStage(idx, startTime = 0) {
+  if (audio) { audio.pause(); audio = null; }
+  if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
+
+  currentStageIdx = idx;
+  const stage = manifest.stages[idx];
+  stageLabel.textContent = stage.name;
+
+  audio = new Audio(stage.file);
+  audio.currentTime = startTime;
+  audio.play().catch(() => {});
+
+  const tick = () => {
+    if (!audio || audio.paused) return;
+    updatePlayback(idx, audio.currentTime);
+    animFrame = requestAnimationFrame(tick);
+  };
+  animFrame = requestAnimationFrame(tick);
+
+  audio.onended = () => {
+    if (idx + 1 < manifest.stages.length) {
+      playStage(idx + 1, 0);
+    }
+  };
+}
+
+function updatePlayback(stageIdx, time) {
+  const stage = manifest.stages[stageIdx];
+  const pct = (time / stage.duration) * 100;
+
+  // Update cursor
+  const timeline = container.querySelector(`.timeline[data-stage-idx="${stageIdx}"]`);
+  if (timeline) {
+    const cursor = timeline.querySelector('.cursor');
+    if (cursor) cursor.style.left = `${pct}%`;
+  }
+
+  // Update time display
+  const min = Math.floor(time / 60);
+  const sec = (time % 60).toFixed(1);
+  const totalMin = Math.floor(stage.duration / 60);
+  const totalSec = Math.floor(stage.duration % 60);
+  timeDisplay.textContent = `${min}:${sec.padStart(4,'0')} / ${totalMin}:${String(totalSec).padStart(2,'0')}`;
+
+  // Highlight active words
+  const wordsDiv = container.querySelector(`.words[data-stage-idx="${stageIdx}"]`);
+  if (wordsDiv) {
+    for (const span of wordsDiv.querySelectorAll('.word')) {
+      const s = parseFloat(span.dataset.start);
+      const e = parseFloat(span.dataset.end);
+      span.classList.toggle('active', time >= s && time < e + 0.15);
+    }
+  }
+}
+
+function stopPlayback() {
+  if (audio) { audio.pause(); audio = null; }
+  if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
+  // Reset all cursors
+  for (const c of container.querySelectorAll('.cursor')) c.style.left = '0%';
+  for (const w of container.querySelectorAll('.word.active')) w.classList.remove('active');
+  timeDisplay.textContent = '0:00.0 / 0:00';
+}
+
+// ── Events ──
+
+document.getElementById('btn-play').addEventListener('click', () => {
+  if (audio && !audio.paused) {
+    audio.pause();
+  } else if (audio && audio.paused) {
+    audio.play();
+    const tick = () => {
+      if (!audio || audio.paused) return;
+      updatePlayback(currentStageIdx, audio.currentTime);
+      animFrame = requestAnimationFrame(tick);
+    };
+    animFrame = requestAnimationFrame(tick);
+  } else {
+    playStage(0, 0);
+  }
+});
+
+document.getElementById('btn-stop').addEventListener('click', stopPlayback);
+
+document.getElementById('btn-prev').addEventListener('click', () => {
+  if (!manifest) return;
+  const idx = Math.max(0, currentStageIdx - 1);
+  playStage(idx, 0);
+});
+
+document.getElementById('btn-next').addEventListener('click', () => {
+  if (!manifest) return;
+  const idx = Math.min(manifest.stages.length - 1, currentStageIdx + 1);
+  playStage(idx, 0);
+});
+
+sessionSelect.addEventListener('change', () => {
+  stopPlayback();
+  loadSession(sessionSelect.value);
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') { e.preventDefault(); document.getElementById('btn-play').click(); }
+  if (e.code === 'ArrowLeft' && audio) { audio.currentTime = Math.max(0, audio.currentTime - 5); }
+  if (e.code === 'ArrowRight' && audio) { audio.currentTime = Math.min(audio.duration, audio.currentTime + 5); }
+});
+
+// ── Init ──
+loadSession(sessionSelect.value);
+</script>
+</body>
+</html>

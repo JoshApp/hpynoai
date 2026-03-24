@@ -13,6 +13,7 @@
   "description": "",
   "dependencies": {
     "three": "^0.183.2",
+    "tone": "^15.1.22",
     "typescript": "^5.9.3",
     "vite": "^8.0.1"
   },

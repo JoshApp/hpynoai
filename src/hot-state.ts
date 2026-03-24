@@ -1,88 +1,98 @@
 /**
- * HMR-persistent state for the 3D experience.
+ * HMR-persistent state — minimal scalars only.
  *
- * Objects stored here survive Vite hot reloads so the WebGL context,
- * scene graph, and runtime state don't get torn down and rebuilt on
- * every file save.
+ * On hot reload, main.ts does a FULL teardown (dispose all Three.js objects,
+ * audio nodes, DOM elements, listeners) then rebuilds from scratch. Only
+ * these lightweight values survive to restore position via timeline.seek().
  *
- * Usage: import { hotState } from './hot-state';
- * Then read/write properties as needed. On first load everything is
- * undefined; on subsequent HMR updates the previous values persist.
+ * The WebGL renderer and AudioContext are expensive to recreate, so they
+ * persist separately on globalThis.
  */
 
 import type * as THREE from 'three';
-import type { AudioEngine } from './audio';
-import type { Text3D } from './text3d';
-import type { BreathController } from './breath';
-import type { NarrationEngine } from './narration';
-import type { MicrophoneEngine } from './microphone';
-import type { AmbientEngine } from './ambient';
-// StageManager removed — replaced by Timeline
-import type { InteractionManager } from './interactions';
-import type { DevMode } from './devmode';
-import type { SessionSelector } from './selector';
-import type { SettingsManager } from './settings';
-import type { SessionConfig } from './session';
-import type { FeedbackWarp } from './feedback';
-import type { EventBus } from './events';
-import type { StateMachine } from './state-machine';
-import type { InputController } from './input';
-import type { GpuParticles } from './gpu-particles';
 
 export interface HotState {
-  // Event system
-  eventBus?: EventBus;
-  stateMachine?: StateMachine;
-  inputController?: InputController;
+  // Position restoration
+  timelinePosition: number;
+  isRunning: boolean;
+  activeSessionId: string | null;
 
-  // Core Three.js — these are expensive to recreate
-  renderer?: THREE.WebGLRenderer;
-  scene?: THREE.Scene;
-  camera?: THREE.PerspectiveCamera;
+  // Accumulated visual state (avoid jumps)
+  spiralAngle: number;
+  renderTime: number;
 
-  // Shader material (holds uniform references)
-  tunnelMaterial?: THREE.ShaderMaterial;
-  tunnelPlane?: THREE.Mesh;
-
-  // Subsystems
-  audio?: AudioEngine;
-  ambient?: AmbientEngine;
-  presence?: import('./presence').Presence;
-  text3d?: Text3D;
-  breath?: BreathController;
-  narration?: NarrationEngine;
-  mic?: MicrophoneEngine;
-  // stageManager removed — replaced by Timeline
-  interactions?: InteractionManager;
-  devMode?: DevMode;
-  selector?: SessionSelector;
-  settings?: SettingsManager;
-
-  // Visual layers
-  gpuParticles?: GpuParticles;
-  feedback?: FeedbackWarp;
-  compositeQuad?: THREE.Mesh;
-  overlayScene?: THREE.Scene;
-  fadeOverlay?: THREE.Mesh;
-
-  // Runtime state
-  isRunning?: boolean;
-  activeSession?: SessionConfig | null;
-  spiralAngle?: number;
-  lastAnimTime?: number;
-  renderTime?: number;
-  intensityOverride?: number | null;
-  shaderIntensityScale?: number;
-  animFrameId?: number;
-  bgAnimFrameId?: number;
-
-  // To track cleanup
-  cleanupFns?: Array<() => void>;
+  // User overrides
+  intensityOverride: number | null;
+  shaderIntensityScale: number;
 }
 
-// Persist across HMR via a global that Vite won't touch
 const KEY = '__HPYNO_HOT_STATE__';
-const g = globalThis as unknown as Record<string, HotState>;
-if (!g[KEY]) g[KEY] = {};
+const g = globalThis as unknown as Record<string, unknown>;
+if (!g[KEY]) {
+  g[KEY] = {
+    timelinePosition: 0,
+    isRunning: false,
+    activeSessionId: null,
+    spiralAngle: 0,
+    renderTime: 0,
+    intensityOverride: null,
+    shaderIntensityScale: 1,
+  } satisfies HotState;
+}
 
-export const hotState: HotState = g[KEY];
+export const hotState: HotState = g[KEY] as HotState;
+
+// ── Expensive singletons that survive teardown ──
+
+const RENDERER_KEY = '__HPYNO_RENDERER__';
+const AUDIO_CTX_KEY = '__HPYNO_AUDIO_CTX__';
+
+export function getPersistedRenderer(): THREE.WebGLRenderer | null {
+  return (g[RENDERER_KEY] as THREE.WebGLRenderer) ?? null;
+}
+
+export function persistRenderer(r: THREE.WebGLRenderer): void {
+  g[RENDERER_KEY] = r;
+}
+
+export function getPersistedAudioContext(): AudioContext | null {
+  return (g[AUDIO_CTX_KEY] as AudioContext) ?? null;
+}
+
+export function persistAudioContext(ctx: AudioContext): void {
+  g[AUDIO_CTX_KEY] = ctx;
+}
+
+// ── Module generation — incremented each HMR load to kill stale rAF loops ──
+
+const GEN_KEY = '__HPYNO_GEN__';
+if (g[GEN_KEY] === undefined) g[GEN_KEY] = 0;
+
+export function nextGeneration(): number {
+  return ++(g[GEN_KEY] as number);
+}
+
+export function currentGeneration(): number {
+  return g[GEN_KEY] as number;
+}
+
+// ── Teardown registry — functions to call before rebuild ──
+
+const TEARDOWN_KEY = '__HPYNO_TEARDOWN__';
+
+export function getTeardownFns(): Array<() => void> {
+  if (!g[TEARDOWN_KEY]) g[TEARDOWN_KEY] = [];
+  return g[TEARDOWN_KEY] as Array<() => void>;
+}
+
+export function onTeardown(fn: () => void): void {
+  getTeardownFns().push(fn);
+}
+
+export function runTeardown(): void {
+  const fns = getTeardownFns();
+  for (const fn of fns) {
+    try { fn(); } catch { /* ignore errors during teardown */ }
+  }
+  fns.length = 0;
+}

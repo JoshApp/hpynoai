@@ -221,8 +221,8 @@ export class Presence {
   /** Session: settle into tunnel center, then auto-switch to breathe */
   setSessionMode(): void {
     this.transitionTo('settle', {
-      size: 2.0,
-      basePos: new THREE.Vector3(0, 0.04, -2.0),
+      size: 3.5,
+      basePos: new THREE.Vector3(0, 0.02, -1.3),
       duration: 3.0,
     });
   }

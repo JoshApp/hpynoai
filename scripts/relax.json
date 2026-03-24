@@ -1,0 +1,49 @@
+{
+  "id": "relax",
+  "voice": "zephyr",
+  "model": "gpro",
+  "seed": 42,
+  "default_style": "calm, gentle, warm, like a meditation guide, very slow with long pauses between phrases",
+  "stages": {
+    "settle": {
+      "style": "warm, grounding, steady pace, reassuring",
+      "speed": 1.0,
+      "pause_scale": 1.0
+    },
+    "induction": {
+      "style": "calm, gentle, slightly slower, soft focus",
+      "speed": 0.95,
+      "pause_scale": 1.3,
+      "reverb_wet": 0.06
+    },
+    "deepening": {
+      "style": "intimate, warm, deliberate, slower still",
+      "speed": 0.92,
+      "pause_scale": 1.6,
+      "reverb_wet": 0.06
+    },
+    "trance": {
+      "style": "very intimate, breathy, slow, hypnotic monotone",
+      "speed": 0.88,
+      "pause_scale": 2.0,
+      "reverb_wet": 0.1,
+      "whisper_layer": true,
+      "whisper_volume": 0.12
+    },
+    "deep": {
+      "style": "barely above a whisper, minimal, spacious",
+      "speed": 0.90,
+      "pause_scale": 2.5,
+      "reverb_wet": 0.2,
+      "reverb_full": 0.2,
+      "whisper_layer": true,
+      "whisper_volume": 0.18
+    },
+    "emergence": {
+      "style": "gradually brighter, warm, gently uplifting",
+      "speed": 0.95,
+      "pause_scale": 1.0,
+      "reverb_wet": 0.06
+    }
+  }
+}

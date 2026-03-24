@@ -41,6 +41,7 @@ export class SessionSelector {
   private _setExperienceLevel: ((level: ExperienceLevel) => void) | null = null;
   private _setPresenceTarget: ((x: number, y: number, z: number) => void) | null = null;
   private _pulsePresence: (() => void) | null = null;
+  private _onSessionPreview: ((session: import('./session').SessionConfig) => void) | null = null;
 
   constructor(
     sessions: SessionConfig[],
@@ -63,6 +64,10 @@ export class SessionSelector {
 
   setThemeControl(setter: typeof this._setThemeColors): void {
     this._setThemeColors = setter;
+  }
+
+  setAudioPreview(fn: (session: import('./session').SessionConfig) => void): void {
+    this._onSessionPreview = fn;
   }
 
   setExperienceLevelControl(setter: (level: ExperienceLevel) => void): void {
@@ -169,6 +174,8 @@ export class SessionSelector {
           shape: session.theme.tunnelShape ?? 0,
         });
       }
+      // Audio preview
+      if (this._onSessionPreview) this._onSessionPreview(session);
       // Update description
       this.showDescription(session);
     }

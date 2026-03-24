@@ -32,6 +32,9 @@ export interface HpynoSettings {
   // Audio
   masterVolume: number;
   narrationVolume: number;
+  ambientVolume: number;
+  binauralVolume: number;
+  breathClipVolume: number;
   muted: boolean;
 
   // Visual level
@@ -77,6 +80,9 @@ const DEFAULTS: HpynoSettings = {
   particleSize: 1,
   masterVolume: 1,
   narrationVolume: 0.8,
+  ambientVolume: 0.4,
+  binauralVolume: 0.5,
+  breathClipVolume: 0.7,
   muted: false,
   visualLevel: 'full' as const,
   experienceLevel: 'watch' as const,
@@ -248,6 +254,9 @@ export class SettingsManager {
       { key: 'particleSize', label: 'particle size', min: 0, max: 5, step: 0.1, unit: 'x', group: 'particles' },
       { key: 'masterVolume', label: 'master volume', min: 0, max: 2, step: 0.05, group: 'audio' },
       { key: 'narrationVolume', label: 'narration volume', min: 0, max: 1.5, step: 0.05, group: 'audio' },
+      { key: 'ambientVolume', label: 'ambient volume', min: 0, max: 1.5, step: 0.05, group: 'audio' },
+      { key: 'binauralVolume', label: 'binaural volume', min: 0, max: 1, step: 0.05, group: 'audio' },
+      { key: 'breathClipVolume', label: 'breath cue volume', min: 0, max: 1, step: 0.05, group: 'audio' },
     ];
 
     // Store slider defs for refreshPanel
@@ -444,8 +453,10 @@ export class SettingsManager {
     return str + (unit ?? '');
   }
 
+  private keyHandler: ((e: KeyboardEvent) => void) | null = null;
+
   private bindKeys(): void {
-    window.addEventListener('keydown', (e) => {
+    this.keyHandler = (e) => {
       if (e.key === 's' && !e.ctrlKey && !e.metaKey && !e.altKey) {
         // Don't trigger if typing in an input
         if ((e.target as HTMLElement).tagName === 'INPUT') return;
@@ -456,7 +467,8 @@ export class SettingsManager {
         if ((e.target as HTMLElement).tagName === 'INPUT') return;
         this.toggleMute();
       }
-    });
+    };
+    window.addEventListener('keydown', this.keyHandler);
   }
 
   show(): void {
@@ -477,5 +489,16 @@ export class SettingsManager {
 
   get isVisible(): boolean {
     return this.visible;
+  }
+
+  destroy(): void {
+    this.panel.remove();
+    this.muteBtn.remove();
+    this.gearBtn.remove();
+    if (this.keyHandler) {
+      window.removeEventListener('keydown', this.keyHandler);
+      this.keyHandler = null;
+    }
+    this.listeners = [];
   }
 }

@@ -107,15 +107,51 @@ export class NarrationEngine {
 
   // Continuous stage playback (no slicing)
   private stageAudio: HTMLAudioElement | null = null;
+  private stageMediaSource: MediaElementAudioSourceNode | null = null;
   private stageLines: Array<{ text: string; startTime: number; endTime: number; words?: WordTimestamp[] }> = [];
   private stageCurrentLine = -1;
   private stagePlaybackActive = false;
   private onStageEnded: (() => void) | null = null;
   private stageTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
+  // Spatial audio routing
+  private _audioCtx: AudioContext | null = null;
+  private _panner: PannerNode | null = null;
+  private _outputNode: GainNode | null = null;
+
   constructor(config?: Partial<NarrationConfig>) {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.loadVoices();
+  }
+
+  /**
+   * Enable spatial audio — routes narration through a 3D panner.
+   * Call once after AudioContext is available.
+   */
+  enableSpatialAudio(ctx: AudioContext, output: GainNode): void {
+    this._audioCtx = ctx;
+    this._outputNode = output;
+
+    this._panner = ctx.createPanner();
+    this._panner.panningModel = 'HRTF';
+    this._panner.distanceModel = 'inverse';
+    this._panner.refDistance = 1;
+    this._panner.maxDistance = 10;
+    this._panner.rolloffFactor = 1.5;
+    this._panner.positionX.value = 0;
+    this._panner.positionY.value = 0.2;
+    this._panner.positionZ.value = -1.3;
+    this._panner.connect(output);
+
+    log.info('narration', 'Spatial audio enabled (HRTF panner)');
+  }
+
+  /** Update the 3D position of the narration voice (follow the wisp) */
+  setSpatialPosition(x: number, y: number, z: number): void {
+    if (!this._panner) return;
+    this._panner.positionX.linearRampToValueAtTime(x, (this._audioCtx?.currentTime ?? 0) + 0.1);
+    this._panner.positionY.linearRampToValueAtTime(y + 0.1, (this._audioCtx?.currentTime ?? 0) + 0.1);
+    this._panner.positionZ.linearRampToValueAtTime(z, (this._audioCtx?.currentTime ?? 0) + 0.1);
   }
 
   /** Current display line (pull-model — read by animate loop each frame) */
@@ -197,10 +233,27 @@ export class NarrationEngine {
     this.stageCurrentLine = -1;
     this.stagePlaybackActive = true;
 
-    // Play the full stage audio
+    // Play the full stage audio — routed through spatial panner if available
     const audio = new Audio(stage.file);
-    audio.volume = this.config.volume;
+    audio.crossOrigin = 'anonymous'; // needed for MediaElementSource
     this.stageAudio = audio;
+
+    // Route through Web Audio spatial panner (if enabled)
+    if (this._audioCtx && this._panner) {
+      try {
+        const source = this._audioCtx.createMediaElementSource(audio);
+        source.connect(this._panner);
+        this.stageMediaSource = source;
+        audio.volume = 1; // volume controlled by gain nodes, not element
+      } catch (e) {
+        log.warn('narration', 'Spatial routing failed, using direct playback', e);
+        audio.volume = this.config.volume;
+        this.stageMediaSource = null;
+      }
+    } else {
+      audio.volume = this.config.volume;
+      this.stageMediaSource = null;
+    }
     this._isSpeaking = true;
     this._active = true;
     this.speechStartTime = performance.now() / 1000;
@@ -315,11 +368,14 @@ export class NarrationEngine {
       this.stageTimeoutId = null;
     }
     if (this.stageAudio) {
-      // Null out onended BEFORE pausing to prevent stale callback firing
       this.stageAudio.onended = null;
       this.stageAudio.onerror = null;
       this.stageAudio.pause();
       this.stageAudio = null;
+    }
+    if (this.stageMediaSource) {
+      try { this.stageMediaSource.disconnect(); } catch { /* ok */ }
+      this.stageMediaSource = null;
     }
     this.stagePlaybackActive = false;
     this._isSpeaking = false;

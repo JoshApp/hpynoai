@@ -1,0 +1,131 @@
+{
+  "speed": 0.95,
+  "time_stretch": [
+    {
+      "start": 0,
+      "end": 44.601
+    }
+  ],
+  "pauses_inserted": [
+    {
+      "at": 2.2,
+      "duration": 1.56
+    },
+    {
+      "at": 6.68,
+      "duration": 1.38
+    },
+    {
+      "at": 13.04,
+      "duration": 1.26
+    },
+    {
+      "at": 23.08,
+      "duration": 0.98
+    },
+    {
+      "at": 30.14,
+      "duration": 1.42
+    },
+    {
+      "at": 32.66,
+      "duration": 1.44
+    },
+    {
+      "at": 36.44,
+      "duration": 1.26
+    },
+    {
+      "at": 39.6,
+      "duration": 1.22
+    },
+    {
+      "at": 43.0,
+      "duration": 1.16
+    },
+    {
+      "at": 48.42,
+      "duration": 1.42
+    }
+  ],
+  "cmd_words": [
+    {
+      "start": 11.86,
+      "end": 12.26,
+      "word": "to"
+    },
+    {
+      "start": 12.26,
+      "end": 13.04,
+      "word": "relax."
+    }
+  ],
+  "reverb_regions": [
+    {
+      "start": 5.48,
+      "end": 7.88,
+      "wet": 0.06
+    },
+    {
+      "start": 8.38,
+      "end": 9.82,
+      "wet": 0.06
+    },
+    {
+      "start": 11.84,
+      "end": 14.24,
+      "wet": 0.06
+    },
+    {
+      "start": 18.34,
+      "end": 20.32,
+      "wet": 0.06
+    },
+    {
+      "start": 21.88,
+      "end": 24.06,
+      "wet": 0.06
+    },
+    {
+      "start": 25.12,
+      "end": 26.86,
+      "wet": 0.06
+    },
+    {
+      "start": 28.94,
+      "end": 31.34,
+      "wet": 0.06
+    },
+    {
+      "start": 31.46,
+      "end": 33.86,
+      "wet": 0.06
+    },
+    {
+      "start": 33.98,
+      "end": 35.34,
+      "wet": 0.06
+    },
+    {
+      "start": 35.24,
+      "end": 37.64,
+      "wet": 0.06
+    },
+    {
+      "start": 38.4,
+      "end": 40.8,
+      "wet": 0.06
+    },
+    {
+      "start": 41.8,
+      "end": 44.16,
+      "wet": 0.06
+    },
+    {
+      "start": 47.22,
+      "end": 49.62,
+      "wet": 0.06
+    }
+  ],
+  "whisper_layer": false
+}

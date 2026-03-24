@@ -89,6 +89,8 @@ export interface SessionStage {
   // Optional fractionation dip: intensity drops to this value briefly
   // before ramping to stage intensity
   fractionationDip?: number;
+  // Optional per-stage ambient sound profile (overrides session defaults)
+  ambient?: Partial<import('./ambient').AmbientProfile>;
 }
 
 // ── Block-based timeline types ──────────────────────────────────

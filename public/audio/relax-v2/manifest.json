@@ -1,0 +1,2324 @@
+{
+  "session": "relax",
+  "voice": "zephyr",
+  "model": "gpro",
+  "style": "calm, gentle, warm, like a meditation guide, very slow with long pauses between phrases",
+  "postprocessed": true,
+  "stages": [
+    {
+      "name": "settle",
+      "file": "audio/relax-v2/00_settle.mp3",
+      "duration": 45.69,
+      "lines": [
+        {
+          "text": "let's begin... by simply breathing... breathe in... when the tunnel expands... breathe out... when it contracts.",
+          "startTime": 0.0,
+          "endTime": 12.54,
+          "duration": 12.54,
+          "words": [
+            {
+              "word": "let's",
+              "start": 0.0,
+              "end": 0.7
+            },
+            {
+              "word": "begin...",
+              "start": 0.7,
+              "end": 1.32
+            },
+            {
+              "word": "by",
+              "start": 1.32,
+              "end": 1.94
+            },
+            {
+              "word": "simply",
+              "start": 1.94,
+              "end": 2.64
+            },
+            {
+              "word": "breathing...",
+              "start": 2.64,
+              "end": 3.52
+            },
+            {
+              "word": "breathe",
+              "start": 4.86,
+              "end": 5.16
+            },
+            {
+              "word": "in...",
+              "start": 5.16,
+              "end": 6.08
+            },
+            {
+              "word": "when",
+              "start": 6.08,
+              "end": 6.72
+            },
+            {
+              "word": "the",
+              "start": 6.72,
+              "end": 7.04
+            },
+            {
+              "word": "tunnel",
+              "start": 7.04,
+              "end": 7.5
+            },
+            {
+              "word": "expands...",
+              "start": 7.5,
+              "end": 8.6
+            },
+            {
+              "word": "breathe",
+              "start": 9.96,
+              "end": 10.22
+            },
+            {
+              "word": "out...",
+              "start": 10.22,
+              "end": 11.14
+            },
+            {
+              "word": "when",
+              "start": 11.14,
+              "end": 11.56
+            },
+            {
+              "word": "it",
+              "start": 11.56,
+              "end": 11.98
+            },
+            {
+              "word": "contracts.",
+              "start": 11.98,
+              "end": 12.54
+            }
+          ],
+          "type": "breath-sync"
+        },
+        {
+          "text": "good... just like that... keep breathing... nice and slow.",
+          "startTime": 13.88,
+          "endTime": 22.26,
+          "duration": 8.38,
+          "words": [
+            {
+              "word": "good...",
+              "start": 0.0,
+              "end": 0.5
+            },
+            {
+              "word": "just",
+              "start": 1.72,
+              "end": 2.32
+            },
+            {
+              "word": "like",
+              "start": 2.32,
+              "end": 2.8
+            },
+            {
+              "word": "that...",
+              "start": 2.8,
+              "end": 3.42
+            },
+            {
+              "word": "keep",
+              "start": 4.58,
+              "end": 4.98
+            },
+            {
+              "word": "breathing...",
+              "start": 4.98,
+              "end": 5.66
+            },
+            {
+              "word": "nice",
+              "start": 7.0,
+              "end": 7.44
+            },
+            {
+              "word": "and",
+              "start": 7.44,
+              "end": 8.06
+            },
+            {
+              "word": "slow.",
+              "start": 8.06,
+              "end": 8.38
+            }
+          ]
+        },
+        {
+          "text": "you are watching the screen... and that... is perfectly fine.",
+          "startTime": 23.38,
+          "endTime": 27.78,
+          "duration": 4.4,
+          "words": [
+            {
+              "word": "you",
+              "start": 0.0,
+              "end": 0.28
+            },
+            {
+              "word": "are",
+              "start": 0.28,
+              "end": 0.58
+            },
+            {
+              "word": "watching",
+              "start": 0.58,
+              "end": 0.96
+            },
+            {
+              "word": "the",
+              "start": 0.96,
+              "end": 1.34
+            },
+            {
+              "word": "screen...",
+              "start": 1.34,
+              "end": 1.78
+            },
+            {
+              "word": "and",
+              "start": 1.78,
+              "end": 2.08
+            },
+            {
+              "word": "that...",
+              "start": 2.08,
+              "end": 2.62
+            },
+            {
+              "word": "is",
+              "start": 2.62,
+              "end": 3.22
+            },
+            {
+              "word": "perfectly",
+              "start": 3.22,
+              "end": 3.74
+            },
+            {
+              "word": "fine.",
+              "start": 3.74,
+              "end": 4.4
+            }
+          ]
+        },
+        {
+          "text": "notice your breath... moving in... and out... without any effort.",
+          "startTime": 28.78,
+          "endTime": 34.42,
+          "duration": 5.64,
+          "words": [
+            {
+              "word": "notice",
+              "start": 0.0,
+              "end": 0.64
+            },
+            {
+              "word": "your",
+              "start": 0.64,
+              "end": 0.96
+            },
+            {
+              "word": "breath...",
+              "start": 0.96,
+              "end": 1.56
+            },
+            {
+              "word": "moving",
+              "start": 1.56,
+              "end": 1.98
+            },
+            {
+              "word": "in...",
+              "start": 1.98,
+              "end": 2.56
+            },
+            {
+              "word": "and",
+              "start": 2.56,
+              "end": 3.2
+            },
+            {
+              "word": "out...",
+              "start": 3.2,
+              "end": 3.82
+            },
+            {
+              "word": "without",
+              "start": 3.82,
+              "end": 4.6
+            },
+            {
+              "word": "any",
+              "start": 4.6,
+              "end": 5.12
+            },
+            {
+              "word": "effort.",
+              "start": 5.12,
+              "end": 5.64
+            }
+          ]
+        },
+        {
+          "text": "there is nothing you need to do... nowhere you need to be... just here... just now.",
+          "startTime": 35.58,
+          "endTime": 45.36,
+          "duration": 9.78,
+          "words": [
+            {
+              "word": "there",
+              "start": 0.0,
+              "end": 0.28
+            },
+            {
+              "word": "is",
+              "start": 0.28,
+              "end": 0.56
+            },
+            {
+              "word": "nothing",
+              "start": 0.56,
+              "end": 0.84
+            },
+            {
+              "word": "you",
+              "start": 0.84,
+              "end": 1.16
+            },
+            {
+              "word": "need",
+              "start": 1.16,
+              "end": 1.44
+            },
+            {
+              "word": "to",
+              "start": 1.44,
+              "end": 1.72
+            },
+            {
+              "word": "do...",
+              "start": 1.72,
+              "end": 2.72
+            },
+            {
+              "word": "nowhere",
+              "start": 3.66,
+              "end": 3.98
+            },
+            {
+              "word": "you",
+              "start": 3.98,
+              "end": 4.5
+            },
+            {
+              "word": "need",
+              "start": 4.5,
+              "end": 4.74
+            },
+            {
+              "word": "to",
+              "start": 4.74,
+              "end": 4.96
+            },
+            {
+              "word": "be...",
+              "start": 4.96,
+              "end": 5.54
+            },
+            {
+              "word": "just",
+              "start": 6.46,
+              "end": 6.92
+            },
+            {
+              "word": "here...",
+              "start": 6.92,
+              "end": 7.56
+            },
+            {
+              "word": "just",
+              "start": 8.68,
+              "end": 9.2
+            },
+            {
+              "word": "now.",
+              "start": 9.2,
+              "end": 9.78
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "induction",
+      "file": "audio/relax-v2/01_induction.mp3",
+      "duration": 53.71,
+      "lines": [
+        {
+          "text": "and as you watch... you might notice... something interesting...",
+          "startTime": 0.0,
+          "endTime": 6.68,
+          "duration": 6.68,
+          "words": [
+            {
+              "word": "and",
+              "start": 0.0,
+              "end": 0.52
+            },
+            {
+              "word": "as",
+              "start": 0.52,
+              "end": 1.04
+            },
+            {
+              "word": "you",
+              "start": 1.04,
+              "end": 1.42
+            },
+            {
+              "word": "watch...",
+              "start": 1.42,
+              "end": 2.2
+            },
+            {
+              "word": "you",
+              "start": 3.76,
+              "end": 3.8
+            },
+            {
+              "word": "might",
+              "start": 3.8,
+              "end": 4.2
+            },
+            {
+              "word": "notice...",
+              "start": 4.2,
+              "end": 4.98
+            },
+            {
+              "word": "something",
+              "start": 4.98,
+              "end": 5.64
+            },
+            {
+              "word": "interesting...",
+              "start": 5.64,
+              "end": 6.68
+            }
+          ]
+        },
+        {
+          "text": "the more you look... the easier it becomes... to relax.",
+          "startTime": 8.06,
+          "endTime": 13.04,
+          "duration": 4.98,
+          "words": [
+            {
+              "word": "the",
+              "start": 0.0,
+              "end": 0.28
+            },
+            {
+              "word": "more",
+              "start": 0.28,
+              "end": 0.58
+            },
+            {
+              "word": "you",
+              "start": 0.58,
+              "end": 0.96
+            },
+            {
+              "word": "look...",
+              "start": 0.96,
+              "end": 1.52
+            },
+            {
+              "word": "the",
+              "start": 1.76,
+              "end": 2.04
+            },
+            {
+              "word": "easier",
+              "start": 2.04,
+              "end": 2.72
+            },
+            {
+              "word": "it",
+              "start": 2.72,
+              "end": 3.18
+            },
+            {
+              "word": "becomes...",
+              "start": 3.18,
+              "end": 3.8
+            },
+            {
+              "word": "to",
+              "start": 3.8,
+              "end": 4.2
+            },
+            {
+              "word": "relax.",
+              "start": 4.2,
+              "end": 4.98
+            }
+          ]
+        },
+        {
+          "text": "you can feel your body... in the chair... or wherever you are... and that weight... is comfort.",
+          "startTime": 14.3,
+          "endTime": 23.08,
+          "duration": 8.78,
+          "words": [
+            {
+              "word": "you",
+              "start": 0.0,
+              "end": 0.54
+            },
+            {
+              "word": "can",
+              "start": 0.54,
+              "end": 0.9
+            },
+            {
+              "word": "feel",
+              "start": 0.9,
+              "end": 1.24
+            },
+            {
+              "word": "your",
+              "start": 1.24,
+              "end": 1.52
+            },
+            {
+              "word": "body...",
+              "start": 1.52,
+              "end": 2.02
+            },
+            {
+              "word": "in",
+              "start": 2.02,
+              "end": 2.38
+            },
+            {
+              "word": "the",
+              "start": 2.38,
+              "end": 2.7
+            },
+            {
+              "word": "chair...",
+              "start": 2.7,
+              "end": 3.18
+            },
+            {
+              "word": "or",
+              "start": 3.18,
+              "end": 3.82
+            },
+            {
+              "word": "wherever",
+              "start": 3.82,
+              "end": 4.26
+            },
+            {
+              "word": "you",
+              "start": 4.26,
+              "end": 4.68
+            },
+            {
+              "word": "are...",
+              "start": 4.68,
+              "end": 5.24
+            },
+            {
+              "word": "and",
+              "start": 6.02,
+              "end": 6.8
+            },
+            {
+              "word": "that",
+              "start": 6.8,
+              "end": 7.14
+            },
+            {
+              "word": "weight...",
+              "start": 7.14,
+              "end": 7.62
+            },
+            {
+              "word": "is",
+              "start": 7.62,
+              "end": 8.2
+            },
+            {
+              "word": "comfort.",
+              "start": 8.2,
+              "end": 8.78
+            }
+          ]
+        },
+        {
+          "text": "your eyes are open... and each blink... feels a little heavier... a little slower.",
+          "startTime": 24.06,
+          "endTime": 32.66,
+          "duration": 8.6,
+          "words": [
+            {
+              "word": "your",
+              "start": 0.0,
+              "end": 0.96
+            },
+            {
+              "word": "eyes",
+              "start": 0.96,
+              "end": 1.44
+            },
+            {
+              "word": "are",
+              "start": 1.44,
+              "end": 1.76
+            },
+            {
+              "word": "open...",
+              "start": 1.76,
+              "end": 2.26
+            },
+            {
+              "word": "and",
+              "start": 2.8,
+              "end": 2.9
+            },
+            {
+              "word": "each",
+              "start": 2.9,
+              "end": 3.38
+            },
+            {
+              "word": "blink...",
+              "start": 3.38,
+              "end": 3.92
+            },
+            {
+              "word": "feels",
+              "start": 3.92,
+              "end": 4.64
+            },
+            {
+              "word": "a",
+              "start": 4.64,
+              "end": 5.04
+            },
+            {
+              "word": "little",
+              "start": 5.04,
+              "end": 5.42
+            },
+            {
+              "word": "heavier...",
+              "start": 5.42,
+              "end": 6.08
+            },
+            {
+              "word": "a",
+              "start": 7.5,
+              "end": 7.64
+            },
+            {
+              "word": "little",
+              "start": 7.64,
+              "end": 8.04
+            },
+            {
+              "word": "slower.",
+              "start": 8.04,
+              "end": 8.6
+            }
+          ]
+        },
+        {
+          "text": "that's it... just notice... you don't need to try... it happens... on its own.",
+          "startTime": 34.1,
+          "endTime": 43.0,
+          "duration": 8.9,
+          "words": [
+            {
+              "word": "that's",
+              "start": 0.0,
+              "end": 0.58
+            },
+            {
+              "word": "it...",
+              "start": 0.58,
+              "end": 1.08
+            },
+            {
+              "word": "just",
+              "start": 1.24,
+              "end": 1.76
+            },
+            {
+              "word": "notice...",
+              "start": 1.76,
+              "end": 2.34
+            },
+            {
+              "word": "you",
+              "start": 3.6,
+              "end": 3.86
+            },
+            {
+              "word": "don't",
+              "start": 3.86,
+              "end": 4.2
+            },
+            {
+              "word": "need",
+              "start": 4.2,
+              "end": 4.68
+            },
+            {
+              "word": "to",
+              "start": 4.68,
+              "end": 5.04
+            },
+            {
+              "word": "try...",
+              "start": 5.04,
+              "end": 5.5
+            },
+            {
+              "word": "it",
+              "start": 6.72,
+              "end": 7.18
+            },
+            {
+              "word": "happens...",
+              "start": 7.18,
+              "end": 7.76
+            },
+            {
+              "word": "on",
+              "start": 7.76,
+              "end": 8.22
+            },
+            {
+              "word": "its",
+              "start": 8.22,
+              "end": 8.46
+            },
+            {
+              "word": "own.",
+              "start": 8.46,
+              "end": 8.9
+            }
+          ]
+        },
+        {
+          "text": "every breath... carries you... a little deeper... a little further... from wherever you were before.",
+          "startTime": 44.16,
+          "endTime": 53.24,
+          "duration": 9.08,
+          "words": [
+            {
+              "word": "every",
+              "start": 0.0,
+              "end": 1.08
+            },
+            {
+              "word": "breath...",
+              "start": 1.08,
+              "end": 1.76
+            },
+            {
+              "word": "carries",
+              "start": 1.76,
+              "end": 2.4
+            },
+            {
+              "word": "you...",
+              "start": 2.4,
+              "end": 2.98
+            },
+            {
+              "word": "a",
+              "start": 2.98,
+              "end": 3.28
+            },
+            {
+              "word": "little",
+              "start": 3.28,
+              "end": 3.6
+            },
+            {
+              "word": "deeper...",
+              "start": 3.6,
+              "end": 4.26
+            },
+            {
+              "word": "a",
+              "start": 5.68,
+              "end": 5.76
+            },
+            {
+              "word": "little",
+              "start": 5.76,
+              "end": 6.06
+            },
+            {
+              "word": "further...",
+              "start": 6.06,
+              "end": 6.66
+            },
+            {
+              "word": "from",
+              "start": 6.66,
+              "end": 7.2
+            },
+            {
+              "word": "wherever",
+              "start": 7.2,
+              "end": 7.66
+            },
+            {
+              "word": "you",
+              "start": 7.66,
+              "end": 8.12
+            },
+            {
+              "word": "were",
+              "start": 8.12,
+              "end": 8.54
+            },
+            {
+              "word": "before.",
+              "start": 8.54,
+              "end": 9.08
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "deepening",
+      "file": "audio/relax-v2/02_deepening.mp3",
+      "duration": 92.99,
+      "lines": [
+        {
+          "text": "now... let your attention drift... to your shoulders.",
+          "startTime": 0.0,
+          "endTime": 6.68,
+          "duration": 6.68,
+          "words": [
+            {
+              "word": "now...",
+              "start": 0.0,
+              "end": 0.96
+            },
+            {
+              "word": "let",
+              "start": 2.82,
+              "end": 3.3
+            },
+            {
+              "word": "your",
+              "start": 3.3,
+              "end": 3.64
+            },
+            {
+              "word": "attention",
+              "start": 3.64,
+              "end": 4.46
+            },
+            {
+              "word": "drift...",
+              "start": 4.46,
+              "end": 5.1
+            },
+            {
+              "word": "to",
+              "start": 5.1,
+              "end": 5.56
+            },
+            {
+              "word": "your",
+              "start": 5.56,
+              "end": 5.82
+            },
+            {
+              "word": "shoulders.",
+              "start": 5.82,
+              "end": 6.68
+            }
+          ]
+        },
+        {
+          "text": "notice any tension there... and as you breathe out... let it soften... let it go.",
+          "startTime": 8.98,
+          "endTime": 21.16,
+          "duration": 12.18,
+          "words": [
+            {
+              "word": "notice",
+              "start": 0.0,
+              "end": 0.58
+            },
+            {
+              "word": "any",
+              "start": 0.58,
+              "end": 1.1
+            },
+            {
+              "word": "tension",
+              "start": 1.1,
+              "end": 1.62
+            },
+            {
+              "word": "there...",
+              "start": 1.62,
+              "end": 2.36
+            },
+            {
+              "word": "and",
+              "start": 4.1,
+              "end": 4.46
+            },
+            {
+              "word": "as",
+              "start": 4.46,
+              "end": 4.76
+            },
+            {
+              "word": "you",
+              "start": 4.76,
+              "end": 5.02
+            },
+            {
+              "word": "breathe",
+              "start": 5.02,
+              "end": 5.3
+            },
+            {
+              "word": "out...",
+              "start": 5.3,
+              "end": 6.02
+            },
+            {
+              "word": "let",
+              "start": 7.88,
+              "end": 8.04
+            },
+            {
+              "word": "it",
+              "start": 8.04,
+              "end": 8.5
+            },
+            {
+              "word": "soften...",
+              "start": 8.5,
+              "end": 9.06
+            },
+            {
+              "word": "let",
+              "start": 10.86,
+              "end": 11.22
+            },
+            {
+              "word": "it",
+              "start": 11.22,
+              "end": 11.6
+            },
+            {
+              "word": "go.",
+              "start": 11.6,
+              "end": 12.18
+            }
+          ]
+        },
+        {
+          "text": "feel the warmth... spreading down... through your arms... your hands... your fingertips... tingling... softening.",
+          "startTime": 23.48,
+          "endTime": 39.46,
+          "duration": 15.98,
+          "words": [
+            {
+              "word": "feel",
+              "start": 0.0,
+              "end": 0.38
+            },
+            {
+              "word": "the",
+              "start": 0.38,
+              "end": 0.84
+            },
+            {
+              "word": "warmth...",
+              "start": 0.84,
+              "end": 1.5
+            },
+            {
+              "word": "spreading",
+              "start": 1.5,
+              "end": 2.02
+            },
+            {
+              "word": "down...",
+              "start": 2.02,
+              "end": 3.06
+            },
+            {
+              "word": "through",
+              "start": 3.06,
+              "end": 3.46
+            },
+            {
+              "word": "your",
+              "start": 3.46,
+              "end": 3.82
+            },
+            {
+              "word": "arms...",
+              "start": 3.82,
+              "end": 4.5
+            },
+            {
+              "word": "your",
+              "start": 4.5,
+              "end": 6.58
+            },
+            {
+              "word": "hands...",
+              "start": 6.58,
+              "end": 7.26
+            },
+            {
+              "word": "your",
+              "start": 9.3,
+              "end": 9.46
+            },
+            {
+              "word": "fingertips...",
+              "start": 9.46,
+              "end": 10.16
+            },
+            {
+              "word": "tingling...",
+              "start": 12.2,
+              "end": 13.6
+            },
+            {
+              "word": "softening.",
+              "start": 14.82,
+              "end": 15.98
+            }
+          ]
+        },
+        {
+          "text": "your jaw... unclenching... your forehead... smoothing... every muscle... finding its own rest.",
+          "startTime": 41.28,
+          "endTime": 54.0,
+          "duration": 12.72,
+          "words": [
+            {
+              "word": "your",
+              "start": 0.0,
+              "end": 0.46
+            },
+            {
+              "word": "jaw...",
+              "start": 0.46,
+              "end": 1.32
+            },
+            {
+              "word": "unclenching...",
+              "start": 1.32,
+              "end": 2.46
+            },
+            {
+              "word": "your",
+              "start": 4.18,
+              "end": 4.66
+            },
+            {
+              "word": "forehead...",
+              "start": 4.66,
+              "end": 5.56
+            },
+            {
+              "word": "smoothing...",
+              "start": 5.56,
+              "end": 7.0
+            },
+            {
+              "word": "every",
+              "start": 8.82,
+              "end": 9.5
+            },
+            {
+              "word": "muscle...",
+              "start": 9.5,
+              "end": 10.18
+            },
+            {
+              "word": "finding",
+              "start": 10.18,
+              "end": 10.76
+            },
+            {
+              "word": "its",
+              "start": 10.76,
+              "end": 11.4
+            },
+            {
+              "word": "own",
+              "start": 11.4,
+              "end": 12.0
+            },
+            {
+              "word": "rest.",
+              "start": 12.0,
+              "end": 12.72
+            }
+          ]
+        },
+        {
+          "text": "with each exhale... something releases... something you didn't even know... you were holding.",
+          "startTime": 55.4,
+          "endTime": 66.44,
+          "duration": 11.04,
+          "words": [
+            {
+              "word": "with",
+              "start": 0.0,
+              "end": 1.2
+            },
+            {
+              "word": "each",
+              "start": 1.2,
+              "end": 1.84
+            },
+            {
+              "word": "exhale...",
+              "start": 1.84,
+              "end": 2.6
+            },
+            {
+              "word": "something",
+              "start": 4.44,
+              "end": 4.9
+            },
+            {
+              "word": "releases...",
+              "start": 4.9,
+              "end": 5.86
+            },
+            {
+              "word": "something",
+              "start": 7.78,
+              "end": 8.24
+            },
+            {
+              "word": "you",
+              "start": 8.24,
+              "end": 8.66
+            },
+            {
+              "word": "didn't",
+              "start": 8.66,
+              "end": 9.0
+            },
+            {
+              "word": "even",
+              "start": 9.0,
+              "end": 9.56
+            },
+            {
+              "word": "know...",
+              "start": 9.56,
+              "end": 9.94
+            },
+            {
+              "word": "you",
+              "start": 9.94,
+              "end": 10.26
+            },
+            {
+              "word": "were",
+              "start": 10.26,
+              "end": 10.48
+            },
+            {
+              "word": "holding.",
+              "start": 10.48,
+              "end": 11.04
+            }
+          ]
+        },
+        {
+          "text": "heavier now... and that heaviness... is not weight... it's permission... permission to stop trying. ... would you like to go deeper?",
+          "startTime": 68.64,
+          "endTime": 85.34,
+          "duration": 16.7,
+          "words": [
+            {
+              "word": "heavier",
+              "start": 0.0,
+              "end": 0.46
+            },
+            {
+              "word": "now...",
+              "start": 0.46,
+              "end": 1.16
+            },
+            {
+              "word": "and",
+              "start": 2.84,
+              "end": 3.26
+            },
+            {
+              "word": "that",
+              "start": 3.26,
+              "end": 3.6
+            },
+            {
+              "word": "heaviness...",
+              "start": 3.6,
+              "end": 4.24
+            },
+            {
+              "word": "is",
+              "start": 4.24,
+              "end": 4.76
+            },
+            {
+              "word": "not",
+              "start": 4.76,
+              "end": 5.1
+            },
+            {
+              "word": "weight...",
+              "start": 5.1,
+              "end": 5.54
+            },
+            {
+              "word": "it's",
+              "start": 6.64,
+              "end": 7.82
+            },
+            {
+              "word": "permission...",
+              "start": 7.82,
+              "end": 8.58
+            },
+            {
+              "word": "permission",
+              "start": 10.38,
+              "end": 11.04
+            },
+            {
+              "word": "to",
+              "start": 11.04,
+              "end": 11.44
+            },
+            {
+              "word": "stop",
+              "start": 11.44,
+              "end": 11.94
+            },
+            {
+              "word": "trying.",
+              "start": 11.94,
+              "end": 12.76
+            },
+            {
+              "word": "would",
+              "start": 14.42,
+              "end": 15.36
+            },
+            {
+              "word": "you",
+              "start": 15.36,
+              "end": 15.6
+            },
+            {
+              "word": "like",
+              "start": 15.6,
+              "end": 15.78
+            },
+            {
+              "word": "to",
+              "start": 15.78,
+              "end": 16.0
+            },
+            {
+              "word": "go",
+              "start": 16.0,
+              "end": 16.2
+            },
+            {
+              "word": "deeper?",
+              "start": 16.2,
+              "end": 16.7
+            }
+          ],
+          "type": "gate"
+        },
+        {
+          "text": "good... let yourself sink... a little more.",
+          "startTime": 87.44,
+          "endTime": 92.62,
+          "duration": 5.18,
+          "words": [
+            {
+              "word": "good...",
+              "start": 0.0,
+              "end": 0.5
+            },
+            {
+              "word": "let",
+              "start": 2.36,
+              "end": 2.7
+            },
+            {
+              "word": "yourself",
+              "start": 2.7,
+              "end": 3.32
+            },
+            {
+              "word": "sink...",
+              "start": 3.32,
+              "end": 3.96
+            },
+            {
+              "word": "a",
+              "start": 3.96,
+              "end": 4.5
+            },
+            {
+              "word": "little",
+              "start": 4.5,
+              "end": 4.74
+            },
+            {
+              "word": "more.",
+              "start": 4.74,
+              "end": 5.18
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "trance",
+      "file": "audio/relax-v2/03_trance.mp3",
+      "duration": 88.89,
+      "lines": [
+        {
+          "text": "imagine... warmth.",
+          "startTime": 0.0,
+          "endTime": 2.06,
+          "duration": 2.06,
+          "words": [
+            {
+              "word": "imagine...",
+              "start": 0.0,
+              "end": 1.08
+            },
+            {
+              "word": "warmth.",
+              "start": 1.08,
+              "end": 2.06
+            }
+          ]
+        },
+        {
+          "text": "a gentle warmth... surrounding you... like sinking... into something soft.",
+          "startTime": 4.42,
+          "endTime": 14.44,
+          "duration": 10.02,
+          "words": [
+            {
+              "word": "a",
+              "start": 0.0,
+              "end": 0.3
+            },
+            {
+              "word": "gentle",
+              "start": 0.3,
+              "end": 1.06
+            },
+            {
+              "word": "warmth...",
+              "start": 1.06,
+              "end": 1.9
+            },
+            {
+              "word": "surrounding",
+              "start": 1.9,
+              "end": 2.98
+            },
+            {
+              "word": "you...",
+              "start": 2.98,
+              "end": 4.6
+            },
+            {
+              "word": "like",
+              "start": 6.8,
+              "end": 7.12
+            },
+            {
+              "word": "sinking...",
+              "start": 7.12,
+              "end": 7.78
+            },
+            {
+              "word": "into",
+              "start": 7.78,
+              "end": 8.54
+            },
+            {
+              "word": "something",
+              "start": 8.54,
+              "end": 9.14
+            },
+            {
+              "word": "soft.",
+              "start": 9.14,
+              "end": 10.02
+            }
+          ]
+        },
+        {
+          "text": "you might notice... how comfortable this feels... perhaps deeper... than you expected.",
+          "startTime": 16.68,
+          "endTime": 26.2,
+          "duration": 9.52,
+          "words": [
+            {
+              "word": "you",
+              "start": 0.0,
+              "end": 0.7
+            },
+            {
+              "word": "might",
+              "start": 0.7,
+              "end": 1.08
+            },
+            {
+              "word": "notice...",
+              "start": 1.08,
+              "end": 1.8
+            },
+            {
+              "word": "how",
+              "start": 1.8,
+              "end": 2.38
+            },
+            {
+              "word": "comfortable",
+              "start": 2.38,
+              "end": 3.12
+            },
+            {
+              "word": "this",
+              "start": 3.12,
+              "end": 3.54
+            },
+            {
+              "word": "feels...",
+              "start": 3.54,
+              "end": 4.54
+            },
+            {
+              "word": "perhaps",
+              "start": 6.62,
+              "end": 7.2
+            },
+            {
+              "word": "deeper...",
+              "start": 7.2,
+              "end": 7.98
+            },
+            {
+              "word": "than",
+              "start": 7.98,
+              "end": 8.34
+            },
+            {
+              "word": "you",
+              "start": 8.34,
+              "end": 8.88
+            },
+            {
+              "word": "expected.",
+              "start": 8.88,
+              "end": 9.52
+            }
+          ]
+        },
+        {
+          "text": "and that is perfectly fine... your unconscious mind... knows exactly what to do.",
+          "startTime": 27.64,
+          "endTime": 37.94,
+          "duration": 10.3,
+          "words": [
+            {
+              "word": "and",
+              "start": 0.0,
+              "end": 1.12
+            },
+            {
+              "word": "that",
+              "start": 1.12,
+              "end": 1.52
+            },
+            {
+              "word": "is",
+              "start": 1.52,
+              "end": 2.04
+            },
+            {
+              "word": "perfectly",
+              "start": 2.04,
+              "end": 2.62
+            },
+            {
+              "word": "fine...",
+              "start": 2.62,
+              "end": 3.48
+            },
+            {
+              "word": "your",
+              "start": 5.86,
+              "end": 6.18
+            },
+            {
+              "word": "unconscious",
+              "start": 6.18,
+              "end": 6.9
+            },
+            {
+              "word": "mind...",
+              "start": 6.9,
+              "end": 7.54
+            },
+            {
+              "word": "knows",
+              "start": 7.54,
+              "end": 8.0
+            },
+            {
+              "word": "exactly",
+              "start": 8.0,
+              "end": 8.96
+            },
+            {
+              "word": "what",
+              "start": 8.96,
+              "end": 9.36
+            },
+            {
+              "word": "to",
+              "start": 9.36,
+              "end": 9.62
+            },
+            {
+              "word": "do.",
+              "start": 9.62,
+              "end": 10.3
+            }
+          ]
+        },
+        {
+          "text": "there is nothing... you need to figure out... nothing to solve... nothing to fix.",
+          "startTime": 40.32,
+          "endTime": 49.24,
+          "duration": 8.92,
+          "words": [
+            {
+              "word": "there",
+              "start": 0.0,
+              "end": 0.36
+            },
+            {
+              "word": "is",
+              "start": 0.36,
+              "end": 0.72
+            },
+            {
+              "word": "nothing...",
+              "start": 0.72,
+              "end": 1.1
+            },
+            {
+              "word": "you",
+              "start": 1.1,
+              "end": 1.52
+            },
+            {
+              "word": "need",
+              "start": 1.52,
+              "end": 1.74
+            },
+            {
+              "word": "to",
+              "start": 1.74,
+              "end": 2.06
+            },
+            {
+              "word": "figure",
+              "start": 2.06,
+              "end": 2.34
+            },
+            {
+              "word": "out...",
+              "start": 2.34,
+              "end": 3.14
+            },
+            {
+              "word": "nothing",
+              "start": 3.74,
+              "end": 4.02
+            },
+            {
+              "word": "to",
+              "start": 4.02,
+              "end": 4.46
+            },
+            {
+              "word": "solve...",
+              "start": 4.46,
+              "end": 5.02
+            },
+            {
+              "word": "nothing",
+              "start": 7.38,
+              "end": 7.76
+            },
+            {
+              "word": "to",
+              "start": 7.76,
+              "end": 8.34
+            },
+            {
+              "word": "fix.",
+              "start": 8.34,
+              "end": 8.92
+            }
+          ]
+        },
+        {
+          "text": "just allow this... to happen... like water... finding its level... you find yours.",
+          "startTime": 51.52,
+          "endTime": 63.4,
+          "duration": 11.88,
+          "words": [
+            {
+              "word": "just",
+              "start": 0.0,
+              "end": 0.64
+            },
+            {
+              "word": "allow",
+              "start": 0.64,
+              "end": 1.2
+            },
+            {
+              "word": "this...",
+              "start": 1.2,
+              "end": 1.72
+            },
+            {
+              "word": "to",
+              "start": 1.72,
+              "end": 2.08
+            },
+            {
+              "word": "happen...",
+              "start": 2.08,
+              "end": 2.64
+            },
+            {
+              "word": "like",
+              "start": 4.68,
+              "end": 5.12
+            },
+            {
+              "word": "water...",
+              "start": 5.12,
+              "end": 5.92
+            },
+            {
+              "word": "finding",
+              "start": 5.92,
+              "end": 6.56
+            },
+            {
+              "word": "its",
+              "start": 6.56,
+              "end": 7.0
+            },
+            {
+              "word": "level...",
+              "start": 7.0,
+              "end": 7.68
+            },
+            {
+              "word": "you",
+              "start": 9.93,
+              "end": 10.54
+            },
+            {
+              "word": "find",
+              "start": 10.54,
+              "end": 11.04
+            },
+            {
+              "word": "yours.",
+              "start": 11.04,
+              "end": 11.88
+            }
+          ]
+        },
+        {
+          "text": "deeper now... without even trying... each breath... taking you further.",
+          "startTime": 66.2,
+          "endTime": 76.64,
+          "duration": 10.44,
+          "words": [
+            {
+              "word": "deeper",
+              "start": 0.0,
+              "end": 0.54
+            },
+            {
+              "word": "now...",
+              "start": 0.54,
+              "end": 1.32
+            },
+            {
+              "word": "without",
+              "start": 3.52,
+              "end": 3.98
+            },
+            {
+              "word": "even",
+              "start": 3.98,
+              "end": 4.58
+            },
+            {
+              "word": "trying...",
+              "start": 4.58,
+              "end": 5.26
+            },
+            {
+              "word": "each",
+              "start": 7.58,
+              "end": 8.02
+            },
+            {
+              "word": "breath...",
+              "start": 8.02,
+              "end": 8.84
+            },
+            {
+              "word": "taking",
+              "start": 8.84,
+              "end": 9.4
+            },
+            {
+              "word": "you",
+              "start": 9.4,
+              "end": 9.82
+            },
+            {
+              "word": "further.",
+              "start": 9.82,
+              "end": 10.44
+            }
+          ]
+        },
+        {
+          "text": "the sounds around you... become part of this... everything carries you... deeper.",
+          "startTime": 79.44,
+          "endTime": 88.46,
+          "duration": 9.02,
+          "words": [
+            {
+              "word": "the",
+              "start": 0.0,
+              "end": 0.46
+            },
+            {
+              "word": "sounds",
+              "start": 0.46,
+              "end": 0.94
+            },
+            {
+              "word": "around",
+              "start": 0.94,
+              "end": 1.48
+            },
+            {
+              "word": "you...",
+              "start": 1.48,
+              "end": 2.06
+            },
+            {
+              "word": "become",
+              "start": 2.06,
+              "end": 2.42
+            },
+            {
+              "word": "part",
+              "start": 2.42,
+              "end": 2.78
+            },
+            {
+              "word": "of",
+              "start": 2.78,
+              "end": 3.06
+            },
+            {
+              "word": "this...",
+              "start": 3.06,
+              "end": 3.88
+            },
+            {
+              "word": "everything",
+              "start": 3.88,
+              "end": 6.5
+            },
+            {
+              "word": "carries",
+              "start": 6.5,
+              "end": 7.56
+            },
+            {
+              "word": "you...",
+              "start": 7.56,
+              "end": 8.42
+            },
+            {
+              "word": "deeper.",
+              "start": 8.42,
+              "end": 9.02
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "deep",
+      "file": "audio/relax-v2/04_deep.mp3",
+      "duration": 42.58,
+      "lines": [
+        {
+          "text": "pure stillness.",
+          "startTime": 0.0,
+          "endTime": 3.12,
+          "duration": 3.12,
+          "words": [
+            {
+              "word": "pure",
+              "start": 0.0,
+              "end": 1.14
+            },
+            {
+              "word": "stillness.",
+              "start": 1.14,
+              "end": 3.12
+            }
+          ]
+        },
+        {
+          "text": "complete peace.",
+          "startTime": 6.6,
+          "endTime": 8.2,
+          "duration": 1.6,
+          "words": [
+            {
+              "word": "complete",
+              "start": 0.0,
+              "end": 0.0
+            },
+            {
+              "word": "peace.",
+              "start": 0.0,
+              "end": 1.6
+            }
+          ]
+        },
+        {
+          "text": "nothing to do.",
+          "startTime": 12.0,
+          "endTime": 14.18,
+          "duration": 2.18,
+          "words": [
+            {
+              "word": "nothing",
+              "start": 0.0,
+              "end": 0.36
+            },
+            {
+              "word": "to",
+              "start": 0.36,
+              "end": 0.86
+            },
+            {
+              "word": "do.",
+              "start": 0.86,
+              "end": 2.18
+            }
+          ]
+        },
+        {
+          "text": "nowhere to be.",
+          "startTime": 16.68,
+          "endTime": 18.68,
+          "duration": 2.0,
+          "words": [
+            {
+              "word": "nowhere",
+              "start": 0.0,
+              "end": 0.62
+            },
+            {
+              "word": "to",
+              "start": 0.62,
+              "end": 1.08
+            },
+            {
+              "word": "be.",
+              "start": 1.08,
+              "end": 2.0
+            }
+          ]
+        },
+        {
+          "text": "just this.",
+          "startTime": 21.94,
+          "endTime": 24.0,
+          "duration": 2.06,
+          "words": [
+            {
+              "word": "just",
+              "start": 0.0,
+              "end": 0.68
+            },
+            {
+              "word": "this.",
+              "start": 0.68,
+              "end": 2.06
+            }
+          ]
+        },
+        {
+          "text": "floating.",
+          "startTime": 27.58,
+          "endTime": 28.14,
+          "duration": 0.56,
+          "words": [
+            {
+              "word": "floating.",
+              "start": 0.0,
+              "end": 0.56
+            }
+          ]
+        },
+        {
+          "text": "safe.",
+          "startTime": 31.74,
+          "endTime": 32.9,
+          "duration": 1.16,
+          "words": [
+            {
+              "word": "safe.",
+              "start": 0.0,
+              "end": 1.16
+            }
+          ]
+        },
+        {
+          "text": "rest here... for as long as you like.",
+          "startTime": 37.04,
+          "endTime": 42.2,
+          "duration": 5.16,
+          "words": [
+            {
+              "word": "rest",
+              "start": 0.0,
+              "end": 0.64
+            },
+            {
+              "word": "here...",
+              "start": 0.64,
+              "end": 1.6
+            },
+            {
+              "word": "for",
+              "start": 1.6,
+              "end": 3.06
+            },
+            {
+              "word": "as",
+              "start": 3.06,
+              "end": 3.42
+            },
+            {
+              "word": "long",
+              "start": 3.42,
+              "end": 4.0
+            },
+            {
+              "word": "as",
+              "start": 4.0,
+              "end": 4.48
+            },
+            {
+              "word": "you",
+              "start": 4.48,
+              "end": 4.76
+            },
+            {
+              "word": "like.",
+              "start": 4.76,
+              "end": 5.16
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "emergence",
+      "file": "audio/relax-v2/05_emergence.mp3",
+      "duration": 51.95,
+      "lines": [
+        {
+          "text": "gently now... beginning to return.",
+          "startTime": 0.0,
+          "endTime": 5.84,
+          "duration": 5.84,
+          "words": [
+            {
+              "word": "gently",
+              "start": 0.0,
+              "end": 1.08
+            },
+            {
+              "word": "now...",
+              "start": 1.08,
+              "end": 2.9
+            },
+            {
+              "word": "beginning",
+              "start": 3.7,
+              "end": 4.14
+            },
+            {
+              "word": "to",
+              "start": 4.14,
+              "end": 4.76
+            },
+            {
+              "word": "return.",
+              "start": 4.76,
+              "end": 5.84
+            }
+          ]
+        },
+        {
+          "text": "carrying this calm... with you... like a warm blanket... you can wrap around yourself... anytime.",
+          "startTime": 7.66,
+          "endTime": 18.86,
+          "duration": 11.2,
+          "words": [
+            {
+              "word": "carrying",
+              "start": 0.0,
+              "end": 0.52
+            },
+            {
+              "word": "this",
+              "start": 0.52,
+              "end": 1.16
+            },
+            {
+              "word": "calm...",
+              "start": 1.16,
+              "end": 1.82
+            },
+            {
+              "word": "with",
+              "start": 1.82,
+              "end": 2.44
+            },
+            {
+              "word": "you...",
+              "start": 2.44,
+              "end": 3.42
+            },
+            {
+              "word": "like",
+              "start": 4.74,
+              "end": 5.1
+            },
+            {
+              "word": "a",
+              "start": 5.1,
+              "end": 5.6
+            },
+            {
+              "word": "warm",
+              "start": 5.6,
+              "end": 6.18
+            },
+            {
+              "word": "blanket...",
+              "start": 6.18,
+              "end": 6.98
+            },
+            {
+              "word": "you",
+              "start": 6.98,
+              "end": 7.98
+            },
+            {
+              "word": "can",
+              "start": 7.98,
+              "end": 8.3
+            },
+            {
+              "word": "wrap",
+              "start": 8.3,
+              "end": 8.76
+            },
+            {
+              "word": "around",
+              "start": 8.76,
+              "end": 9.42
+            },
+            {
+              "word": "yourself...",
+              "start": 9.42,
+              "end": 10.44
+            },
+            {
+              "word": "anytime.",
+              "start": 10.44,
+              "end": 11.2
+            }
+          ]
+        },
+        {
+          "text": "feeling refreshed... and clear... and rested.",
+          "startTime": 18.86,
+          "endTime": 24.98,
+          "duration": 6.12,
+          "words": [
+            {
+              "word": "feeling",
+              "start": 0.0,
+              "end": 1.04
+            },
+            {
+              "word": "refreshed...",
+              "start": 2.32,
+              "end": 2.86
+            },
+            {
+              "word": "and",
+              "start": 2.86,
+              "end": 4.1
+            },
+            {
+              "word": "clear...",
+              "start": 4.1,
+              "end": 4.86
+            },
+            {
+              "word": "and",
+              "start": 4.86,
+              "end": 5.48
+            },
+            {
+              "word": "rested.",
+              "start": 5.48,
+              "end": 6.12
+            }
+          ]
+        },
+        {
+          "text": "your body... remembering how to move... slowly... gently... in your own time.",
+          "startTime": 24.98,
+          "endTime": 37.14,
+          "duration": 12.16,
+          "words": [
+            {
+              "word": "your",
+              "start": 0.0,
+              "end": 0.74
+            },
+            {
+              "word": "body...",
+              "start": 2.12,
+              "end": 2.52
+            },
+            {
+              "word": "remembering",
+              "start": 2.52,
+              "end": 3.48
+            },
+            {
+              "word": "how",
+              "start": 3.48,
+              "end": 4.52
+            },
+            {
+              "word": "to",
+              "start": 4.52,
+              "end": 5.28
+            },
+            {
+              "word": "move...",
+              "start": 5.28,
+              "end": 5.74
+            },
+            {
+              "word": "slowly...",
+              "start": 5.74,
+              "end": 6.48
+            },
+            {
+              "word": "gently...",
+              "start": 6.48,
+              "end": 7.5
+            },
+            {
+              "word": "in",
+              "start": 9.04,
+              "end": 9.54
+            },
+            {
+              "word": "your",
+              "start": 10.94,
+              "end": 11.18
+            },
+            {
+              "word": "own",
+              "start": 11.18,
+              "end": 11.6
+            },
+            {
+              "word": "time.",
+              "start": 11.6,
+              "end": 12.16
+            }
+          ]
+        },
+        {
+          "text": "whenever you are ready... take a deeper breath... and open your eyes... fully.",
+          "startTime": 37.14,
+          "endTime": 47.86,
+          "duration": 10.72,
+          "words": [
+            {
+              "word": "whenever",
+              "start": 0.0,
+              "end": 0.98
+            },
+            {
+              "word": "you",
+              "start": 2.4,
+              "end": 2.92
+            },
+            {
+              "word": "are",
+              "start": 2.92,
+              "end": 3.6
+            },
+            {
+              "word": "ready...",
+              "start": 3.6,
+              "end": 3.98
+            },
+            {
+              "word": "take",
+              "start": 3.98,
+              "end": 4.72
+            },
+            {
+              "word": "a",
+              "start": 6.3,
+              "end": 6.44
+            },
+            {
+              "word": "deeper",
+              "start": 6.44,
+              "end": 6.8
+            },
+            {
+              "word": "breath...",
+              "start": 6.8,
+              "end": 7.22
+            },
+            {
+              "word": "and",
+              "start": 7.22,
+              "end": 7.96
+            },
+            {
+              "word": "open",
+              "start": 7.96,
+              "end": 8.84
+            },
+            {
+              "word": "your",
+              "start": 8.84,
+              "end": 9.3
+            },
+            {
+              "word": "eyes...",
+              "start": 9.3,
+              "end": 9.7
+            },
+            {
+              "word": "fully.",
+              "start": 9.7,
+              "end": 10.72
+            }
+          ]
+        },
+        {
+          "text": "welcome back.",
+          "startTime": 47.86,
+          "endTime": 50.82,
+          "duration": 2.96,
+          "words": [
+            {
+              "word": "welcome",
+              "start": 0.0,
+              "end": 0.68
+            },
+            {
+              "word": "back.",
+              "start": 2.24,
+              "end": 2.96
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "interactive": []
+}

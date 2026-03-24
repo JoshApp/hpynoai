@@ -1,0 +1,94 @@
+{
+  "speed": 0.9,
+  "time_stretch": [
+    {
+      "start": 0,
+      "end": 25.39
+    }
+  ],
+  "pauses_inserted": [
+    {
+      "at": 3.12,
+      "duration": 3.48
+    },
+    {
+      "at": 8.2,
+      "duration": 3.8
+    },
+    {
+      "at": 14.18,
+      "duration": 2.5
+    },
+    {
+      "at": 18.68,
+      "duration": 3.26
+    },
+    {
+      "at": 24.0,
+      "duration": 3.58
+    },
+    {
+      "at": 28.14,
+      "duration": 3.6
+    },
+    {
+      "at": 32.9,
+      "duration": 4.14
+    }
+  ],
+  "cmd_words": [
+    {
+      "start": 0.0,
+      "end": 1.14,
+      "word": "Pure"
+    },
+    {
+      "start": 1.14,
+      "end": 3.12,
+      "word": "stillness,"
+    },
+    {
+      "start": 6.6,
+      "end": 6.6,
+      "word": "complete"
+    },
+    {
+      "start": 6.6,
+      "end": 8.2,
+      "word": "peace,"
+    }
+  ],
+  "reverb_regions": [
+    {
+      "start": 7.0,
+      "end": 9.4,
+      "wet": 0.2
+    },
+    {
+      "start": 12.98,
+      "end": 15.38,
+      "wet": 0.2
+    },
+    {
+      "start": 17.48,
+      "end": 19.88,
+      "wet": 0.2
+    },
+    {
+      "start": 22.8,
+      "end": 25.2,
+      "wet": 0.2
+    },
+    {
+      "start": 26.94,
+      "end": 29.34,
+      "wet": 0.2
+    },
+    {
+      "start": 31.7,
+      "end": 34.1,
+      "wet": 0.2
+    }
+  ],
+  "whisper_layer": true
+}

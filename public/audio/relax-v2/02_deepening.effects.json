@@ -1,0 +1,274 @@
+{
+  "speed": 0.92,
+  "time_stretch": [
+    {
+      "start": 0,
+      "end": 62.316
+    }
+  ],
+  "pauses_inserted": [
+    {
+      "at": 0.96,
+      "duration": 1.86
+    },
+    {
+      "at": 6.68,
+      "duration": 2.3
+    },
+    {
+      "at": 11.34,
+      "duration": 1.74
+    },
+    {
+      "at": 15.0,
+      "duration": 1.86
+    },
+    {
+      "at": 18.04,
+      "duration": 1.8
+    },
+    {
+      "at": 21.16,
+      "duration": 2.32
+    },
+    {
+      "at": 30.74,
+      "duration": 2.04
+    },
+    {
+      "at": 33.64,
+      "duration": 2.04
+    },
+    {
+      "at": 37.08,
+      "duration": 1.22
+    },
+    {
+      "at": 39.46,
+      "duration": 1.82
+    },
+    {
+      "at": 43.74,
+      "duration": 1.72
+    },
+    {
+      "at": 48.28,
+      "duration": 1.82
+    },
+    {
+      "at": 54.0,
+      "duration": 1.4
+    },
+    {
+      "at": 58.0,
+      "duration": 1.84
+    },
+    {
+      "at": 61.26,
+      "duration": 1.92
+    },
+    {
+      "at": 66.44,
+      "duration": 2.2
+    },
+    {
+      "at": 69.8,
+      "duration": 1.68
+    },
+    {
+      "at": 74.18,
+      "duration": 1.1
+    },
+    {
+      "at": 77.22,
+      "duration": 1.8
+    },
+    {
+      "at": 81.4,
+      "duration": 1.66
+    },
+    {
+      "at": 85.34,
+      "duration": 2.1
+    },
+    {
+      "at": 87.94,
+      "duration": 1.86
+    }
+  ],
+  "cmd_words": [
+    {
+      "start": 79.02,
+      "end": 79.68,
+      "word": "Permission"
+    },
+    {
+      "start": 79.68,
+      "end": 80.08,
+      "word": "to"
+    },
+    {
+      "start": 80.08,
+      "end": 80.58,
+      "word": "stop"
+    },
+    {
+      "start": 80.58,
+      "end": 81.4,
+      "word": "trying."
+    },
+    {
+      "start": 16.86,
+      "end": 17.02,
+      "word": "let"
+    },
+    {
+      "start": 17.02,
+      "end": 17.48,
+      "word": "it"
+    },
+    {
+      "start": 17.48,
+      "end": 18.04,
+      "word": "soften."
+    },
+    {
+      "start": 19.84,
+      "end": 20.2,
+      "word": "Let"
+    },
+    {
+      "start": 20.2,
+      "end": 20.58,
+      "word": "it"
+    },
+    {
+      "start": 20.58,
+      "end": 21.16,
+      "word": "go."
+    },
+    {
+      "start": 89.8,
+      "end": 90.14,
+      "word": "Let"
+    },
+    {
+      "start": 90.14,
+      "end": 90.76,
+      "word": "yourself"
+    },
+    {
+      "start": 90.76,
+      "end": 91.4,
+      "word": "sink"
+    }
+  ],
+  "reverb_regions": [
+    {
+      "start": 5.48,
+      "end": 7.88,
+      "wet": 0.06
+    },
+    {
+      "start": 10.14,
+      "end": 12.54,
+      "wet": 0.06
+    },
+    {
+      "start": 13.8,
+      "end": 16.2,
+      "wet": 0.06
+    },
+    {
+      "start": 16.84,
+      "end": 19.24,
+      "wet": 0.06
+    },
+    {
+      "start": 19.96,
+      "end": 22.36,
+      "wet": 0.06
+    },
+    {
+      "start": 29.54,
+      "end": 31.94,
+      "wet": 0.06
+    },
+    {
+      "start": 32.44,
+      "end": 34.84,
+      "wet": 0.06
+    },
+    {
+      "start": 35.88,
+      "end": 38.28,
+      "wet": 0.06
+    },
+    {
+      "start": 38.26,
+      "end": 40.66,
+      "wet": 0.06
+    },
+    {
+      "start": 42.54,
+      "end": 44.94,
+      "wet": 0.06
+    },
+    {
+      "start": 47.08,
+      "end": 49.48,
+      "wet": 0.06
+    },
+    {
+      "start": 52.8,
+      "end": 55.2,
+      "wet": 0.06
+    },
+    {
+      "start": 56.8,
+      "end": 59.2,
+      "wet": 0.06
+    },
+    {
+      "start": 60.06,
+      "end": 62.46,
+      "wet": 0.06
+    },
+    {
+      "start": 65.24,
+      "end": 67.64,
+      "wet": 0.06
+    },
+    {
+      "start": 68.6,
+      "end": 71.0,
+      "wet": 0.06
+    },
+    {
+      "start": 72.98,
+      "end": 75.28,
+      "wet": 0.06
+    },
+    {
+      "start": 76.02,
+      "end": 78.42,
+      "wet": 0.06
+    },
+    {
+      "start": 80.2,
+      "end": 82.6,
+      "wet": 0.06
+    },
+    {
+      "start": 84.14,
+      "end": 86.54,
+      "wet": 0.06
+    },
+    {
+      "start": 86.74,
+      "end": 89.14,
+      "wet": 0.06
+    }
+  ],
+  "whisper_layer": false
+}

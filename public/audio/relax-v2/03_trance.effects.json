@@ -1,0 +1,206 @@
+{
+  "speed": 0.88,
+  "time_stretch": [
+    {
+      "start": 0,
+      "end": 60.649
+    }
+  ],
+  "pauses_inserted": [
+    {
+      "at": 2.06,
+      "duration": 2.36
+    },
+    {
+      "at": 9.02,
+      "duration": 2.2
+    },
+    {
+      "at": 14.44,
+      "duration": 2.24
+    },
+    {
+      "at": 21.22,
+      "duration": 2.08
+    },
+    {
+      "at": 26.2,
+      "duration": 1.44
+    },
+    {
+      "at": 31.12,
+      "duration": 2.38
+    },
+    {
+      "at": 37.94,
+      "duration": 2.38
+    },
+    {
+      "at": 45.34,
+      "duration": 2.36
+    },
+    {
+      "at": 49.24,
+      "duration": 2.28
+    },
+    {
+      "at": 54.16,
+      "duration": 2.04
+    },
+    {
+      "at": 59.2,
+      "duration": 2.25
+    },
+    {
+      "at": 63.4,
+      "duration": 2.8
+    },
+    {
+      "at": 67.52,
+      "duration": 2.2
+    },
+    {
+      "at": 71.46,
+      "duration": 2.32
+    },
+    {
+      "at": 76.64,
+      "duration": 2.8
+    }
+  ],
+  "cmd_words": [
+    {
+      "start": 66.2,
+      "end": 66.74,
+      "word": "Deeper"
+    },
+    {
+      "start": 66.74,
+      "end": 67.52,
+      "word": "now,"
+    },
+    {
+      "start": 83.32,
+      "end": 85.94,
+      "word": "Everything"
+    },
+    {
+      "start": 51.52,
+      "end": 52.16,
+      "word": "Just"
+    },
+    {
+      "start": 52.16,
+      "end": 52.72,
+      "word": "allow"
+    },
+    {
+      "start": 52.72,
+      "end": 53.24,
+      "word": "this"
+    },
+    {
+      "start": 53.24,
+      "end": 53.6,
+      "word": "to"
+    },
+    {
+      "start": 53.6,
+      "end": 54.16,
+      "word": "happen."
+    },
+    {
+      "start": 85.94,
+      "end": 87.0,
+      "word": "carries"
+    },
+    {
+      "start": 87.0,
+      "end": 87.86,
+      "word": "you"
+    },
+    {
+      "start": 87.86,
+      "end": 88.46,
+      "word": "deeper."
+    }
+  ],
+  "reverb_regions": [
+    {
+      "start": 7.82,
+      "end": 10.22,
+      "wet": 0.1
+    },
+    {
+      "start": 13.24,
+      "end": 15.64,
+      "wet": 0.1
+    },
+    {
+      "start": 20.02,
+      "end": 22.42,
+      "wet": 0.1
+    },
+    {
+      "start": 25.0,
+      "end": 27.4,
+      "wet": 0.1
+    },
+    {
+      "start": 29.92,
+      "end": 32.32,
+      "wet": 0.1
+    },
+    {
+      "start": 36.74,
+      "end": 39.14,
+      "wet": 0.1
+    },
+    {
+      "start": 42.26,
+      "end": 44.06,
+      "wet": 0.1
+    },
+    {
+      "start": 44.14,
+      "end": 46.54,
+      "wet": 0.1
+    },
+    {
+      "start": 48.04,
+      "end": 50.44,
+      "wet": 0.1
+    },
+    {
+      "start": 52.96,
+      "end": 55.36,
+      "wet": 0.1
+    },
+    {
+      "start": 58.0,
+      "end": 60.4,
+      "wet": 0.1
+    },
+    {
+      "start": 62.2,
+      "end": 64.6,
+      "wet": 0.1
+    },
+    {
+      "start": 66.32,
+      "end": 68.72,
+      "wet": 0.1
+    },
+    {
+      "start": 70.26,
+      "end": 72.66,
+      "wet": 0.1
+    },
+    {
+      "start": 75.44,
+      "end": 77.84,
+      "wet": 0.1
+    }
+  ],
+  "whisper_layer": true
+}

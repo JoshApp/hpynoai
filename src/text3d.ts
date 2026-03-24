@@ -212,9 +212,9 @@ export class Text3D {
       }));
     }
 
-    // Create single sprite for focus (redrawn per word)
+    // Create single sprite for focus (redrawn per word when first word arrives)
     this.clearSprites();
-    const { texture, aspect } = this.createTexture('...');
+    const { texture, aspect } = this.createTexture(' ');
     const material = new THREE.SpriteMaterial({
       map: texture,
       transparent: true,
@@ -231,7 +231,7 @@ export class Text3D {
     this.spriteAspects.push(aspect);
 
     this.opacity = 0;
-    this.targetOpacity = 1;
+    this.targetOpacity = 0; // stays invisible until first word arrives
   }
 
   // ════════════════════════════════════════════════════════

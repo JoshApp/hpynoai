@@ -12,7 +12,7 @@ Usage:
 Requires: ffmpeg, openai-whisper
 """
 
-import json, sys, os, re, wave, time, subprocess, urllib.request, argparse
+import json, sys, os, re, wave, time, subprocess, urllib.request, argparse, shutil
 
 API_URL = "https://sexyvoice.ai/api/v1/speech"
 API_KEY = os.environ.get("SEXYVOICE_API_KEY", "")
@@ -24,7 +24,20 @@ MAX_CHARS = 950
 # ── Script Parser ──
 
 def parse_script(path):
-    """Parse script.txt into stages with slices, gates, and interaction markers."""
+    """Parse script.txt into stages with slices, gates, interaction markers, and commands.
+
+    Supported markers:
+      [STAGE: name]        — new continuous-audio stage
+      [STYLE: description] — voice style for this stage (overrides default)
+      [SPEED: 0.9]         — post-process speed for this stage
+      [SLICE]              — text display boundary
+      [PAUSE]              — insert ellipsis pause in audio
+      [PAUSE 3]            — insert longer pause (3s target in post-processing)
+      [CMD text here]      — embedded command (gets emphasis in playback)
+      [GATE]               — tag previous slice as gate prompt
+      [GATE: text]         — separate gate prompt
+      [BREATH-SYNC]        — start breathing interaction
+    """
     stages = []
     current = None
 
@@ -39,10 +52,30 @@ def parse_script(path):
                 if current:
                     _flush(current)
                     stages.append(current)
-                current = {'name': m.group(1).strip(), 'slices': [], 'gates': [], 'slice_types': [], '_buf': ''}
+                current = {
+                    'name': m.group(1).strip(),
+                    'slices': [], 'gates': [], 'slice_types': [],
+                    'cmds': [],      # [(word_text, slice_idx)] — embedded commands
+                    'style': None,   # per-stage voice style override
+                    'speed': None,   # per-stage post-process speed override
+                    'pauses': [],    # [(after_slice_idx, duration)] — explicit pause durations
+                    '_buf': '',
+                }
                 continue
 
             if not current:
+                continue
+
+            # Per-stage style override
+            m = re.match(r'\[STYLE:\s*(.+?)\]', line)
+            if m:
+                current['style'] = m.group(1).strip()
+                continue
+
+            # Per-stage speed override
+            m = re.match(r'\[SPEED:\s*([\d.]+)\]', line)
+            if m:
+                current['speed'] = float(m.group(1))
                 continue
 
             # Old-style [GATE: text] — separate gate (kept for backwards compat)
@@ -55,7 +88,6 @@ def parse_script(path):
             if line == '[GATE]':
                 _flush(current)
                 if current['slices']:
-                    # Tag the last slice as a gate
                     idx = len(current['slices']) - 1
                     while len(current['slice_types']) <= idx:
                         current['slice_types'].append('narration')
@@ -76,8 +108,34 @@ def parse_script(path):
                 _flush(current)
                 continue
 
-            if line == '[PAUSE]':
+            # [PAUSE] or [PAUSE N] — insert pause (with optional target duration)
+            m = re.match(r'\[PAUSE(?:\s+(\d+(?:\.\d+)?))?\]', line)
+            if m:
                 current['_buf'] += '... '
+                if m.group(1):
+                    _flush(current)
+                    # Store desired pause duration after the current slice
+                    idx = len(current['slices']) - 1
+                    current['pauses'].append((idx, float(m.group(1))))
+                continue
+
+            # [CMD text] — embedded command (spoken normally, emphasized in playback)
+            # Can appear standalone or inline: "the easier it becomes... [CMD to relax]"
+            if '[CMD ' in line:
+                # Extract all CMD markers from the line, keep surrounding text
+                remaining = line
+                while '[CMD ' in remaining:
+                    before, _, after = remaining.partition('[CMD ')
+                    cmd_text, _, after = after.partition(']')
+                    cmd_text = cmd_text.strip()
+                    if before.strip():
+                        current['_buf'] += before.strip() + ' '
+                    current['_buf'] += cmd_text + ' '
+                    if cmd_text:
+                        current['cmds'].append(cmd_text)
+                    remaining = after
+                if remaining.strip():
+                    current['_buf'] += remaining.strip() + ' '
                 continue
 
             current['_buf'] += line + ' '
@@ -92,6 +150,11 @@ def parse_script(path):
         # Pad slice_types to match slices length
         while len(s['slice_types']) < len(s['slices']):
             s['slice_types'].append('narration')
+        # Ensure cmds/pauses exist even if not used
+        s.setdefault('cmds', [])
+        s.setdefault('pauses', [])
+        s.setdefault('style', None)
+        s.setdefault('speed', None)
 
     return stages
 
@@ -136,16 +199,53 @@ def wav_duration(path):
         return w.getnframes() / float(w.getframerate())
 
 
-# ── Whisper ──
+# ── Transcription (faster-whisper preferred, falls back to openai whisper) ──
 
+_fw_model = None
 _whisper_model = None
 
 def transcribe(audio_path, model_size="base"):
-    global _whisper_model
+    """Transcribe with word-level timestamps.
+    Tries faster-whisper first (4x faster, same accuracy), falls back to openai whisper."""
+
+    # Try faster-whisper
     try:
-        import whisper
+        return _transcribe_faster_whisper(audio_path, model_size)
+    except ImportError:
+        pass
+    except Exception as e:
+        print(f"    faster-whisper failed ({e}), falling back to whisper")
+
+    # Fallback: openai whisper
+    try:
+        return _transcribe_whisper(audio_path, model_size)
     except ImportError:
         return None
+
+
+def _transcribe_faster_whisper(audio_path, model_size="base"):
+    global _fw_model
+    from faster_whisper import WhisperModel
+
+    if _fw_model is None:
+        _fw_model = WhisperModel(model_size, device="cpu", compute_type="int8")
+
+    segments, _info = _fw_model.transcribe(audio_path, word_timestamps=True)
+
+    words = []
+    for seg in segments:
+        for w in (seg.words or []):
+            words.append({
+                "word": w.word.strip(),
+                "start": round(w.start, 3),
+                "end": round(w.end, 3),
+            })
+    return words if words else None
+
+
+def _transcribe_whisper(audio_path, model_size="base"):
+    global _whisper_model
+    import whisper
 
     if _whisper_model is None:
         _whisper_model = whisper.load_model(model_size)
@@ -364,21 +464,79 @@ def generate_session_config(manifest, script_path, stages):
     return out_path
 
 
+# ── Command Word Matching ──
+
+def _find_cmd_word_indices(whisper_words, cmd_texts):
+    """Find indices in whisper_words that correspond to [CMD] marked text.
+    cmd_texts is a list of command phrases like ['go deeper', 'let go'].
+    Returns a set of word indices."""
+    indices = set()
+    # Build list of clean whisper words for matching
+    clean_whisper = [_clean_word(w["word"]).lower() for w in whisper_words]
+
+    for cmd in cmd_texts:
+        cmd_words = [_clean_word(w).lower() for w in cmd.split() if _clean_word(w)]
+        if not cmd_words:
+            continue
+        # Slide window through whisper words looking for the sequence
+        for i in range(len(clean_whisper) - len(cmd_words) + 1):
+            if all(clean_whisper[i + j] == cmd_words[j] for j in range(len(cmd_words))):
+                for j in range(len(cmd_words)):
+                    indices.add(i + j)
+                break  # first match only
+
+    return indices
+
+
 # ── Main ──
 
 def main():
     parser = argparse.ArgumentParser(description="HPYNO voice pipeline")
     parser.add_argument("script", help="Session script .txt")
-    parser.add_argument("--voice", default=DEFAULT_VOICE)
-    parser.add_argument("--style", default=DEFAULT_STYLE)
-    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--config", help="Session config .json (auto-detected from script name if omitted)")
+    parser.add_argument("--voice", default=None, help=f"Voice (default: from config or {DEFAULT_VOICE})")
+    parser.add_argument("--style", default=None, help="Default style (overrides config)")
+    parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--whisper-model", default="base")
     parser.add_argument("--skip-generate", action="store_true", help="Skip API, use existing raw audio")
     parser.add_argument("--config-only", action="store_true", help="Only rebuild config from existing manifest")
+    parser.add_argument("--no-postprocess", action="store_true", help="Skip audio post-processing")
     args = parser.parse_args()
 
+    # Import post-processor (optional — degrades gracefully)
+    try:
+        from postprocess import postprocess_stage, get_stage_opts
+        HAS_POSTPROCESS = not args.no_postprocess
+    except ImportError:
+        HAS_POSTPROCESS = False
+        if not args.no_postprocess:
+            print("Note: postprocess.py not available (install librosa for full pipeline)")
+
     stages = parse_script(args.script)
-    session = os.path.splitext(os.path.basename(args.script))[0].replace('-v2', '').replace('-script', '')
+    script_base = os.path.splitext(os.path.basename(args.script))[0]
+    session = re.sub(r'-v\d+$', '', script_base).replace('-script', '')
+
+    # ── Load config JSON (auto-detect or explicit) ──
+    config_path = args.config
+    if not config_path:
+        # Try same name as script but .json
+        candidate = os.path.join(os.path.dirname(args.script), f"{session}.json")
+        if os.path.exists(candidate):
+            config_path = candidate
+
+    session_config = {}
+    if config_path and os.path.exists(config_path):
+        with open(config_path) as f:
+            session_config = json.load(f)
+        print(f"Config: {config_path}")
+        if session_config.get("id"):
+            session = session_config["id"]
+
+    # Merge CLI args > config > defaults
+    voice = args.voice or session_config.get("voice", DEFAULT_VOICE)
+    default_style = args.style or session_config.get("default_style", DEFAULT_STYLE)
+    seed = args.seed if args.seed is not None else session_config.get("seed", 42)
+    stage_configs = session_config.get("stages", {})
 
     out_dir = os.path.join("public", "audio", session)
     raw_dir = os.path.join(out_dir, "raw")
@@ -396,7 +554,7 @@ def main():
 
     print(f"Session: {session} | {len(stages)} stages")
 
-    manifest = {"session": session, "voice": args.voice, "model": "gpro", "style": args.style, "stages": [], "interactive": []}
+    manifest = {"session": session, "voice": voice, "model": "gpro", "style": default_style, "stages": [], "interactive": []}
 
     for si, stage in enumerate(stages):
         print(f"\n── {stage['name']} ({len(stage['slices'])} slices) ──")
@@ -404,6 +562,10 @@ def main():
         # Generate full stage audio
         stage_path = os.path.join(raw_dir, f"{si:02d}_{stage['name']}.wav")
         full_text = " ".join(stage['slices'])
+
+        # Style priority: script [STYLE:] > config JSON > CLI default
+        sc = stage_configs.get(stage['name'], {})
+        stage_style = stage.get('style') or sc.get('style') or default_style
 
         if not args.skip_generate or not os.path.exists(stage_path):
             # Split into API-sized chunks if needed
@@ -420,7 +582,7 @@ def main():
             chunk_files = []
             for ci, chunk in enumerate(chunks):
                 print(f"  gen {ci+1}/{len(chunks)} ({len(chunk)} chars)...", end=" ", flush=True)
-                url, credits = generate_audio(chunk, args.voice, args.style, args.seed + si * 10 + ci)
+                url, credits = generate_audio(chunk, voice, stage_style, seed + si * 10 + ci)
                 if url:
                     cp = os.path.join(raw_dir, f"{si:02d}_{stage['name']}_c{ci}.wav")
                     download(url, cp)
@@ -445,19 +607,53 @@ def main():
         stage_dur = wav_duration(stage_path)
         print(f"  raw: {stage_dur:.0f}s")
 
-        # Copy raw audio to public dir as the stage file (no slicing!)
-        stage_public = os.path.join(out_dir, f"{si:02d}_{stage['name']}.wav")
-        if os.path.abspath(stage_path) != os.path.abspath(stage_public):
-            import shutil
-            shutil.copy2(stage_path, stage_public)
-
-        # Transcribe to get line timing
+        # ── Transcribe raw audio first (needed for post-processing) ──
         print(f"  transcribe...", end=" ", flush=True)
         words = transcribe(stage_path, args.whisper_model)
+        if words:
+            print(f"{len(words)} words")
+        else:
+            print("fallback (no whisper)")
+
+        # ── Post-process: insert pauses, stretch, effects ──
+        stage_public = os.path.join(out_dir, f"{si:02d}_{stage['name']}.wav")
+
+        if HAS_POSTPROCESS and words:
+            print(f"  postprocess...", flush=True)
+            pp_opts = get_stage_opts(stage['name'])
+            # Apply overrides from config JSON
+            for k in ('speed', 'pause_scale', 'reverb_wet', 'whisper_layer', 'whisper_volume'):
+                if k in sc:
+                    pp_opts[k] = sc[k]
+            # Apply per-stage overrides from script (highest priority)
+            if stage.get('speed') is not None:
+                pp_opts['speed'] = stage['speed']
+
+            # Find command word indices in Whisper output
+            cmd_indices = set()
+            if stage.get('cmds'):
+                cmd_indices = _find_cmd_word_indices(words, stage['cmds'])
+
+            result = postprocess_stage(stage_path, words, stage['slices'], pp_opts, cmd_indices)
+            shutil.copy2(result["audio_path"], stage_public)
+            words = result["whisper_words"]
+            stage_dur = result["duration"]
+
+            # Re-transcribe processed audio for accurate timestamps
+            print(f"  re-transcribe...", end=" ", flush=True)
+            new_words = transcribe(stage_public, args.whisper_model)
+            if new_words:
+                words = new_words
+                print(f"{len(words)} words (updated)")
+            else:
+                print("kept original timestamps")
+        else:
+            # No post-processing — just copy raw to public
+            if os.path.abspath(stage_path) != os.path.abspath(stage_public):
+                shutil.copy2(stage_path, stage_public)
 
         lines = []
         if words:
-            print(f"{len(words)} words")
             cuts = find_cuts(words, stage['slices'])
             if cuts:
                 for ct in cuts:
@@ -511,7 +707,7 @@ def main():
             gpath = os.path.join(out_dir, f"{gid}.wav")
             if not args.skip_generate or not os.path.exists(gpath):
                 print(f"  gate: \"{gate}\"...", end=" ", flush=True)
-                url, credits = generate_audio(gate, args.voice, args.style, args.seed + 900 + si * 10 + gi)
+                url, credits = generate_audio(gate, voice, default_style, seed + 900 + si * 10 + gi)
                 if url:
                     download(url, gpath)
                     print(f"{wav_duration(gpath):.1f}s")
