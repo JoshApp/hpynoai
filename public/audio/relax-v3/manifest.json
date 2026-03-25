@@ -6,7 +6,7 @@
   "stages": [
     {
       "name": "settle",
-      "file": "audio/relax-v3/00_settle.wav",
+      "file": "audio/relax-v3/00_settle.mp3",
       "duration": 51.22,
       "lines": [
         {
@@ -459,7 +459,7 @@
     },
     {
       "name": "induction",
-      "file": "audio/relax-v3/01_induction.wav",
+      "file": "audio/relax-v3/01_induction.mp3",
       "duration": 85.38,
       "lines": [
         {
@@ -1175,7 +1175,7 @@
     },
     {
       "name": "deepening",
-      "file": "audio/relax-v3/02_deepening.wav",
+      "file": "audio/relax-v3/02_deepening.mp3",
       "duration": 115.24,
       "lines": [
         {
@@ -1899,7 +1899,7 @@
     },
     {
       "name": "post_gate",
-      "file": "audio/relax-v3/03_post_gate.wav",
+      "file": "audio/relax-v3/03_post_gate.mp3",
       "duration": 10.62,
       "lines": [
         {
@@ -1964,7 +1964,7 @@
     },
     {
       "name": "trance",
-      "file": "audio/relax-v3/04_trance.wav",
+      "file": "audio/relax-v3/04_trance.mp3",
       "duration": 202.26,
       "lines": [
         {
@@ -2751,7 +2751,7 @@
     },
     {
       "name": "deep",
-      "file": "audio/relax-v3/05_deep.wav",
+      "file": "audio/relax-v3/05_deep.mp3",
       "duration": 39.37,
       "lines": [
         {
@@ -2890,7 +2890,7 @@
     },
     {
       "name": "emergence",
-      "file": "audio/relax-v3/06_emergence.wav",
+      "file": "audio/relax-v3/06_emergence.mp3",
       "duration": 70.43,
       "lines": [
         {
@@ -3403,7 +3403,7 @@
     {
       "id": "relax_ready",
       "type": "prompt",
-      "file": "audio/relax-v3/relax_ready.wav",
+      "file": "audio/relax-v3/relax_ready.mp3",
       "text": "find a comfortable position... and when you're ready... just press to begin.",
       "duration": 6.57,
       "words": [
@@ -3472,7 +3472,7 @@
     {
       "id": "relax_breathe",
       "type": "breath-sync",
-      "file": "audio/relax-v3/relax_breathe.wav",
+      "file": "audio/relax-v3/relax_breathe.mp3",
       "text": "let's begin with your breath. breathe in... slowly... with the light. and breathe out... as it fades. just follow the rhythm... it's easy.",
       "duration": 15.13,
       "words": [
