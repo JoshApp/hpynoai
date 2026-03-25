@@ -956,17 +956,67 @@ def main():
         wav_to_mp3(stage_public, stage_mp3)
         print(f"  mp3: {os.path.basename(stage_mp3)}")
 
+        # Build effects metadata — embedded in the manifest for runtime use
+        effects = {
+            "speed": sc.get('speed', 1.0),
+            "reverb_wet": sc.get('reverb_wet', 0),
+            "reverb_full": sc.get('reverb_full', 0),
+            "whisper_layer": bool(sc.get('whisper_layer', False)),
+        }
+
+        # CMD words — find absolute positions from word stream
+        cmd_words_out = []
+        if stage.get('cmds') and words:
+            cmd_indices = _find_cmd_word_indices(words, stage['cmds'])
+            for wi in sorted(cmd_indices):
+                if wi < len(words):
+                    cmd_words_out.append({
+                        "word": words[wi]["word"],
+                        "start": round(float(words[wi]["start"]), 3),
+                        "end": round(float(words[wi]["end"]), 3),
+                    })
+        if cmd_words_out:
+            effects["cmd_words"] = cmd_words_out
+
+        # Pause positions — derived from word gaps > 1.5s
+        all_abs_words = []
+        for line in lines:
+            for w in line.get("words", []):
+                all_abs_words.append(line["startTime"] + w["start"])
+                all_abs_words.append(line["startTime"] + w["end"])
+        pauses = []
+        # Walk pairs (end, next_start)
+        for line_idx in range(len(lines) - 1):
+            line_end = lines[line_idx]["endTime"]
+            next_start = lines[line_idx + 1]["startTime"]
+            gap = next_start - line_end
+            if gap > 1.0:
+                pauses.append({"at": round(line_end, 3), "duration": round(gap, 3)})
+        # Also check within-line word gaps
+        for line in lines:
+            ws = line.get("words", [])
+            for wi in range(1, len(ws)):
+                gap = ws[wi]["start"] - ws[wi-1]["end"]
+                if gap > 1.0:
+                    pauses.append({"at": round(line["startTime"] + ws[wi-1]["end"], 3), "duration": round(gap, 3)})
+        if pauses:
+            effects["pauses"] = sorted(pauses, key=lambda p: p["at"])
+
         stage_entry = {
             "name": stage['name'],
             "file": f"sessions/{session}/{si:02d}_{stage['name']}.mp3",
             "duration": round(stage_dur, 2),
             "lines": lines,
+            "effects": effects,
         }
         if stage.get('interlude', 0) > 0:
             stage_entry["interlude"] = stage['interlude']
         manifest["stages"].append(stage_entry)
+        n_cmds = len(cmd_words_out)
+        n_pauses = len(pauses)
         interlude_str = f" + {stage['interlude']}s interlude" if stage.get('interlude') else ""
-        print(f"  {len(lines)} lines mapped, {stage_dur:.0f}s continuous{interlude_str}")
+        effects_str = f" | {n_cmds} cmds, {n_pauses} pauses" if n_cmds or n_pauses else ""
+        print(f"  {len(lines)} lines mapped, {stage_dur:.0f}s continuous{interlude_str}{effects_str}")
 
     # ── Generate interactive clips (standalone audio) ──
     for ii, ix in enumerate(interactives):

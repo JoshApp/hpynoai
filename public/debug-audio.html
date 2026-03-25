@@ -104,13 +104,14 @@ let zoom = 1;
 
 const CMD_PHRASES = {
   'relax': {
-    settle: ['just here', 'just now'],
-    induction: ['to relax'],
-    deepening: ['let it soften', 'let it go', 'permission to stop trying', 'let yourself sink'],
-    trance: ['just allow this to happen', 'deeper now', 'everything carries you deeper'],
-    deep: ['pure stillness', 'complete peace'],
+    settle: ['they happen on their own', 'it becomes automatic'],
+    induction: ['your body is ahead of you', 'because you\'ve stopped trying', 'just this remains', 'let it go'],
+    deepening: ['sinking deeper', 'everything it touches relaxes', 'the less you think about your body the more it relaxes', 'it knows where it\'s going', 'you\'re already there'],
+    post_gate: ['let yourself fall just a little more'],
+    trance: ['just watch them dissolve', 'part of the space you\'re in', 'nothing', 'deeper into yourself', 'has already let go', 'remember this'],
+    deep: ['stillness', 'peace', 'floating', 'safe'],
+    emergence: ['it\'s yours now', 'you carry the depth with you'],
   },
-  'relax': {}
 };
 
 // ── DOM refs ──
@@ -131,21 +132,13 @@ async function loadSession(id) {
   stageEffects = {};
   stageWaveforms = {};
   for (const stage of manifest.stages) {
-    // Derive effects data from manifest word timestamps (no separate effects file needed)
-    const fx = { pauses_inserted: [], cmd_words: [], reverb_regions: [], speed: 1, whisper_layer: false };
-    const allWords = [];
-    for (const line of stage.lines) {
-      for (const w of (line.words || [])) {
-        allWords.push({ start: line.startTime + w.start, end: line.startTime + w.end, word: w.word });
-      }
-    }
-    // Detect pauses: gaps > 1.5s between words
-    for (let i = 1; i < allWords.length; i++) {
-      const gap = allWords[i].start - allWords[i-1].end;
-      if (gap > 1.5) {
-        fx.pauses_inserted.push({ at: allWords[i-1].end, duration: gap });
-      }
-    }
+    // Read effects from manifest (embedded by pipeline)
+    const fx = stage.effects || {};
+    // Normalize field names for debug panel
+    if (fx.pauses) fx.pauses_inserted = fx.pauses;
+    if (!fx.pauses_inserted) fx.pauses_inserted = [];
+    if (!fx.cmd_words) fx.cmd_words = [];
+    if (!fx.reverb_regions) fx.reverb_regions = [];
     stageEffects[stage.name] = fx;
     // Load waveform data
     try {

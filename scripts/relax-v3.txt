@@ -129,6 +129,7 @@ would you like to go deeper?
 good.
 [CMD let yourself fall... just a little more]
 that's it.
+[INTERLUDE 3]
 
 [STAGE: trance]
 you're somewhere now...
