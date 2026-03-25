@@ -259,6 +259,17 @@ def wav_duration(path):
         return w.getnframes() / float(w.getframerate())
 
 
+def wav_to_mp3(wav_path, mp3_path=None):
+    """Convert WAV to MP3 (128k). Returns MP3 path."""
+    if mp3_path is None:
+        mp3_path = wav_path.replace('.wav', '.mp3')
+    subprocess.run(
+        ["ffmpeg", "-y", "-i", wav_path, "-codec:a", "libmp3lame", "-b:a", "128k", mp3_path],
+        capture_output=True, timeout=30,
+    )
+    return mp3_path
+
+
 # ── Transcription — WhisperX (forced alignment) > faster-whisper > whisper ──
 
 _wx_model = None
@@ -941,9 +952,14 @@ def main():
             print("fallback (no whisper)")
             lines = _duration_based_lines(stage['slices'], stage_dur)
 
+        # Convert WAV → MP3
+        stage_mp3 = stage_public.replace('.wav', '.mp3')
+        wav_to_mp3(stage_public, stage_mp3)
+        print(f"  mp3: {os.path.basename(stage_mp3)}")
+
         stage_entry = {
             "name": stage['name'],
-            "file": f"sessions/{session}/{si:02d}_{stage['name']}.wav",
+            "file": f"sessions/{session}/{si:02d}_{stage['name']}.mp3",
             "duration": round(stage_dur, 2),
             "lines": lines,
         }
@@ -974,10 +990,14 @@ def main():
             ix_words = transcribe(ix_path, args.whisper_model, known_text=ix['text'])
             ix_dur = wav_duration(ix_path)
 
+            # Convert WAV → MP3
+            ix_mp3 = ix_path.replace('.wav', '.mp3')
+            wav_to_mp3(ix_path, ix_mp3)
+
             ix_entry = {
                 "id": ix['id'],
                 "type": ix['type'],
-                "file": f"sessions/{session}/{ix['id']}.wav",
+                "file": f"sessions/{session}/{ix['id']}.mp3",
                 "text": ix['text'],
                 "duration": round(ix_dur, 2),
             }
@@ -990,16 +1010,40 @@ def main():
     # Add any other interactive clips already in the directory
     existing = {i["id"] for i in manifest["interactive"]}
     for f in sorted(os.listdir(out_dir)):
-        if not f.endswith('.wav') or f[0].isdigit(): continue
-        name = f.replace('.wav', '')
+        if not (f.endswith('.wav') or f.endswith('.mp3')) or f[0].isdigit(): continue
+        name = f.replace('.wav', '').replace('.mp3', '')
         if name in existing: continue
         try:
-            manifest["interactive"].append({"id": name, "file": f"sessions/{session}/{f}", "duration": round(wav_duration(os.path.join(out_dir, f)), 2)})
+            mp3_name = name + '.mp3'
+            mp3_path = os.path.join(out_dir, mp3_name)
+            wav_path = os.path.join(out_dir, name + '.wav')
+            if f.endswith('.wav') and not os.path.exists(mp3_path):
+                wav_to_mp3(wav_path, mp3_path)
+            if os.path.exists(mp3_path):
+                manifest["interactive"].append({"id": name, "file": f"sessions/{session}/{mp3_name}", "duration": round(wav_duration(wav_path) if os.path.exists(wav_path) else 0, 2)})
         except: pass
 
     # Write manifest
     with open(manifest_path, "w") as f:
         json.dump(manifest, f, indent=2)
+
+    # Copy MP3s + manifest to legacy audio/ path (backward compat)
+    legacy_dir = os.path.join("public", "audio", session)
+    os.makedirs(legacy_dir, exist_ok=True)
+    for f in os.listdir(out_dir):
+        if f.endswith('.mp3') or f == 'manifest.json':
+            shutil.copy2(os.path.join(out_dir, f), os.path.join(legacy_dir, f))
+    # Fix paths in legacy manifest
+    legacy_manifest = os.path.join(legacy_dir, "manifest.json")
+    if os.path.exists(legacy_manifest):
+        with open(legacy_manifest) as lf:
+            lm = json.load(lf)
+        for s in lm.get("stages", []):
+            s["file"] = s["file"].replace(f"sessions/{session}/", f"audio/{session}/")
+        for ix in lm.get("interactive", []):
+            ix["file"] = ix["file"].replace(f"sessions/{session}/", f"audio/{session}/")
+        with open(legacy_manifest, "w") as lf:
+            json.dump(lm, lf, indent=2)
 
     # Generate session package (session.json + update sessions.json index)
     generate_session_package(manifest, session_config, out_dir)

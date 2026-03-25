@@ -3399,5 +3399,16 @@
       "interlude": 15.0
     }
   ],
-  "interactive": []
+  "interactive": [
+    {
+      "id": "relax_breathe",
+      "file": "sessions/relax/relax_breathe.mp3",
+      "duration": 0
+    },
+    {
+      "id": "relax_ready",
+      "file": "sessions/relax/relax_ready.mp3",
+      "duration": 0
+    }
+  ]
 }
