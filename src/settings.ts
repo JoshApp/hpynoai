@@ -485,8 +485,8 @@ export class SettingsManager {
 
   private bindKeys(): void {
     this.keyHandler = (e) => {
-      if (e.key === 's' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        // Don't trigger if typing in an input
+      // Settings toggle: comma key (S is used by WASD navigation, gear icon is the primary toggle)
+      if (e.key === ',' && !e.ctrlKey && !e.metaKey && !e.altKey) {
         if ((e.target as HTMLElement).tagName === 'INPUT') return;
         e.preventDefault();
         this.visible ? this.hide() : this.show();

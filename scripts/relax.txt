@@ -14,12 +14,11 @@
 #   [INTERACTIVE: type name]  — standalone clip, not part of narration
 #   Supported types: breath-sync, gate, prompt
 
-[INTERACTIVE: breath-sync settle_breath]
+[STAGE: settle]
 let's begin... by simply breathing...
 breathe in... when the tunnel expands...
 breathe out... when it contracts.
-
-[STAGE: settle]
+[BREATH-SYNC]
 good... just like that...
 keep breathing... nice and slow.
 [SLICE]
@@ -84,13 +83,11 @@ something you didn't even know... you were holding.
 heavier now... and that heaviness...
 is not weight... it's permission...
 [CMD permission to stop trying]
-[INTERLUDE 8]
-
-[INTERACTIVE: gate deepening_gate]
+[PAUSE 3]
 would you like to go deeper?
-
-[STAGE: deepening_post]
+[GATE]
 good... [CMD let yourself sink]... a little more.
+[INTERLUDE 8]
 
 [STAGE: trance]
 imagine... warmth.

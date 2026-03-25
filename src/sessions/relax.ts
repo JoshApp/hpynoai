@@ -37,7 +37,7 @@ export const relax: SessionConfig = {
       spiralSpeed: 0.8,
       interlude: stageInterludes['settle'],
       interactions: [
-        { type: 'breath-sync', triggerAt: 0, duration: 30, data: { clipId: 'settle_breath' } },
+        { type: 'breath-sync', triggerAt: 14, duration: 30 },
       ],
       ambient: { melodyLevel: 0.4, noiseLevel: 0.2, filterMax: 1400, padLevel: 0.4, padType: 'sawtooth' as OscillatorType },
     },
@@ -65,7 +65,7 @@ export const relax: SessionConfig = {
       fractionationDip: 0.3,
       interlude: stageInterludes['deepening'],
       interactions: [
-        { type: 'gate', triggerAt: stageDurations['deepening'] ?? 95, duration: 10, data: { text: 'would you like to go deeper?', clipId: 'deepening_gate' } },
+        { type: 'gate', triggerAt: 90, duration: 10, data: { text: 'would you like to go deeper?' } },
       ],
       ambient: { melodyLevel: 0.15, noiseLevel: 0.35, filterMax: 900, padLevel: 0.5 },
     },

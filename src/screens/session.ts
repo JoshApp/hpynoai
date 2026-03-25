@@ -68,10 +68,20 @@ export class SessionScreen implements Screen {
       this.returnToMenu();
     }));
     this.unsubs.push(ctx.bus.on('input:confirm', () => {
-      if (ctx.timeline.started && ctx.timeline.paused) {
-        ctx.audioClipActor.setDirective({ type: 'audio-clip', directive: { clip: 'gate_yes' } });
-        ctx.audioCompositor.silenceDip(1.5, 5);
-        ctx.timeline.resume();
+      if (!ctx.timeline.started) return;
+
+      if (ctx.timeline.paused) {
+        // If paused at a gate boundary → confirm the gate
+        const tlState = ctx.timeline.update();
+        if (tlState?.atBoundary) {
+          ctx.audioClipActor.setDirective({ type: 'audio-clip', directive: { clip: 'gate_yes' } });
+          ctx.audioCompositor.silenceDip(1.5, 5);
+        }
+        // Resume (whether gate or user-paused)
+        ctx.playbackControls.togglePause();
+      } else {
+        // Playing → pause (like YouTube space bar)
+        ctx.playbackControls.togglePause();
       }
     }));
 

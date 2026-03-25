@@ -187,8 +187,7 @@ export class SessionSelectorScreen implements Screen {
     if (!this.ctx) return;
     resumeAudioFromGesture(this.ctx.audio);
     const { SessionScreen } = await import('./session');
-    this.ctx.screenManager.replace(new SessionScreen(session), {
-      fadeOutMs: 1500, holdMs: 300, fadeInMs: 1000,
-    });
+    // No fade — tunnel is already there, just seamlessly reconfigure and start
+    this.ctx.screenManager.replace(new SessionScreen(session));
   }
 }

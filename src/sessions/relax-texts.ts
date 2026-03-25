@@ -4,6 +4,7 @@
 
 export const generatedTexts: Record<string, string[]> = {
   'settle': [
+    'let\'s begin... by simply breathing... breathe in... when the tunnel expands... breathe out... when it contracts.',
     'good... just like that... keep breathing... nice and slow.',
     'you are watching the screen... and that... is perfectly fine.',
     'notice your breath... moving in... and out... without any effort.',
@@ -23,7 +24,9 @@ export const generatedTexts: Record<string, string[]> = {
     'feel the warmth... spreading down... through your arms... your hands... your fingertips... tingling... softening.',
     'your jaw... unclenching... your forehead... smoothing... every muscle... finding its own rest.',
     'with each exhale... something releases... something you didn\'t even know... you were holding.',
-    'heavier now... and that heaviness... is not weight... it\'s permission... permission to stop trying',
+    'heavier now... and that heaviness... is not weight... it\'s permission... permission to stop trying ...',
+    'would you like to go deeper?',
+    'good... let yourself sink ... a little more.',
   ],
   'trance': [
     'imagine... warmth.',
@@ -57,13 +60,19 @@ export const generatedTexts: Record<string, string[]> = {
 
 // Interaction markers from script (gate, breath-sync, etc.)
 export const stageInteractions: Record<string, Array<{ index: number; type: string; text: string }>> = {
+  'settle': [
+    { index: 0, type: 'breath-sync', text: 'let\'s begin... by simply breathing... breathe in... when the tunnel expands... breathe out... when it contracts.' },
+  ],
+  'deepening': [
+    { index: 6, type: 'gate', text: 'would you like to go deeper?' },
+  ],
 };
 
 // Stage durations from audio (use these in session config)
 export const stageDurations: Record<string, number> = {
-  'settle': 48,
+  'settle': 53,
   'induction': 67,
-  'deepening': 100,
+  'deepening': 104,
   'trance': 106,
   'deep': 54,
   'emergence': 65,

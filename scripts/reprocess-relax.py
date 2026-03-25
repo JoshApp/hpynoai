@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Reprocess existing relax session audio → relax-v2.
+Reprocess existing relax session audio → relax.
 
 Takes the raw WAV files, applies post-processing (pauses, stretch, reverb,
 whisper layer), re-transcribes, and outputs a new manifest + MP3s.
@@ -27,7 +27,7 @@ WHISPER_MODEL = "medium"  # base=fast/rough, medium=accurate, large=best
 
 # ── Paths ──
 RAW_DIR = "public/audio/relax/raw"
-OUT_DIR = "public/audio/relax-v2"
+OUT_DIR = "public/audio/relax"
 MANIFEST_SRC = "public/audio/relax/manifest.json"
 
 STAGES = [
@@ -246,7 +246,7 @@ def main():
 
             stage_manifest = {
                 "name": stage_name,
-                "file": f"audio/relax-v2/{filename}.mp3",
+                "file": f"audio/relax/{filename}.mp3",
                 "duration": round(result["duration"], 2),
                 "lines": lines,
             }
@@ -266,7 +266,7 @@ def main():
     total_dur = sum(s["duration"] for s in new_manifest["stages"])
     orig_dur = sum(s["duration"] for s in orig_manifest["stages"])
     print(f"\n{'='*50}")
-    print(f"Done! relax-v2")
+    print(f"Done! relax")
     print(f"  Original: {orig_dur:.0f}s")
     print(f"  Processed: {total_dur:.0f}s ({total_dur/orig_dur:.0%} of original)")
     print(f"  Manifest: {manifest_path}")
