@@ -159,6 +159,27 @@ export class NarrationEngine {
     return this._displayLine;
   }
 
+  /** All words for the current stage as one flat list with ABSOLUTE timestamps.
+   *  For focus mode — shows words continuously across all lines without gaps. */
+  get stageWordStream(): Readonly<{ words: WordTimestamp[]; text: string }> | null {
+    if (!this.stageLines.length) return null;
+    const allWords: WordTimestamp[] = [];
+    const allText: string[] = [];
+    for (const line of this.stageLines) {
+      allText.push(line.text);
+      if (line.words) {
+        for (const w of line.words) {
+          allWords.push({
+            word: w.word,
+            start: line.startTime + w.start,
+            end: line.startTime + w.end,
+          });
+        }
+      }
+    }
+    return { words: allWords, text: allText.join(' ') };
+  }
+
   /**
    * Load a pre-generated audio manifest. When loaded, speak() will play
    * audio files instead of browser TTS for any text that matches.

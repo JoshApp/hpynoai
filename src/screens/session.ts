@@ -307,10 +307,16 @@ export class SessionScreen implements Screen {
       config.actors.push({ type: 'audio-clip', directive: { clip: null } });
     }
 
-    // Text
-    const narLine = ctx.narration.displayLine;
-    if (narLine && ctx.narration.isPlayingStage) {
-      config.actors.push({ type: 'text', directive: { mode: 'focus', text: narLine.text, words: narLine.words as Array<{ word: string; start: number; end: number }>, audioRef: ctx.narration.stageAudioElement, lineStart: narLine.startTime } });
+    // Text — use full word stream for focus mode (handles sparse stages properly)
+    const wordStream = ctx.narration.stageWordStream;
+    if (wordStream && wordStream.words.length > 0 && ctx.narration.isPlayingStage) {
+      config.actors.push({ type: 'text', directive: {
+        mode: 'focus',
+        text: wordStream.text,
+        words: wordStream.words as Array<{ word: string; start: number; end: number }>,
+        audioRef: ctx.narration.stageAudioElement,
+        lineStart: 0,  // words have absolute timestamps
+      }});
     } else if (tlState.text) {
       if (tlState.textStyle === 'cue') config.actors.push({ type: 'text', directive: { mode: 'cue', text: tlState.text, depth: tlState.slotDepth ?? undefined } });
       else if (tlState.textStyle === 'prompt') config.actors.push({ type: 'text', directive: { mode: 'prompt', text: tlState.text } });
