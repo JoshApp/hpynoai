@@ -67,16 +67,18 @@ export class PlaybackControls {
 
     // Style
     this.el.style.cssText = `
-      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-      display: none; align-items: center; gap: 12px;
+      position: fixed; bottom: 16px; left: 12px; right: 12px;
+      display: none; align-items: center; gap: 8px;
       background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(12px);
       border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 24px; padding: 8px 16px;
+      border-radius: 20px; padding: 8px 14px;
       font: 12px -apple-system, sans-serif; color: rgba(255, 255, 255, 0.7);
       z-index: 1000; user-select: none;
       transition: opacity 0.5s ease;
       pointer-events: auto;
       cursor: default;
+      max-width: 520px; margin: 0 auto;
+      box-sizing: border-box;
     `;
 
     document.body.appendChild(this.el);
@@ -93,10 +95,11 @@ export class PlaybackControls {
       border-radius: 50%; transition: background 0.2s;
     `;
 
-    // Progress bar style
+    // Progress bar — visible track is 4px, but padding gives a 24px touch target
     this.progressBar.style.cssText = `
-      width: 120px; height: 4px; background: rgba(255, 255, 255, 0.15);
+      flex: 1; min-width: 60px; height: 4px; background: rgba(255, 255, 255, 0.15);
       border-radius: 2px; cursor: pointer; position: relative;
+      padding: 10px 0; background-clip: content-box;
     `;
 
     this.progressFill.style.cssText = `
@@ -131,9 +134,9 @@ export class PlaybackControls {
     this.el.querySelectorAll<HTMLInputElement>('.pb-vol-slider').forEach(slider => {
       slider.style.cssText = `
         -webkit-appearance: none; appearance: none;
-        width: 50px; height: 3px; border-radius: 2px;
+        width: 44px; height: 3px; border-radius: 2px;
         background: rgba(255,255,255,0.15); outline: none;
-        cursor: pointer;
+        cursor: pointer; flex-shrink: 0;
       `;
 
       // Style the thumb via a <style> tag (can't do inline for pseudo-elements)
@@ -148,22 +151,30 @@ export class PlaybackControls {
       });
     });
 
-    // Add custom slider thumb styles
+    // Add custom slider + responsive styles
     const style = document.createElement('style');
     style.textContent = `
       .pb-vol-slider::-webkit-slider-thumb {
         -webkit-appearance: none; appearance: none;
-        width: 10px; height: 10px; border-radius: 50%;
+        width: 12px; height: 12px; border-radius: 50%;
         background: rgba(180, 140, 255, 0.8); cursor: pointer;
-        border: none; margin-top: -3.5px;
+        border: none; margin-top: -4.5px;
       }
       .pb-vol-slider::-moz-range-thumb {
-        width: 10px; height: 10px; border-radius: 50%;
+        width: 12px; height: 12px; border-radius: 50%;
         background: rgba(180, 140, 255, 0.8); cursor: pointer;
         border: none;
       }
       .pb-vol-slider::-webkit-slider-runnable-track {
         height: 3px; border-radius: 2px;
+      }
+      /* Mobile: hide volume icons, shrink sliders */
+      @media (max-width: 480px) {
+        .pb-vol-label svg { display: none; }
+        .pb-vol-slider { width: 36px !important; }
+        .pb-vol-group { gap: 4px !important; }
+        .pb-divider { display: none !important; }
+        .pb-time { font-size: 10px !important; min-width: 28px !important; }
       }
     `;
     document.head.appendChild(style);
