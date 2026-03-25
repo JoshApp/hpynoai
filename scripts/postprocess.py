@@ -377,6 +377,11 @@ def _insert_pauses(y, sr, words, gaps, opts):
         # Fade-in tail from audio after splice
         tail_end = min(splice_at + fade_in, len(y))
         tail = y[splice_at:tail_end].copy()
+
+        # Lowpass on fade-in too — dampens breath sound at start of next word
+        if lp_kernel > 1 and len(tail) > lp_kernel:
+            tail = np.convolve(tail, kernel, mode='same')
+
         if len(tail) > 0:
             ramp = np.linspace(0, 1, len(tail))
             tail *= ramp * ramp
