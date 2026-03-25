@@ -1002,6 +1002,33 @@ def main():
         if pauses:
             effects["pauses"] = sorted(pauses, key=lambda p: p["at"])
 
+        # Reverb regions — where tail reverb is active (phrase boundaries)
+        reverb_wet = sc.get('reverb_wet', 0)
+        if reverb_wet > 0 and not sc.get('reverb_full', 0):
+            # Build flat word list with absolute times
+            flat_words = []
+            for line in lines:
+                for w in line.get("words", []):
+                    flat_words.append((line["startTime"] + w["start"], line["startTime"] + w["end"]))
+            if len(flat_words) > 1:
+                all_gaps_r = [flat_words[i+1][0] - flat_words[i][1] for i in range(len(flat_words)-1)]
+                median_r = sorted(all_gaps_r)[len(all_gaps_r)//2] if all_gaps_r else 0.2
+                reverb_regions = []
+                is_first = True
+                for i in range(len(flat_words) - 1):
+                    gap_r = all_gaps_r[i]
+                    if gap_r > 0.4 and (gap_r >= 0.8 or gap_r > median_r * 2):
+                        if is_first:
+                            is_first = False
+                            continue
+                        word_end = flat_words[i][1]
+                        next_start = flat_words[i+1][0]
+                        ramp_start = max(0, word_end - 0.4)
+                        decay_end = min(word_end + 1.5, next_start)
+                        reverb_regions.append({"start": round(ramp_start, 3), "end": round(decay_end, 3)})
+                if reverb_regions:
+                    effects["reverb_regions"] = reverb_regions
+
         stage_entry = {
             "name": stage['name'],
             "file": f"sessions/{session}/{si:02d}_{stage['name']}.mp3",

@@ -326,8 +326,13 @@ def _insert_pauses(y, sr, words, gaps, opts):
         xfade = int((0.04 if natural else 0.12) * sr)
         fade_in = int(0.04 * sr)
 
-        # Splice at center of gap
-        splice_sample = int((gap["gap_start"] + gap["original_gap"] * 0.5) * sr)
+        # Splice 150ms past word boundary — catches breath sounds in the fade-out
+        # instead of leaving them exposed at the silence edge
+        breath_offset = int(0.15 * sr)
+        splice_sample = int(gap["gap_start"] * sr) + breath_offset
+        # But don't go past center of gap (safety)
+        gap_center = int((gap["gap_start"] + gap["original_gap"] * 0.5) * sr)
+        splice_sample = min(splice_sample, gap_center)
         splice_sample = max(xfade, min(splice_sample, len(y) - fade_in))
 
         insertions[splice_sample] = (add_samples, xfade, fade_in, natural, gap["gap_start"])
@@ -353,6 +358,14 @@ def _insert_pauses(y, sr, words, gaps, opts):
         # Build silence fill with crossfades
         fill = np.zeros(add_samples)
         before = y[splice_at - xfade:splice_at].copy()
+
+        # Gentle lowpass on fade-out region to soften breath sounds
+        # Simple moving average = crude lowpass, enough to mute hiss
+        lp_kernel = max(1, int(0.003 * sr))  # ~3ms kernel ≈ 300Hz lowpass
+        if lp_kernel > 1 and len(before) > lp_kernel:
+            kernel = np.ones(lp_kernel) / lp_kernel
+            before = np.convolve(before, kernel, mode='same')
+
         if natural:
             fill[:xfade] = before * np.exp(-np.linspace(0, 6, xfade))
         else:
