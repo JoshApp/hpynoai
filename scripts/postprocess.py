@@ -375,16 +375,34 @@ def _insert_pauses(y, sr, words, gaps, opts):
         chunks.append(fill)
 
         # Fade-in tail from audio after splice
-        tail_end = min(splice_at + fade_in, len(y))
+        # Use a wider region (200ms) so we catch the full breath sound
+        debreath_zone = int(0.2 * sr)
+        tail_end = min(splice_at + debreath_zone, len(y))
         tail = y[splice_at:tail_end].copy()
 
-        # Lowpass on fade-in too — dampens breath sound at start of next word
-        if lp_kernel > 1 and len(tail) > lp_kernel:
-            tail = np.convolve(tail, kernel, mode='same')
-
         if len(tail) > 0:
-            ramp = np.linspace(0, 1, len(tail))
-            tail *= ramp * ramp
+            # De-breath: attenuate high frequencies (breath = hissy 2-8kHz noise)
+            # Apply progressively stronger lowpass that fades out over 200ms
+            if HAS_SCIPY:
+                from scipy.signal import butter, sosfilt
+                try:
+                    sos_lp = butter(2, 1500, btype='low', fs=sr, output='sos')
+                    tail_lp = sosfilt(sos_lp, tail)
+                    # Blend: start with heavy lowpass, transition to dry over 200ms
+                    blend = np.linspace(0, 1, len(tail))  # 0=lowpass, 1=dry
+                    blend = blend * blend  # quadratic: stays filtered longer
+                    tail = tail_lp * (1 - blend) + tail * blend
+                except Exception:
+                    pass  # fallback: use crude lowpass
+                    if lp_kernel > 1 and len(tail) > lp_kernel:
+                        tail = np.convolve(tail, kernel, mode='same')
+
+            # Volume ramp: quick fade-in over first 40ms
+            fade_samples = min(int(0.04 * sr), len(tail))
+            ramp = np.ones(len(tail))
+            ramp[:fade_samples] = np.linspace(0, 1, fade_samples) ** 2
+            tail *= ramp
+
         chunks.append(tail)
 
         prev_end = tail_end
