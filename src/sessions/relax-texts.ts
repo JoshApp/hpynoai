@@ -70,9 +70,9 @@ export const stageInteractions: Record<string, Array<{ index: number; type: stri
 
 // Stage durations from audio (use these in session config)
 export const stageDurations: Record<string, number> = {
-  'settle': 53,
-  'induction': 67,
-  'deepening': 104,
+  'settle': 49,
+  'induction': 74,
+  'deepening': 85,
   'trance': 106,
   'deep': 54,
   'emergence': 65,
@@ -90,4 +90,6 @@ export const stageInterludes: Record<string, number> = {
 
 // Interactive clips — standalone audio files for interactions
 export const interactiveClips: Array<{ id: string; type: string; text: string; duration: number }> = [
+  { id: 'relax_ready', type: 'prompt', text: 'find a comfortable position... and when you\'re ready... just press to begin.', duration: 6.57 },
+  { id: 'relax_breathe', type: 'breath-sync', text: 'let\'s begin with your breath. breathe in... slowly... with the light. and breathe out... as it fades. just follow the rhythm... it\'s easy.', duration: 15.13 },
 ];

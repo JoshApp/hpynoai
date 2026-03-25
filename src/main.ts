@@ -241,6 +241,20 @@ settings.onChange((s) => {
 
 if (!isHMR) runAutoCalibration(settings);
 
+// Wire calibrate button → immersive calibration screen (only from menu, not mid-session)
+settings.onCalibrate(async () => {
+  settings.hide();
+  const currentScreen = screenManager.current?.name;
+  if (currentScreen === 'session') {
+    // Mid-session: don't navigate away, user can use the advanced sliders
+    return;
+  }
+  const { CalibrationScreen } = await import('./screens/calibration');
+  screenManager.replace(new CalibrationScreen(), {
+    fadeOutMs: 600, holdMs: 200, fadeInMs: 600,
+  });
+});
+
 // ══════════════════════════════════════════════════════════════════════
 // INPUT
 // ══════════════════════════════════════════════════════════════════════

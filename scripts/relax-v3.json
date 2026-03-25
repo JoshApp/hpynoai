@@ -1,0 +1,65 @@
+{
+  "id": "relax",
+  "voice": "zephyr",
+  "model": "gpro",
+  "seed": 55,
+  "default_style": "calm, intimate, hypnotic, slow with natural pauses, warm and reassuring, like a trusted guide sitting close",
+  "stages": {
+    "settle": {
+      "style": "grounding, present, conversational but slow, noticing things together",
+      "speed": 1.0,
+      "pause_scale": 1.0
+    },
+    "induction": {
+      "style": "slightly slower, discovering together, gentle wonder, soft observations",
+      "speed": 0.96,
+      "pause_scale": 1.3,
+      "reverb_wet": 0.05
+    },
+    "deepening": {
+      "style": "intimate, deliberate, each word landing with weight, warm authority",
+      "speed": 0.92,
+      "pause_scale": 1.6,
+      "reverb_wet": 0.08
+    },
+    "post_gate": {
+      "style": "warm, approving, very intimate",
+      "speed": 0.90,
+      "pause_scale": 1.5,
+      "reverb_wet": 0.08
+    },
+    "trance": {
+      "style": "dreamy, floating, words dissolving into space, hypnotic monotone",
+      "speed": 0.88,
+      "pause_scale": 2.0,
+      "reverb_wet": 0.12,
+      "whisper_layer": true,
+      "whisper_volume": 0.1
+    },
+    "deep": {
+      "style": "barely there, single words emerging from silence, presence without effort",
+      "speed": 0.88,
+      "pause_scale": 2.5,
+      "reverb_full": 0.15,
+      "whisper_layer": true,
+      "whisper_volume": 0.15
+    },
+    "emergence": {
+      "style": "gradually brightening, warmer, gentle return, like sunrise",
+      "speed": 0.95,
+      "pause_scale": 1.2,
+      "reverb_wet": 0.06
+    }
+  },
+  "interactive": {
+    "relax_ready": {
+      "style": "warm, inviting, unhurried"
+    },
+    "relax_breathe": {
+      "style": "soft, rhythmic, guiding breath, steady and calm"
+    },
+    "relax_deeper": {
+      "style": "intimate, quiet, a gentle question"
+    }
+  }
+}

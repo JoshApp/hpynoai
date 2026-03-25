@@ -742,9 +742,10 @@ def main():
         stage_dur = wav_duration(stage_path)
         print(f"  raw: {stage_dur:.0f}s")
 
-        # ── Transcribe raw audio first (needed for post-processing) ──
-        print(f"  transcribe...", end=" ", flush=True)
-        words = transcribe(stage_path, args.whisper_model)
+        # ── Transcribe raw audio (script-constrained for best accuracy) ──
+        known_text = " ".join(stage['slices'])
+        print(f"  transcribe (script-constrained)...", end=" ", flush=True)
+        words = transcribe(stage_path, args.whisper_model, known_text=known_text)
         if words:
             print(f"{len(words)} words")
         else:
@@ -757,7 +758,7 @@ def main():
             print(f"  postprocess...", flush=True)
             pp_opts = get_stage_opts(stage['name'])
             # Apply overrides from config JSON
-            for k in ('speed', 'pause_scale', 'reverb_wet', 'whisper_layer', 'whisper_volume'):
+            for k in ('speed', 'pause_scale', 'reverb_wet', 'reverb_full', 'whisper_layer', 'whisper_volume'):
                 if k in sc:
                     pp_opts[k] = sc[k]
             # Apply per-stage overrides from script (highest priority)
@@ -774,9 +775,9 @@ def main():
             words = result["whisper_words"]
             stage_dur = result["duration"]
 
-            # Re-transcribe processed audio for accurate timestamps
+            # Re-transcribe processed audio (script-constrained)
             print(f"  re-transcribe...", end=" ", flush=True)
-            new_words = transcribe(stage_public, args.whisper_model)
+            new_words = transcribe(stage_public, args.whisper_model, known_text=known_text)
             if new_words:
                 words = new_words
                 print(f"{len(words)} words (updated)")
@@ -845,7 +846,8 @@ def main():
         ix_path = os.path.join(out_dir, f"{ix['id']}.wav")
 
         if not args.skip_generate or not os.path.exists(ix_path):
-            ix_style = stage_configs.get(ix['id'], {}).get('style') or default_style
+            ix_configs = session_config.get('interactive', {})
+            ix_style = ix_configs.get(ix['id'], {}).get('style') or default_style
             print(f"  gen ({len(ix['text'])} chars)...", end=" ", flush=True)
             url, credits = generate_audio(ix['text'], voice, ix_style, seed + 900 + ii)
             if url:

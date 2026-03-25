@@ -1,0 +1,228 @@
+# HPYNO Relax Session v3 — Full rewrite
+#
+# Written for the post-processing pipeline:
+# - Pauses will be expanded (don't over-pause in the script)
+# - CMDs get volume emphasis
+# - Effects graduate per stage
+# - Interactive clips are separate audio files
+#
+# Hypnotic techniques used:
+# - Utilization (describe what they see/feel)
+# - Embedded commands (marked with [CMD])
+# - Yes-set (chain of truths before suggestion)
+# - Fractionation (going up slightly then deeper)
+# - Confusion (overloading conscious mind)
+# - Sensory language (warmth, weight, softness)
+
+# ── Get ready + breathing guide ──
+
+[INTERACTIVE: prompt relax_ready]
+find a comfortable position...
+and when you're ready...
+just press to begin.
+
+[INTERACTIVE: breath-sync relax_breathe]
+let's begin with your breath.
+breathe in... slowly... with the light.
+and breathe out... as it fades.
+just follow the rhythm... it's easy.
+
+# ── Narration stages ──
+
+[STAGE: settle]
+good.
+you're here now.
+[SLICE]
+you're looking at the screen...
+watching the spiral move...
+and that's all you need to do.
+[SLICE]
+you can hear my voice...
+you can feel your body...
+in the chair... or wherever you are...
+and both of those things... are true.
+[SLICE]
+the spiral keeps turning...
+your breath keeps moving...
+and you don't have to think about either one.
+[CMD they happen on their own]
+[SLICE]
+notice something interesting...
+the longer you watch...
+the less you notice watching.
+[CMD it becomes automatic]
+[INTERLUDE 5]
+
+[STAGE: induction]
+and as you settle in...
+you might notice... something curious.
+[SLICE]
+your body knows things...
+that your mind hasn't caught up with yet.
+[PAUSE]
+your shoulders... have already dropped... just a little.
+your jaw... is already looser... than it was a moment ago.
+[CMD your body is ahead of you]
+[SLICE]
+that's right.
+[PAUSE]
+and the more you try to notice these changes...
+the more changes there are to notice.
+[SLICE]
+each blink... feels different now.
+a little slower... a little heavier...
+not because you're trying...
+[CMD because you've stopped trying]
+[SLICE]
+the spiral draws your attention in...
+and everything else... moves to the edges.
+the room around you... the sounds... the day...
+all of it... becoming distant.
+[CMD just this... remains]
+[SLICE]
+and with each breath out...
+something loosens.
+something you were holding... that you didn't know about.
+[CMD let it go]
+[INTERLUDE 5]
+
+[STAGE: deepening]
+now... I want you to notice... your hands.
+[PAUSE]
+wherever they are.
+[SLICE]
+can you feel the weight of them?
+really feel it?
+heavier than you'd expect.
+[PAUSE]
+as if they're sinking... slowly... into whatever they're resting on.
+[CMD sinking... deeper]
+[SLICE]
+and that heaviness... is spreading.
+up through your arms... into your shoulders...
+down through your chest... your stomach.
+a warm... heavy... wave.
+[CMD everything it touches... relaxes]
+[SLICE]
+your legs now.
+you might notice... you've already forgotten about them.
+that's good.
+[CMD the less you think about your body... the more it relaxes]
+[SLICE]
+and here's something interesting...
+try to feel tense for a moment.
+[PAUSE 2]
+notice how hard that is?
+your body doesn't want to go back.
+[CMD it knows where it's going]
+[SLICE]
+deeper now.
+not because I'm telling you to.
+because there's nowhere else to go.
+[CMD you're already there]
+[INTERLUDE 6]
+
+[INTERACTIVE: gate relax_deeper]
+would you like to go deeper?
+
+[STAGE: post_gate]
+good.
+[CMD let yourself fall... just a little more]
+that's it.
+
+[STAGE: trance]
+you're somewhere now...
+between awake and asleep.
+and you know exactly where that is.
+[SLICE]
+thoughts might appear.
+like bubbles... rising... and popping.
+you don't need to follow them.
+[CMD just watch them dissolve]
+[SLICE]
+my voice is here.
+not as instructions... not as something to follow.
+just... a sound.
+like the wind... or the water.
+[CMD part of the space you're in]
+[SLICE]
+and in this space...
+there's nothing to figure out.
+nothing to solve.
+nothing to fix.
+[PAUSE 2]
+[CMD nothing]
+[SLICE]
+every breath... is a wave.
+and every wave... takes you further.
+not out... but in.
+deeper into this feeling.
+[CMD deeper into yourself]
+[SLICE]
+if someone asked you... right now...
+how relaxed you are...
+you might find it hard to answer.
+because the part of you that measures things...
+[CMD has already let go]
+[SLICE]
+this is yours.
+this feeling.
+this depth.
+you can come back here... anytime you want.
+[CMD remember this]
+[INTERLUDE 10]
+
+[STAGE: deep]
+[CMD stillness]
+[PAUSE 4]
+[SLICE]
+[CMD peace]
+[PAUSE 4]
+[SLICE]
+just this.
+[PAUSE 3]
+[SLICE]
+nothing else.
+[PAUSE 4]
+[SLICE]
+[CMD floating]
+[PAUSE 5]
+[SLICE]
+[CMD safe]
+[PAUSE 5]
+[SLICE]
+rest here.
+as long as you like.
+[INTERLUDE 20]
+
+[STAGE: emergence]
+and now... gently...
+something begins to shift.
+[PAUSE 2]
+[SLICE]
+like the first light of morning...
+not sudden... not harsh...
+just... a warmth... returning.
+[SLICE]
+you're bringing something back with you.
+this calm... this stillness...
+it stays.
+[CMD it's yours now]
+[SLICE]
+your body... remembering itself.
+fingers first... then toes...
+a stretch... maybe... if it feels right.
+[SLICE]
+the room... coming back.
+the sounds... the air... the weight of being here.
+[PAUSE 2]
+and that's okay.
+[CMD you carry the depth with you]
+[SLICE]
+take a deeper breath... when you're ready.
+[PAUSE 3]
+and open your eyes.
+[PAUSE 3]
+[SLICE]
+welcome back.
+[INTERLUDE 15]
