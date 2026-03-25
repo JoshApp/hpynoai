@@ -278,8 +278,13 @@ def _find_gaps(words, min_gap=0.4):
         return []
 
     median = sorted(all_inter)[len(all_inter) // 2]
-    # Threshold: must be clearly above normal word spacing
-    threshold = max(min_gap, median * 1.8)
+
+    # For sparse audio (median gap > 0.6s = few words per second),
+    # most gaps ARE intentional pauses — lower the multiplier
+    if median > 0.6:
+        threshold = max(min_gap, median * 0.8)  # almost all gaps qualify
+    else:
+        threshold = max(min_gap, median * 1.8)  # only clearly long gaps
 
     gaps = []
     for i in range(1, len(words)):
@@ -326,13 +331,9 @@ def _insert_pauses(y, sr, words, gaps, opts):
         xfade = int((0.04 if natural else 0.12) * sr)
         fade_in = int(0.04 * sr)
 
-        # Splice 150ms past word boundary — catches breath sounds in the fade-out
-        # instead of leaving them exposed at the silence edge
-        breath_offset = int(0.15 * sr)
-        splice_sample = int(gap["gap_start"] * sr) + breath_offset
-        # But don't go past center of gap (safety)
-        gap_center = int((gap["gap_start"] + gap["original_gap"] * 0.5) * sr)
-        splice_sample = min(splice_sample, gap_center)
+        # Splice at center of gap — maximum distance from both words.
+        # The fade-out (with lowpass) handles any breath sounds at the edges.
+        splice_sample = int((gap["gap_start"] + gap["original_gap"] * 0.5) * sr)
         splice_sample = max(xfade, min(splice_sample, len(y) - fade_in))
 
         insertions[splice_sample] = (add_samples, xfade, fade_in, natural, gap["gap_start"])

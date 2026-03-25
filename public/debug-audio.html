@@ -179,7 +179,8 @@ function render() {
     const fxParts = [];
     if (fx.speed && fx.speed !== 1) fxParts.push(`${(fx.speed*100).toFixed(0)}%`);
     if (fx.pauses_inserted?.length) fxParts.push(`${fx.pauses_inserted.length} pauses`);
-    if (fx.reverb_regions?.length) fxParts.push(`${fx.reverb_regions.length} reverb`);
+    if (fx.reverb_full) fxParts.push(`full reverb ${(fx.reverb_full*100).toFixed(0)}%`);
+    else if (fx.reverb_regions?.length) fxParts.push(`${fx.reverb_regions.length} reverb tails`);
     if (fx.cmd_words?.length) fxParts.push(`${fx.cmd_words.length} cmd`);
     if (fx.whisper_layer) fxParts.push('warm');
 
@@ -484,15 +485,28 @@ function drawOverlays(ctx, W, H, yOff, stage, fx, show, dur) {
   }
 
   // Reverb regions
-  if (show.reverb && fx.reverb_regions) {
-    for (const r of fx.reverb_regions) {
-      const x = (r.start / dur) * W, w = Math.max(1, ((r.end - r.start) / dur) * W);
-      const grad = ctx.createLinearGradient(x, 0, x + w, 0);
-      grad.addColorStop(0, 'rgba(80,200,255,0.0)');
-      grad.addColorStop(0.2, 'rgba(80,200,255,0.15)');
-      grad.addColorStop(1, 'rgba(80,200,255,0.0)');
-      ctx.fillStyle = grad;
-      ctx.fillRect(x, yOff + H - 20, w, 18);
+  if (show.reverb) {
+    // Full reverb (cathedral) — shown as full-width band
+    if (fx.reverb_full && fx.reverb_full > 0) {
+      ctx.fillStyle = `rgba(80,200,255,${Math.min(0.12, fx.reverb_full * 0.4)})`;
+      ctx.fillRect(0, yOff + H - 22, W, 20);
+      ctx.fillStyle = 'rgba(80,200,255,0.35)';
+      ctx.font = '8px monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(`full reverb ${(fx.reverb_full * 100).toFixed(0)}%`, W - 4, yOff + H - 12);
+      ctx.textAlign = 'left';
+    }
+    // Tail reverb regions
+    if (fx.reverb_regions) {
+      for (const r of fx.reverb_regions) {
+        const x = (r.start / dur) * W, w = Math.max(1, ((r.end - r.start) / dur) * W);
+        const grad = ctx.createLinearGradient(x, 0, x + w, 0);
+        grad.addColorStop(0, 'rgba(80,200,255,0.0)');
+        grad.addColorStop(0.2, 'rgba(80,200,255,0.15)');
+        grad.addColorStop(1, 'rgba(80,200,255,0.0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(x, yOff + H - 20, w, 18);
+      }
     }
   }
 

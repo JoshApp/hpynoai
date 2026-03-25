@@ -4031,7 +4031,7 @@
     {
       "name": "deep",
       "file": "audio/relax/05_deep.mp3",
-      "duration": 17.74,
+      "duration": 36.74,
       "lines": [
         {
           "text": "stillness ...",
@@ -4048,8 +4048,8 @@
         },
         {
           "text": "peace ...",
-          "startTime": 2.366,
-          "endTime": 3.074,
+          "startTime": 4.949,
+          "endTime": 5.657,
           "duration": 0.71,
           "words": [
             {
@@ -4061,26 +4061,26 @@
         },
         {
           "text": "just this. ...",
-          "startTime": 4.065,
-          "endTime": 5.409,
+          "startTime": 9.335,
+          "endTime": 10.678,
           "duration": 1.34,
           "words": [
             {
               "word": "just",
               "start": 0.0,
-              "end": 0.523
+              "end": 0.522
             },
             {
               "word": "this.",
-              "start": 0.868,
-              "end": 1.344
+              "start": 0.867,
+              "end": 1.343
             }
           ]
         },
         {
           "text": "nothing else. ...",
-          "startTime": 6.476,
-          "endTime": 7.893,
+          "startTime": 14.638,
+          "endTime": 16.056,
           "duration": 1.42,
           "words": [
             {
@@ -4091,14 +4091,14 @@
             {
               "word": "else.",
               "start": 1.105,
-              "end": 1.417
+              "end": 1.418
             }
           ]
         },
         {
           "text": "floating ...",
-          "startTime": 9.254,
-          "endTime": 10.006,
+          "startTime": 20.016,
+          "endTime": 20.768,
           "duration": 0.75,
           "words": [
             {
@@ -4110,22 +4110,22 @@
         },
         {
           "text": "safe ...",
-          "startTime": 11.181,
-          "endTime": 11.746,
+          "startTime": 24.728,
+          "endTime": 25.294,
           "duration": 0.57,
           "words": [
             {
               "word": "safe",
               "start": 0.0,
-              "end": 0.565
+              "end": 0.566
             }
           ]
         },
         {
           "text": "rest here. as long as you like.",
-          "startTime": 12.884,
-          "endTime": 17.06,
-          "duration": 4.18,
+          "startTime": 29.253,
+          "endTime": 36.058,
+          "duration": 6.8,
           "words": [
             {
               "word": "rest",
@@ -4139,28 +4139,28 @@
             },
             {
               "word": "as",
-              "start": 2.113,
-              "end": 2.218
+              "start": 4.741,
+              "end": 4.846
             },
             {
               "word": "long",
-              "start": 2.349,
-              "end": 3.001
+              "start": 4.977,
+              "end": 5.629
             },
             {
               "word": "as",
-              "start": 3.364,
-              "end": 3.459
+              "start": 5.992,
+              "end": 6.087
             },
             {
               "word": "you",
-              "start": 3.497,
-              "end": 3.744
+              "start": 6.125,
+              "end": 6.372
             },
             {
               "word": "like.",
-              "start": 3.816,
-              "end": 4.176
+              "start": 6.444,
+              "end": 6.805
             }
           ]
         }
@@ -4178,36 +4178,48 @@
           },
           {
             "word": "peace",
-            "start": 2.366,
-            "end": 3.074
+            "start": 4.949,
+            "end": 5.657
           },
           {
             "word": "floating",
-            "start": 9.254,
-            "end": 10.006
+            "start": 20.016,
+            "end": 20.768
           },
           {
             "word": "safe",
-            "start": 11.181,
-            "end": 11.746
+            "start": 24.728,
+            "end": 25.294
           }
         ],
         "pauses": [
           {
-            "at": 5.409,
-            "duration": 1.067
+            "at": 1.412,
+            "duration": 3.537
           },
           {
-            "at": 7.893,
-            "duration": 1.361
+            "at": 5.657,
+            "duration": 3.678
           },
           {
-            "at": 10.006,
-            "duration": 1.175
+            "at": 10.678,
+            "duration": 3.96
           },
           {
-            "at": 11.746,
-            "duration": 1.138
+            "at": 16.056,
+            "duration": 3.96
+          },
+          {
+            "at": 20.768,
+            "duration": 3.96
+          },
+          {
+            "at": 25.294,
+            "duration": 3.959
+          },
+          {
+            "at": 30.396,
+            "duration": 3.598
           }
         ]
       },
