@@ -13,6 +13,7 @@ import type { WorldInputs, Config } from '../compositor/types';
 import { buildStageAudioPreset, buildSessionAudioPreset } from '../audio-presets';
 import { resumeAudioFromGesture, ensureAudioCompositor } from './audio-helpers';
 import { hashSeed } from '../audio-compositor';
+import { startAutoSave, saveProgress, clearProgress } from '../session-persistence';
 import { setPhase, setSessionInfo, appState } from '../app-state';
 import { acquireWakeLock, releaseWakeLock, registerMediaSession, clearMediaSession, startSilentAudioKeepAlive, stopSilentAudioKeepAlive } from '../wakelock';
 import { log } from '../logger';
@@ -32,9 +33,12 @@ export class SessionScreen implements Screen {
   private renderTime = 0;
   private lastStageIndex = -1;
   private completionHandled = false;
+  private stopAutoSave: (() => void) | null = null;
+  private startPosition = 0; // for resume support
 
-  constructor(session: SessionConfig) {
+  constructor(session: SessionConfig, opts?: { resumePosition?: number }) {
     this.session = session;
+    this.startPosition = opts?.resumePosition ?? 0;
   }
 
   async enter(ctx: ScreenContext, _from: string | null): Promise<void> {
@@ -107,7 +111,21 @@ export class SessionScreen implements Screen {
     ctx.machine.transition('session');
     ctx.bus.emit('session:started', { session: this.session });
     ctx.timeline.start();
+    if (this.startPosition > 0) {
+      ctx.timeline.seek(this.startPosition);
+      log.info('session', `Resumed at ${this.startPosition.toFixed(1)}s`);
+    }
     ctx.hud.setMode('session');
+
+    // Auto-save progress every 5s
+    this.stopAutoSave = startAutoSave(() => {
+      if (!ctx.timeline.started) return null;
+      return {
+        sessionId: this.session.id,
+        position: ctx.timeline.position,
+        stageIndex: ctx.timeline.currentIndex,
+      };
+    });
 
     // Tick interval
     this.tickInterval = setInterval(() => this.sessionTick(), 1000 / 60);
@@ -133,6 +151,9 @@ export class SessionScreen implements Screen {
   exit(): void {
     if (!this.ctx) return;
     const ctx = this.ctx;
+
+    // Stop auto-save
+    if (this.stopAutoSave) { this.stopAutoSave(); this.stopAutoSave = null; }
 
     for (const u of this.unsubs) u();
     this.unsubs = [];
@@ -344,6 +365,7 @@ export class SessionScreen implements Screen {
 
   private async endExperience(): Promise<void> {
     if (!this.ctx) return;
+    clearProgress(); // session completed — no resume needed
     const { SessionEndScreen } = await import('./session-end');
     this.ctx.machine.transition('ending');
     this.ctx.bus.emit('session:ending', { fadeSec: 3 });

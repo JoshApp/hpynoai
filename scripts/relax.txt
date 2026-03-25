@@ -3,20 +3,23 @@
 # Pure prose + structural markers. Config in relax.json.
 #
 # Markers:
-#   [STAGE: name]     — new stage (one continuous audio take)
-#   [SLICE]           — text display boundary
-#   [PAUSE]           — natural pause in audio
-#   [PAUSE N]         — longer pause (target seconds)
-#   [CMD text]        — embedded command (emphasized in playback)
-#   [GATE]            — previous slice is a gate prompt
-#   [BREATH-SYNC]     — start breathing interaction
-#   [INTERLUDE N]     — N seconds of ambient-only silence after this stage
+#   [STAGE: name]          — narration stage (one continuous voice take)
+#   [SLICE]                — text display boundary
+#   [PAUSE]                — natural pause
+#   [PAUSE N]              — longer pause (target seconds)
+#   [CMD text]             — embedded command (emphasized in playback)
+#   [INTERLUDE N]          — N seconds ambient-only silence after stage
+#
+# Interactive blocks (generated as separate audio clips):
+#   [INTERACTIVE: type name]  — standalone clip, not part of narration
+#   Supported types: breath-sync, gate, prompt
 
-[STAGE: settle]
+[INTERACTIVE: breath-sync settle_breath]
 let's begin... by simply breathing...
 breathe in... when the tunnel expands...
 breathe out... when it contracts.
-[BREATH-SYNC]
+
+[STAGE: settle]
 good... just like that...
 keep breathing... nice and slow.
 [SLICE]
@@ -81,13 +84,13 @@ something you didn't even know... you were holding.
 heavier now... and that heaviness...
 is not weight... it's permission...
 [CMD permission to stop trying]
-[SLICE]
-[PAUSE 3]
-would you like to go deeper?
-[GATE]
-[SLICE]
-good... [CMD let yourself sink]... a little more.
 [INTERLUDE 8]
+
+[INTERACTIVE: gate deepening_gate]
+would you like to go deeper?
+
+[STAGE: deepening_post]
+good... [CMD let yourself sink]... a little more.
 
 [STAGE: trance]
 imagine... warmth.

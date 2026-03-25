@@ -335,14 +335,27 @@ export function createOrbSprite(
   const cx = res / 2;
   const orbR = res * 0.4;
 
-  const gradient = ctx.createRadialGradient(cx, cx, 0, cx, cx, orbR);
-  gradient.addColorStop(0, `rgba(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)}, 1.0)`);
-  gradient.addColorStop(0.15, `rgba(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)}, 0.7)`);
-  gradient.addColorStop(0.4, `rgba(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)}, 0.25)`);
-  gradient.addColorStop(0.7, `rgba(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)}, 0.05)`);
-  gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  const ri = Math.round(r * 255);
+  const gi = Math.round(g * 255);
+  const bi = Math.round(b * 255);
 
-  ctx.fillStyle = gradient;
+  // Outer glow — soft, wide
+  const outerGlow = ctx.createRadialGradient(cx, cx, 0, cx, cx, orbR);
+  outerGlow.addColorStop(0, `rgba(${ri}, ${gi}, ${bi}, 0.6)`);
+  outerGlow.addColorStop(0.3, `rgba(${ri}, ${gi}, ${bi}, 0.25)`);
+  outerGlow.addColorStop(0.6, `rgba(${ri}, ${gi}, ${bi}, 0.08)`);
+  outerGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = outerGlow;
+  ctx.fillRect(0, 0, res, res);
+
+  // Inner core — bright, concentrated
+  const coreR = orbR * 0.35;
+  const core = ctx.createRadialGradient(cx, cx, 0, cx, cx, coreR);
+  core.addColorStop(0, `rgba(255, 255, 255, 0.9)`);
+  core.addColorStop(0.2, `rgba(${Math.min(255, ri + 60)}, ${Math.min(255, gi + 60)}, ${Math.min(255, bi + 60)}, 0.7)`);
+  core.addColorStop(0.6, `rgba(${ri}, ${gi}, ${bi}, 0.3)`);
+  core.addColorStop(1, `rgba(${ri}, ${gi}, ${bi}, 0)`);
+  ctx.fillStyle = core;
   ctx.fillRect(0, 0, res, res);
 
   const texture = new THREE.CanvasTexture(canvas);

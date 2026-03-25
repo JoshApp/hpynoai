@@ -38,15 +38,49 @@ def parse_script(path):
       [GATE: text]         — separate gate prompt
       [BREATH-SYNC]        — start breathing interaction
       [INTERLUDE N]        — N seconds of silence after this stage (ambient takes over)
+      [INTERACTIVE: type name] — standalone interactive clip (separate audio)
     """
     stages = []
+    interactives = []  # [{ 'id': name, 'type': type, 'text': text }]
     current = None
+    current_interactive = None  # accumulates text for interactive block
 
     with open(path) as f:
         for raw in f:
             line = raw.strip()
             if not line or line.startswith('#'):
                 continue
+
+            # Interactive block — standalone clip
+            m = re.match(r'\[INTERACTIVE:\s*(\S+)\s+(\S+)\]', line)
+            if m:
+                if current:
+                    _flush(current)
+                    stages.append(current)
+                    current = None
+                if current_interactive:
+                    current_interactive['text'] = current_interactive['_buf'].strip()
+                    del current_interactive['_buf']
+                    interactives.append(current_interactive)
+                current_interactive = {
+                    'type': m.group(1).strip(),
+                    'id': m.group(2).strip(),
+                    '_buf': '',
+                }
+                continue
+
+            # If we're in an interactive block, accumulate text
+            if current_interactive:
+                # Any new block marker ends the interactive
+                if line.startswith('[STAGE:') or line.startswith('[INTERACTIVE:'):
+                    current_interactive['text'] = current_interactive['_buf'].strip()
+                    del current_interactive['_buf']
+                    interactives.append(current_interactive)
+                    current_interactive = None
+                    # Fall through to handle the [STAGE:] below
+                else:
+                    current_interactive['_buf'] += line + ' '
+                    continue
 
             m = re.match(r'\[STAGE:\s*(.+?)\]', line)
             if m:
@@ -56,11 +90,11 @@ def parse_script(path):
                 current = {
                     'name': m.group(1).strip(),
                     'slices': [], 'gates': [], 'slice_types': [],
-                    'cmds': [],      # [(word_text, slice_idx)] — embedded commands
-                    'style': None,   # per-stage voice style override
-                    'speed': None,   # per-stage post-process speed override
-                    'pauses': [],    # [(after_slice_idx, duration)] — explicit pause durations
-                    'interlude': 0,  # seconds of silence after this stage
+                    'cmds': [],
+                    'style': None,
+                    'speed': None,
+                    'pauses': [],
+                    'interlude': 0,
                     '_buf': '',
                 }
                 continue
@@ -151,21 +185,27 @@ def parse_script(path):
     if current:
         _flush(current)
         stages.append(current)
+    if current_interactive:
+        current_interactive['text'] = current_interactive['_buf'].strip()
+        del current_interactive['_buf']
+        interactives.append(current_interactive)
 
     for s in stages:
         del s['_buf']
         s['slices'] = [re.sub(r'\s+', ' ', t).strip() for t in s['slices']]
-        # Pad slice_types to match slices length
         while len(s['slice_types']) < len(s['slices']):
             s['slice_types'].append('narration')
-        # Ensure cmds/pauses exist even if not used
         s.setdefault('cmds', [])
         s.setdefault('pauses', [])
         s.setdefault('style', None)
         s.setdefault('speed', None)
         s.setdefault('interlude', 0)
 
-    return stages
+    # Clean up interactive text
+    for ix in interactives:
+        ix['text'] = re.sub(r'\s+', ' ', ix['text']).strip()
+
+    return stages, interactives
 
 
 def _flush(stage):
@@ -531,26 +571,14 @@ def generate_session_config(manifest, script_path, stages):
             config_lines.append(f"  '{stage['name']}': {interlude},")
     config_lines.append("};")
 
-    # Export interaction timings derived from audio
+    # Export interactive clips (standalone audio, not part of narration)
     config_lines.append("")
-    config_lines.append("// Interaction trigger times from audio timestamps")
-    config_lines.append("export const stageInteractionTimings: Record<string, Array<{ type: string; triggerAt: number; text: string }>> = {")
-    for stage in manifest["stages"]:
-        timings = []
-        for line in stage["lines"]:
-            if line.get("type") == "breath-sync":
-                # Trigger breathing after the instruction line finishes
-                timings.append({"type": "breath-sync", "triggerAt": round(line["endTime"]), "text": line["text"]})
-            elif line.get("type") == "gate":
-                # Trigger gate when the prompt starts speaking
-                timings.append({"type": "gate", "triggerAt": round(line["startTime"]), "text": line["text"]})
-        if timings:
-            config_lines.append(f"  '{stage['name']}': [")
-            for t in timings:
-                escaped = t['text'][:60].replace("\\", "\\\\").replace("'", "\\'")
-                config_lines.append(f"    {{ type: '{t['type']}', triggerAt: {t['triggerAt']}, text: '{escaped}...' }},")
-            config_lines.append("  ],")
-    config_lines.append("};")
+    config_lines.append("// Interactive clips — standalone audio files for interactions")
+    config_lines.append("export const interactiveClips: Array<{ id: string; type: string; text: string; duration: number }> = [")
+    for ix in manifest.get("interactive", []):
+        escaped = ix['text'].replace("\\", "\\\\").replace("'", "\\'")
+        config_lines.append(f"  {{ id: '{ix['id']}', type: '{ix.get('type', 'prompt')}', text: '{escaped}', duration: {ix.get('duration', 0)} }},")
+    config_lines.append("];")
 
     out_path = os.path.join("src", "sessions", f"{session_id}-texts.ts")
     with open(out_path, "w") as f:
@@ -608,7 +636,7 @@ def main():
         if not args.no_postprocess:
             print("Note: postprocess.py not available (install librosa for full pipeline)")
 
-    stages = parse_script(args.script)
+    stages, interactives = parse_script(args.script)
     script_base = os.path.splitext(os.path.basename(args.script))[0]
     session = re.sub(r'-v\d+$', '', script_base).replace('-script', '')
 
@@ -800,23 +828,40 @@ def main():
         interlude_str = f" + {stage['interlude']}s interlude" if stage.get('interlude') else ""
         print(f"  {len(lines)} lines mapped, {stage_dur:.0f}s continuous{interlude_str}")
 
-        # Gates
-        for gi, gate in enumerate(stage['gates']):
-            gid = f"gate_{stage['name']}_{gi}"
-            gpath = os.path.join(out_dir, f"{gid}.wav")
-            if not args.skip_generate or not os.path.exists(gpath):
-                print(f"  gate: \"{gate}\"...", end=" ", flush=True)
-                url, credits = generate_audio(gate, voice, default_style, seed + 900 + si * 10 + gi)
-                if url:
-                    download(url, gpath)
-                    print(f"{wav_duration(gpath):.1f}s")
-                else:
-                    print("FAILED"); continue
+    # ── Generate interactive clips (standalone audio) ──
+    for ii, ix in enumerate(interactives):
+        print(f"\n── interactive: {ix['id']} ({ix['type']}) ──")
+        ix_path = os.path.join(out_dir, f"{ix['id']}.wav")
 
-            if os.path.exists(gpath):
-                manifest["interactive"].append({"id": gid, "file": f"audio/{session}/{gid}.wav", "text": gate, "duration": round(wav_duration(gpath), 2)})
+        if not args.skip_generate or not os.path.exists(ix_path):
+            ix_style = stage_configs.get(ix['id'], {}).get('style') or default_style
+            print(f"  gen ({len(ix['text'])} chars)...", end=" ", flush=True)
+            url, credits = generate_audio(ix['text'], voice, ix_style, seed + 900 + ii)
+            if url:
+                download(url, ix_path)
+                print(f"{wav_duration(ix_path):.1f}s | {credits} credits")
+            else:
+                print("FAILED"); continue
 
-    # Add any other interactive clips in the directory
+        if os.path.exists(ix_path):
+            # Transcribe for word timings
+            ix_words = transcribe(ix_path, args.whisper_model, known_text=ix['text'])
+            ix_dur = wav_duration(ix_path)
+
+            ix_entry = {
+                "id": ix['id'],
+                "type": ix['type'],
+                "file": f"audio/{session}/{ix['id']}.wav",
+                "text": ix['text'],
+                "duration": round(ix_dur, 2),
+            }
+            if ix_words:
+                ix_entry["words"] = [{"word": w["word"], "start": round(w["start"], 3), "end": round(w["end"], 3)} for w in ix_words]
+
+            manifest["interactive"].append(ix_entry)
+            print(f"  {ix['type']}: \"{ix['text'][:50]}\" ({ix_dur:.1f}s)")
+
+    # Add any other interactive clips already in the directory
     existing = {i["id"] for i in manifest["interactive"]}
     for f in sorted(os.listdir(out_dir)):
         if not f.endswith('.wav') or f[0].isdigit(): continue

@@ -50,7 +50,7 @@ with open(MANIFEST_SRC) as f:
 
 # Parse the script for current slice structure and interaction markers
 SCRIPT_PATH = "scripts/relax.txt"
-script_stages = gs.parse_script(SCRIPT_PATH)
+script_stages, script_interactives = gs.parse_script(SCRIPT_PATH)
 
 # ── CMD words from the new script ──
 # These are the embedded commands we want emphasized

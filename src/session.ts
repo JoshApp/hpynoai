@@ -59,6 +59,7 @@ export interface Interaction {
     count?: number;       // For countdown: start number
     targetSize?: number;  // For focus-target: radius in px
     affirmation?: string; // For affirm: text to speak aloud
+    clipId?: string;      // For interactive clips: ID of the standalone audio clip
   };
 }
 

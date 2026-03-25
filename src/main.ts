@@ -347,9 +347,19 @@ async function boot(): Promise<void> {
     }
   }
 
-  // Normal boot — welcome screen (title + onboarding) or selector for returning users
-  const { WelcomeScreen } = await import('./screens/welcome');
-  screenManager.enterImmediate(new WelcomeScreen());
+  // Check for saved session progress
+  const { loadProgress } = await import('./session-persistence');
+  const savedProgress = loadProgress();
+
+  if (savedProgress) {
+    // Show resume prompt
+    const { ResumePromptScreen } = await import('./screens/resume-prompt');
+    screenManager.enterImmediate(new ResumePromptScreen(savedProgress));
+  } else {
+    // Normal boot — welcome screen (title + onboarding) or selector for returning users
+    const { WelcomeScreen } = await import('./screens/welcome');
+    screenManager.enterImmediate(new WelcomeScreen());
+  }
   renderLoop();
 }
 

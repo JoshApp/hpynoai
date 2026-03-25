@@ -121,36 +121,37 @@ export class SessionSelector {
       const focused = diff === 0;
       const absDiff = Math.abs(diff);
 
-      // Target positions
-      const targetX = diff * 0.6;
-      const targetZ = -absDiff * 0.4;
-      const targetY = -0.05 + Math.sin(time * 1.5 + i * 1.2) * 0.015;
+      // ── Carousel physics: spring-based easing for organic motion ──
+      const targetX = diff * 0.55;
+      const targetZ = -absDiff * 0.35 - (focused ? 0.05 : 0); // focused comes slightly forward
+      const targetY = -0.03 + Math.sin(time * 1.2 + i * 1.5) * 0.012;
 
-      // Smooth lerp
-      orb.position.x += (targetX - orb.position.x) * lerp;
-      orb.position.z += (targetZ - orb.position.z) * lerp;
-      orb.position.y += (targetY - orb.position.y) * lerp;
+      // Spring lerp — faster for focused, slower for distant (depth-of-field feel)
+      const springRate = focused ? 0.12 : 0.06 + absDiff * 0.01;
+      orb.position.x += (targetX - orb.position.x) * springRate;
+      orb.position.z += (targetZ - orb.position.z) * springRate;
+      orb.position.y += (targetY - orb.position.y) * springRate;
 
-      // Orb scale: focused breathes bigger
-      const orbTarget = focused ? 0.26 + breathPulse * 0.06 : Math.max(0.08, 0.18 - absDiff * 0.04);
-      orb.scale.setScalar(orb.scale.x + (orbTarget - orb.scale.x) * lerp);
+      // Orb scale: focused breathes + pulses, distant shrinks
+      const focusedScale = 0.28 + breathPulse * 0.05 + Math.sin(time * 2) * 0.01;
+      const distantScale = Math.max(0.06, 0.16 - absDiff * 0.04);
+      const orbTarget = focused ? focusedScale : distantScale;
+      orb.scale.setScalar(orb.scale.x + (orbTarget - orb.scale.x) * springRate);
 
-      // Orb opacity — focused orb fades out (wisp absorbs it), others stay visible
+      // Orb opacity — focused fades for wisp, near ones visible, far ones ghost
       const orbMat = orb.material as THREE.SpriteMaterial;
-      const orbAlpha = focused ? 0.08 : Math.max(0.15, 0.5 - absDiff * 0.15);
-      orbMat.opacity += (orbAlpha - orbMat.opacity) * lerp;
+      const orbAlpha = focused ? 0.1 : absDiff <= 1 ? 0.55 : Math.max(0.08, 0.35 - absDiff * 0.12);
+      orbMat.opacity += (orbAlpha - orbMat.opacity) * springRate;
 
-      // Label follows orb, below it
-      const labelMeta = label.userData.spriteText;
-      const labelH = labelMeta?.height ?? 0.06;
-      label.position.x += (targetX - label.position.x) * lerp;
-      label.position.z += (targetZ - label.position.z) * lerp;
-      label.position.y += (targetY - 0.12 - label.position.y) * lerp;
+      // Label follows orb
+      label.position.x += (targetX - label.position.x) * springRate;
+      label.position.z += (targetZ - label.position.z) * springRate;
+      label.position.y += (targetY - 0.13 - label.position.y) * springRate;
 
-      // Label opacity
+      // Label opacity — focused bright, near visible, far ghosted
       const labelMat = label.material as THREE.SpriteMaterial;
-      const labelAlpha = focused ? 0.9 : Math.max(0.1, 0.5 - absDiff * 0.2);
-      labelMat.opacity += (labelAlpha - labelMat.opacity) * lerp;
+      const labelAlpha = focused ? 0.95 : absDiff <= 1 ? 0.5 : Math.max(0.06, 0.3 - absDiff * 0.12);
+      labelMat.opacity += (labelAlpha - labelMat.opacity) * springRate;
     }
 
     // Move presence to focused orb position
@@ -315,18 +316,35 @@ export class SessionSelector {
     if (this.disposed) return;
     const session = this.sessions[selected];
 
-    // ── Selection: fade all orbs/labels, pulse the wisp ──
-    question.visible = false;
-    if (this.descSprite) this.animateOut(this.descSprite, 400);
-    for (let i = 0; i < this.orbSprites.length; i++) {
-      this.animateOut(this.orbSprites[i], 500);
-      this.animateOut(this.orbLabels[i], 500);
+    // ── Selection animation: chosen expands, others fade ──
+    this.animateOut(question, 400);
+    if (this.descSprite) this.animateOut(this.descSprite, 300);
+    if ((this as unknown as Record<string, THREE.Sprite | null>)._infoSprite) {
+      this.animateOut((this as unknown as Record<string, THREE.Sprite>)._infoSprite, 300);
     }
 
-    // Pulse the wisp on selection
+    // Fade non-selected orbs, brighten selected label
+    for (let i = 0; i < this.orbSprites.length; i++) {
+      if (i === selected) {
+        // Selected: label brightens, orb glows
+        const selLabel = this.orbLabels[i];
+        if (selLabel) (selLabel.material as THREE.SpriteMaterial).opacity = 1;
+      } else {
+        this.animateOut(this.orbSprites[i], 600);
+        this.animateOut(this.orbLabels[i], 600);
+      }
+    }
+
+    // Pulse the wisp
     if (this._pulsePresence) this._pulsePresence();
 
-    await this.sleep(1200);
+    await this.sleep(800);
+
+    // Now fade the selected label too
+    if (this.orbLabels[selected]) this.animateOut(this.orbLabels[selected], 500);
+    if (this.orbSprites[selected]) this.animateOut(this.orbSprites[selected], 500);
+
+    await this.sleep(600);
 
     // ── Content warning ──
     if (session.contentWarning) {
@@ -540,20 +558,37 @@ export class SessionSelector {
 
   private showDescription(session: SessionConfig): void {
     if (this.descSprite) {
-      this.animateOut(this.descSprite, 250);
+      this.animateOut(this.descSprite, 200);
       this.descSprite = null;
+    }
+    // Remove extra info sprite if it exists
+    if ((this as unknown as Record<string, THREE.Sprite | null>)._infoSprite) {
+      this.animateOut((this as unknown as Record<string, THREE.Sprite>)._infoSprite, 200);
+      (this as unknown as Record<string, THREE.Sprite | null>)._infoSprite = null;
     }
     if (!session) return;
 
-    // Short description
+    // Short description — first sentence, trimmed
     let desc = session.description.split('.')[0];
-    if (desc.length > 50) desc = desc.split(/\s+/).slice(0, 7).join(' ');
+    if (desc.length > 55) desc = desc.split(/\s+/).slice(0, 8).join(' ') + '…';
 
     const sprite = this.addSprite(desc, {
-      height: 0.055, fontSize: 32, color: session.theme.textColor, glow: session.theme.textGlow,
-    }, 0, -0.30, 0.05);
+      height: 0.048, fontSize: 30, color: session.theme.textColor, glow: session.theme.textGlow,
+    }, 0, -0.28, 0.05);
     this.descSprite = sprite;
-    this.animateIn(sprite, 400);
+    this.animateIn(sprite, 350);
+
+    // Duration + stage count info line
+    const totalDur = session.stages.reduce((sum, s) => sum + s.duration, 0);
+    const mins = Math.ceil(totalDur / 60);
+    const stageCount = session.stages.length;
+    const infoText = `${mins} min  ·  ${stageCount} stages`;
+
+    const info = this.addSprite(infoText, {
+      height: 0.028, fontSize: 20, color: '#8070a0', glow: 'rgba(128,112,160,0.15)',
+    }, 0, -0.34, 0.05);
+    (this as unknown as Record<string, THREE.Sprite>)._infoSprite = info;
+    this.animateIn(info, 400);
   }
 
   // ── Animations ──

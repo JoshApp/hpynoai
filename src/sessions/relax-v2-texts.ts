@@ -4,7 +4,6 @@
 
 export const generatedTexts: Record<string, string[]> = {
   'settle': [
-    'let\'s begin... by simply breathing... breathe in... when the tunnel expands... breathe out... when it contracts.',
     'good... just like that... keep breathing... nice and slow.',
     'you are watching the screen... and that... is perfectly fine.',
     'notice your breath... moving in... and out... without any effort.',
@@ -25,9 +24,6 @@ export const generatedTexts: Record<string, string[]> = {
     'your jaw... unclenching... your forehead... smoothing... every muscle... finding its own rest.',
     'with each exhale... something releases... something you didn\'t even know... you were holding.',
     'heavier now... and that heaviness... is not weight... it\'s permission... permission to stop trying',
-    '...',
-    'would you like to go deeper?',
-    'good... let yourself sink ... a little more.',
   ],
   'trance': [
     'imagine... warmth.',
@@ -61,19 +57,13 @@ export const generatedTexts: Record<string, string[]> = {
 
 // Interaction markers from script (gate, breath-sync, etc.)
 export const stageInteractions: Record<string, Array<{ index: number; type: string; text: string }>> = {
-  'settle': [
-    { index: 0, type: 'breath-sync', text: 'let\'s begin... by simply breathing... breathe in... when the tunnel expands... breathe out... when it contracts.' },
-  ],
-  'deepening': [
-    { index: 7, type: 'gate', text: 'would you like to go deeper?' },
-  ],
 };
 
 // Stage durations from audio (use these in session config)
 export const stageDurations: Record<string, number> = {
-  'settle': 53,
+  'settle': 48,
   'induction': 67,
-  'deepening': 104,
+  'deepening': 100,
   'trance': 106,
   'deep': 54,
   'emergence': 65,
@@ -89,12 +79,6 @@ export const stageInterludes: Record<string, number> = {
   'emergence': 15,
 };
 
-// Interaction trigger times from audio timestamps
-export const stageInteractionTimings: Record<string, Array<{ type: string; triggerAt: number; text: string }>> = {
-  'settle': [
-    { type: 'breath-sync', triggerAt: 14, text: 'let\'s begin... by simply breathing... breathe in... when the...' },
-  ],
-  'deepening': [
-    { type: 'gate', triggerAt: 90, text: 'would you like to go deeper?...' },
-  ],
-};
+// Interactive clips — standalone audio files for interactions
+export const interactiveClips: Array<{ id: string; type: string; text: string; duration: number }> = [
+];

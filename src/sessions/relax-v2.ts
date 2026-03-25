@@ -1,5 +1,5 @@
 import type { SessionConfig } from '../session';
-import { generatedTexts, stageDurations, stageInteractions, stageInterludes, stageInteractionTimings } from './relax-v2-texts';
+import { generatedTexts, stageDurations, stageInteractions, stageInterludes, interactiveClips } from './relax-v2-texts';
 
 export const relaxV2: SessionConfig = {
   id: 'relax-v2',
@@ -37,7 +37,7 @@ export const relaxV2: SessionConfig = {
       spiralSpeed: 0.8,
       interlude: stageInterludes['settle'],
       interactions: [
-        { type: 'breath-sync', triggerAt: stageInteractionTimings['settle']?.[0]?.triggerAt ?? 14, duration: 30 },
+        { type: 'breath-sync', triggerAt: 0, duration: 30, data: { clipId: 'settle_breath' } },
       ],
       ambient: { melodyLevel: 0.4, noiseLevel: 0.2, filterMax: 1400, padLevel: 0.4, padType: 'sawtooth' as OscillatorType },
     },
@@ -65,7 +65,8 @@ export const relaxV2: SessionConfig = {
       fractionationDip: 0.3,
       interlude: stageInterludes['deepening'],
       interactions: [
-        { type: 'gate', triggerAt: stageInteractionTimings['deepening']?.[0]?.triggerAt ?? 74, duration: 20, data: { text: 'would you like to go deeper?' } },
+        // Gate fires at end of deepening narration — interactive clip plays separately
+        { type: 'gate', triggerAt: stageDurations['deepening'] ?? 95, duration: 10, data: { text: 'would you like to go deeper?', clipId: 'deepening_gate' } },
       ],
       ambient: { melodyLevel: 0.15, noiseLevel: 0.35, filterMax: 900, padLevel: 0.5 },
     },
