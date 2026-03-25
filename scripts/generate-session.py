@@ -714,6 +714,9 @@ def main():
     parser.add_argument("--skip-generate", action="store_true", help="Skip API, use existing raw audio")
     parser.add_argument("--config-only", action="store_true", help="Only rebuild config from existing manifest")
     parser.add_argument("--no-postprocess", action="store_true", help="Skip audio post-processing")
+    parser.add_argument("--reprocess", action="store_true", help="Reprocess existing audio with current script/config (no voice gen)")
+    parser.add_argument("--stage", help="Only process this stage (by name)")
+    parser.add_argument("--list-stages", action="store_true", help="List stages in the script and exit")
     args = parser.parse_args()
 
     # Import post-processor (optional — degrades gracefully)
@@ -728,6 +731,21 @@ def main():
     stages, interactives = parse_script(args.script)
     script_base = os.path.splitext(os.path.basename(args.script))[0]
     session = re.sub(r'-v\d+$', '', script_base).replace('-script', '')
+
+    # --reprocess is shorthand for --skip-generate (reprocess existing audio with new script/config)
+    if args.reprocess:
+        args.skip_generate = True
+
+    # --list-stages: show stage names and exit
+    if args.list_stages:
+        print(f"Session: {session}")
+        print(f"Stages ({len(stages)}):")
+        for i, s in enumerate(stages):
+            print(f"  {i}: {s['name']} ({len(s['slices'])} slices, {len(s.get('cmds',[]))} cmds)")
+        print(f"Interactives ({len(interactives)}):")
+        for ix in interactives:
+            print(f"  {ix['id']} [{ix['type']}] \"{ix['text'][:50]}\"")
+        return
 
     # ── Load config JSON (auto-detect or explicit) ──
     config_path = args.config
@@ -771,6 +789,23 @@ def main():
     manifest = {"session": session, "voice": voice, "model": "gpro", "style": default_style, "stages": [], "interactive": []}
 
     for si, stage in enumerate(stages):
+        # --stage filter: skip stages that don't match
+        if args.stage and stage['name'] != args.stage:
+            # Still need to add to manifest from existing data if available
+            existing_wav = os.path.join(out_dir, f"{si:02d}_{stage['name']}.wav")
+            existing_mp3 = os.path.join(out_dir, f"{si:02d}_{stage['name']}.mp3")
+            if os.path.exists(existing_wav) or os.path.exists(existing_mp3):
+                # Read existing manifest entry if available
+                if os.path.exists(manifest_path):
+                    with open(manifest_path) as _mf:
+                        _existing = json.load(_mf)
+                    for _es in _existing.get("stages", []):
+                        if _es["name"] == stage['name']:
+                            manifest["stages"].append(_es)
+                            break
+                print(f"\n── {stage['name']} (skipped — use --stage {stage['name']} to process) ──")
+            continue
+
         print(f"\n── {stage['name']} ({len(stage['slices'])} slices) ──")
 
         # Generate full stage audio
@@ -854,14 +889,20 @@ def main():
             words = result["whisper_words"]
             stage_dur = result["duration"]
 
-            # Re-transcribe processed audio (script-constrained)
-            print(f"  re-transcribe...", end=" ", flush=True)
-            new_words = transcribe(stage_public, args.whisper_model, known_text=known_text)
-            if new_words:
-                words = new_words
-                print(f"{len(words)} words (updated)")
+            # Re-transcribe processed audio for potentially better boundaries.
+            # For sparse stages (< 1 word/sec), the postprocessor's shifted timestamps
+            # are more accurate — re-transcription compresses silence.
+            words_per_sec = len(words) / max(stage_dur, 1)
+            if words_per_sec < 1.0:
+                print(f"  sparse stage ({words_per_sec:.1f} words/s) — keeping postprocessor timestamps")
             else:
-                print("kept original timestamps")
+                print(f"  re-transcribe...", end=" ", flush=True)
+                new_words = transcribe(stage_public, args.whisper_model, known_text=known_text)
+                if new_words and len(new_words) >= len(words):
+                    words = new_words
+                    print(f"{len(words)} words (updated)")
+                else:
+                    print(f"kept postprocessor timestamps ({len(words)} words)")
         else:
             # No post-processing — just copy raw to public
             if os.path.abspath(stage_path) != os.path.abspath(stage_public):

@@ -6,7 +6,7 @@
   "stages": [
     {
       "name": "settle",
-      "file": "audio/relax/00_settle.mp3",
+      "file": "audio/relax/00_settle.wav",
       "duration": 51.22,
       "lines": [
         {
@@ -459,7 +459,7 @@
     },
     {
       "name": "induction",
-      "file": "audio/relax/01_induction.mp3",
+      "file": "audio/relax/01_induction.wav",
       "duration": 85.38,
       "lines": [
         {
@@ -1175,7 +1175,7 @@
     },
     {
       "name": "deepening",
-      "file": "audio/relax/02_deepening.mp3",
+      "file": "audio/relax/02_deepening.wav",
       "duration": 115.24,
       "lines": [
         {
@@ -1899,7 +1899,7 @@
     },
     {
       "name": "post_gate",
-      "file": "audio/relax/03_post_gate.mp3",
+      "file": "audio/relax/03_post_gate.wav",
       "duration": 10.62,
       "lines": [
         {
@@ -1964,7 +1964,7 @@
     },
     {
       "name": "trance",
-      "file": "audio/relax/04_trance.mp3",
+      "file": "audio/relax/04_trance.wav",
       "duration": 202.26,
       "lines": [
         {
@@ -2751,137 +2751,137 @@
     },
     {
       "name": "deep",
-      "file": "audio/relax/05_deep.mp3",
+      "file": "audio/relax/05_deep.wav",
       "duration": 39.37,
       "lines": [
         {
           "text": "stillness ...",
-          "startTime": 0.42,
-          "endTime": 1.36,
-          "duration": 0.94,
+          "startTime": 0.442,
+          "endTime": 1.301,
+          "duration": 0.86,
           "words": [
             {
               "word": "stillness",
               "start": 0.0,
-              "end": 0.94
+              "end": 0.859
             }
           ]
         },
         {
           "text": "peace ...",
-          "startTime": 1.38,
-          "endTime": 1.44,
-          "duration": 0.06,
+          "startTime": 1.31,
+          "endTime": 1.455,
+          "duration": 0.15,
           "words": [
             {
               "word": "peace",
               "start": 0.0,
-              "end": 0.06
+              "end": 0.145
             }
           ]
         },
         {
           "text": "just this. ...",
-          "startTime": 4.821,
-          "endTime": 5.581,
-          "duration": 0.76,
+          "startTime": 4.871,
+          "endTime": 5.587,
+          "duration": 0.72,
           "words": [
             {
               "word": "just",
               "start": 0.0,
-              "end": 0.68
+              "end": 0.627
             },
             {
               "word": "this.",
-              "start": 0.7,
-              "end": 0.76
+              "start": 0.652,
+              "end": 0.716
             }
           ]
         },
         {
           "text": "nothing else. ...",
-          "startTime": 9.222,
-          "endTime": 12.143,
-          "duration": 2.92,
+          "startTime": 9.273,
+          "endTime": 12.334,
+          "duration": 3.06,
           "words": [
             {
               "word": "nothing",
               "start": 0.0,
-              "end": 0.5
+              "end": 0.523
             },
             {
               "word": "else.",
-              "start": 2.46,
-              "end": 2.921
+              "start": 2.623,
+              "end": 3.061
             }
           ]
         },
         {
           "text": "floating ...",
-          "startTime": 12.163,
-          "endTime": 12.223,
-          "duration": 0.06,
+          "startTime": 12.334,
+          "endTime": 12.453,
+          "duration": 0.12,
           "words": [
             {
               "word": "floating",
               "start": 0.0,
-              "end": 0.06
+              "end": 0.119
             }
           ]
         },
         {
           "text": "safe ...",
-          "startTime": 15.923,
-          "endTime": 16.443,
-          "duration": 0.52,
+          "startTime": 16.151,
+          "endTime": 16.782,
+          "duration": 0.63,
           "words": [
             {
               "word": "safe",
               "start": 0.0,
-              "end": 0.52
+              "end": 0.631
             }
           ]
         },
         {
           "text": "rest here. as long as you like.",
-          "startTime": 16.463,
-          "endTime": 30.787,
-          "duration": 14.32,
+          "startTime": 19.782,
+          "endTime": 31.105,
+          "duration": 11.32,
           "words": [
             {
               "word": "rest",
               "start": 0.0,
-              "end": 3.061
+              "end": 0.232
             },
             {
               "word": "here.",
-              "start": 3.241,
-              "end": 3.401
+              "start": 0.293,
+              "end": 0.329
             },
             {
               "word": "as",
-              "start": 7.362,
-              "end": 8.062
+              "start": 4.329,
+              "end": 5.081
             },
             {
               "word": "long",
-              "start": 8.082,
-              "end": 8.142
+              "start": 5.081,
+              "end": 5.206
             },
             {
               "word": "as",
-              "start": 12.123,
-              "end": 12.583
+              "start": 9.143,
+              "end": 9.685
             },
             {
               "word": "you",
-              "start": 12.603,
-              "end": 12.663
+              "start": 9.708,
+              "end": 10.846
             },
             {
               "word": "like.",
-              "start": 13.843,
-              "end": 14.324
+              "start": 10.873,
+              "end": 11.323
             }
           ]
         }
@@ -2890,7 +2890,7 @@
     },
     {
       "name": "emergence",
-      "file": "audio/relax/06_emergence.mp3",
+      "file": "audio/relax/06_emergence.wav",
       "duration": 70.43,
       "lines": [
         {
@@ -3399,199 +3399,5 @@
       "interlude": 15.0
     }
   ],
-  "interactive": [
-    {
-      "id": "relax_ready",
-      "type": "prompt",
-      "file": "audio/relax/relax_ready.mp3",
-      "text": "find a comfortable position... and when you're ready... just press to begin.",
-      "duration": 6.57,
-      "words": [
-        {
-          "word": "find",
-          "start": 0.401,
-          "end": 0.861
-        },
-        {
-          "word": "a",
-          "start": 0.881,
-          "end": 0.902
-        },
-        {
-          "word": "comfortable",
-          "start": 1.142,
-          "end": 1.763
-        },
-        {
-          "word": "position...",
-          "start": 1.843,
-          "end": 2.464
-        },
-        {
-          "word": "and",
-          "start": 3.145,
-          "end": 3.225
-        },
-        {
-          "word": "when",
-          "start": 3.285,
-          "end": 3.446
-        },
-        {
-          "word": "you're",
-          "start": 3.466,
-          "end": 3.686
-        },
-        {
-          "word": "ready...",
-          "start": 3.726,
-          "end": 4.067
-        },
-        {
-          "word": "just",
-          "start": 4.648,
-          "end": 4.948
-        },
-        {
-          "word": "press",
-          "start": 5.089,
-          "end": 5.489
-        },
-        {
-          "word": "to",
-          "start": 5.609,
-          "end": 5.73
-        },
-        {
-          "word": "begin.",
-          "start": 5.79,
-          "end": 6.09
-        }
-      ]
-    },
-    {
-      "id": "relax_breathe",
-      "type": "breath-sync",
-      "file": "audio/relax/relax_breathe.mp3",
-      "text": "let's begin with your breath. breathe in... slowly... with the light. and breathe out... as it fades. just follow the rhythm... it's easy.",
-      "duration": 15.13,
-      "words": [
-        {
-          "word": "let's",
-          "start": 0.36,
-          "end": 0.64
-        },
-        {
-          "word": "begin",
-          "start": 0.721,
-          "end": 1.141
-        },
-        {
-          "word": "with",
-          "start": 1.261,
-          "end": 1.481
-        },
-        {
-          "word": "your",
-          "start": 1.521,
-          "end": 1.681
-        },
-        {
-          "word": "breath.",
-          "start": 1.721,
-          "end": 2.102
-        },
-        {
-          "word": "breathe",
-          "start": 2.862,
-          "end": 3.182
-        },
-        {
-          "word": "in...",
-          "start": 3.302,
-          "end": 3.523
-        },
-        {
-          "word": "slowly...",
-          "start": 4.503,
-          "end": 5.224
-        },
-        {
-          "word": "with",
-          "start": 5.744,
-          "end": 5.904
-        },
-        {
-          "word": "the",
-          "start": 5.944,
-          "end": 6.044
-        },
-        {
-          "word": "light.",
-          "start": 6.084,
-          "end": 6.425
-        },
-        {
-          "word": "and",
-          "start": 7.626,
-          "end": 7.866
-        },
-        {
-          "word": "breathe",
-          "start": 8.046,
-          "end": 8.366
-        },
-        {
-          "word": "out...",
-          "start": 8.666,
-          "end": 8.866
-        },
-        {
-          "word": "as",
-          "start": 9.847,
-          "end": 9.947
-        },
-        {
-          "word": "it",
-          "start": 10.027,
-          "end": 10.107
-        },
-        {
-          "word": "fades.",
-          "start": 10.187,
-          "end": 10.668
-        },
-        {
-          "word": "just",
-          "start": 11.709,
-          "end": 12.089
-        },
-        {
-          "word": "follow",
-          "start": 12.309,
-          "end": 12.769
-        },
-        {
-          "word": "the",
-          "start": 12.849,
-          "end": 12.949
-        },
-        {
-          "word": "rhythm...",
-          "start": 12.989,
-          "end": 13.31
-        },
-        {
-          "word": "it's",
-          "start": 14.23,
-          "end": 14.37
-        },
-        {
-          "word": "easy.",
-          "start": 14.451,
-          "end": 14.711
-        }
-      ]
-    }
-  ]
+  "interactive": []
 }
