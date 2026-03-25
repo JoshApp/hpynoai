@@ -291,18 +291,18 @@ def _find_gaps(words, min_gap=0.3):
 
 
 def _insert_pauses(y, sr, words, gaps, opts):
-    """Insert silence at boundaries. Processes forward, tracking cumulative shift.
+    """Insert silence at boundaries. Forward-only processing.
 
-    Word timestamps are shifted deterministically — each insertion adds to
-    a running offset applied to all subsequent words. No re-analysis needed.
+    Builds output audio by concatenating: segment + silence + segment + silence...
+    Timestamps shifted by exact sample counts as we go. No reverse processing.
     """
     min_pause = opts["min_sentence_pause"]
     max_pause = opts["max_sentence_pause"]
     scale = opts["pause_scale"]
 
-    # Pre-compute what we'll insert at each gap (forward order)
-    insertions = []  # [(gap_idx, gap, add_secs, natural)]
-    for gi, gap in enumerate(gaps):
+    # Pre-compute insertions
+    insertions = {}  # gap_start_sample → (add_samples, xfade_samples, natural)
+    for gap in gaps:
         current_gap = gap["original_gap"]
         natural = gap.get("natural", True)
 
@@ -315,58 +315,78 @@ def _insert_pauses(y, sr, words, gaps, opts):
             continue
 
         add_secs = desired - current_gap
-        insertions.append((gi, gap, add_secs, natural))
-
-    # Process audio in REVERSE (so sample indices stay valid)
-    for gi, gap, add_secs, natural in reversed(insertions):
         add_samples = int(add_secs * sr)
-        splice_at = int((gap["gap_start"] + gap["original_gap"] * 0.5) * sr)
         xfade = int((0.04 if natural else 0.12) * sr)
-        splice_at = max(xfade, min(splice_at, len(y) - xfade))
+        fade_in = int(0.04 * sr)
 
+        # Splice at center of gap
+        splice_sample = int((gap["gap_start"] + gap["original_gap"] * 0.5) * sr)
+        splice_sample = max(xfade, min(splice_sample, len(y) - fade_in))
+
+        insertions[splice_sample] = (add_samples, xfade, fade_in, natural, gap["gap_start"])
+
+    if not insertions:
+        return y, words, []
+
+    # Build output audio forward — copy segments between splice points
+    splice_points = sorted(insertions.keys())
+    chunks = []
+    pause_info = []
+    cumulative_shift = 0.0  # tracks how much time we've added so far
+    prev_end = 0
+
+    for splice_at in splice_points:
+        add_samples, xfade, fade_in, natural, gap_start = insertions[splice_at]
+
+        # Copy audio up to splice point (minus xfade region)
+        chunk_end = splice_at - xfade
+        if chunk_end > prev_end:
+            chunks.append(y[prev_end:chunk_end])
+
+        # Build silence fill with crossfades
         fill = np.zeros(add_samples)
-
         before = y[splice_at - xfade:splice_at].copy()
         if natural:
             fill[:xfade] = before * np.exp(-np.linspace(0, 6, xfade))
         else:
             fade = np.linspace(1, 0, xfade)
             fill[:xfade] = before * fade * fade * fade
+        chunks.append(fill)
 
-        fade_in_len = int(0.04 * sr)
-        tail_start = splice_at
-        tail_end = min(tail_start + fade_in_len, len(y))
-        tail = y[tail_start:tail_end].copy()
-        if tail_end > tail_start:
-            ramp = np.linspace(0, 1, tail_end - tail_start)
+        # Fade-in tail from audio after splice
+        tail_end = min(splice_at + fade_in, len(y))
+        tail = y[splice_at:tail_end].copy()
+        if len(tail) > 0:
+            ramp = np.linspace(0, 1, len(tail))
             tail *= ramp * ramp
+        chunks.append(tail)
 
-        y = np.concatenate([y[:splice_at - xfade], fill, tail, y[tail_end:]])
+        prev_end = tail_end
 
-    # Now shift word timestamps FORWARD ORDER using cumulative offset
-    # This is pure arithmetic — we know exactly how much silence was added where
-    cumulative_shift = 0.0
-    insertion_idx = 0
-    pause_info = []
+        # Calculate EXACT time added at this point
+        # We removed: (splice_at - chunk_end) + (tail_end - splice_at) = xfade + fade_in samples
+        # We added: fill (add_samples) + tail (fade_in) samples
+        # Net = add_samples + fade_in - xfade - fade_in = add_samples - xfade
+        net_added = (add_samples - xfade) / sr
 
-    for w in words:
-        # Apply shifts for all insertions that come before this word
-        while insertion_idx < len(insertions):
-            _, gap, add_secs, _ = insertions[insertion_idx]
-            if gap["gap_start"] < w["start"] - cumulative_shift:
-                # This insertion happened before this word (in original time)
-                cumulative_shift += add_secs
-                pause_info.append({
-                    "at": round(gap["gap_start"] + sum(ins[2] for ins in insertions[:insertion_idx]), 3),
-                    "added": round(add_secs, 3),
-                })
-                insertion_idx += 1
-            else:
-                break
+        # Shift all words after this gap
+        for w in words:
+            orig_start = w["start"] - cumulative_shift  # word's original position
+            if orig_start > gap_start:
+                w["start"] = round(w["start"] + net_added, 4)
+                w["end"] = round(w["end"] + net_added, 4)
 
-        w["start"] = round(w["start"] + cumulative_shift, 4)
-        w["end"] = round(w["end"] + cumulative_shift, 4)
+        pause_info.append({
+            "at": round(gap_start + cumulative_shift, 3),
+            "added": round(net_added, 3),
+        })
+        cumulative_shift += net_added
 
+    # Append remaining audio
+    if prev_end < len(y):
+        chunks.append(y[prev_end:])
+
+    y = np.concatenate(chunks)
     return y, words, pause_info
 
 

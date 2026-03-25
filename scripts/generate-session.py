@@ -903,10 +903,9 @@ def main():
             words = result["whisper_words"]
             stage_dur = result["duration"]
 
-            # No re-transcription needed — the postprocessor tracks all transformations
-            # deterministically (time-stretch scale + cumulative pause shifts).
-            # Word timestamps from the postprocessor ARE the final timestamps.
-            print(f"  timestamps: deterministic ({len(words)} words, shifts tracked)")
+            # Timestamps are now deterministic — forward-only processing means
+            # each word shift is calculated from exact sample counts.
+            print(f"  timestamps: deterministic ({len(words)} words)")
         else:
             # No post-processing — just copy raw to public
             if os.path.abspath(stage_path) != os.path.abspath(stage_public):
