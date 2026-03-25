@@ -6,7 +6,7 @@
   "stages": [
     {
       "name": "settle",
-      "file": "sessions/relax/00_settle.wav",
+      "file": "sessions/relax/00_settle.mp3",
       "duration": 51.21,
       "lines": [
         {
@@ -459,7 +459,7 @@
     },
     {
       "name": "induction",
-      "file": "sessions/relax/01_induction.wav",
+      "file": "sessions/relax/01_induction.mp3",
       "duration": 87.77,
       "lines": [
         {
@@ -1175,7 +1175,7 @@
     },
     {
       "name": "deepening",
-      "file": "sessions/relax/02_deepening.wav",
+      "file": "sessions/relax/02_deepening.mp3",
       "duration": 118.79,
       "lines": [
         {
@@ -1899,7 +1899,7 @@
     },
     {
       "name": "post_gate",
-      "file": "sessions/relax/03_post_gate.wav",
+      "file": "sessions/relax/03_post_gate.mp3",
       "duration": 10.59,
       "lines": [
         {
@@ -1964,7 +1964,7 @@
     },
     {
       "name": "trance",
-      "file": "sessions/relax/04_trance.wav",
+      "file": "sessions/relax/04_trance.mp3",
       "duration": 201.93,
       "lines": [
         {
@@ -2751,7 +2751,7 @@
     },
     {
       "name": "deep",
-      "file": "sessions/relax/05_deep.wav",
+      "file": "sessions/relax/05_deep.mp3",
       "duration": 41.49,
       "lines": [
         {
@@ -2890,7 +2890,7 @@
     },
     {
       "name": "emergence",
-      "file": "sessions/relax/06_emergence.wav",
+      "file": "sessions/relax/06_emergence.mp3",
       "duration": 70.85,
       "lines": [
         {
