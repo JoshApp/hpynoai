@@ -2,6 +2,44 @@
   "version": 1,
   "sessions": [
     {
+      "id": "relax",
+      "name": "Relax",
+      "description": "",
+      "icon": "",
+      "contentWarning": null,
+      "photoWarning": true,
+      "themePreview": {
+        "primaryColor": [
+          0.5,
+          0.3,
+          0.8
+        ],
+        "secondaryColor": [
+          0.3,
+          0.3,
+          0.7
+        ],
+        "accentColor": [
+          0.6,
+          0.4,
+          1.0
+        ],
+        "bgColor": [
+          0.03,
+          0.02,
+          0.08
+        ],
+        "particleColor": [
+          0.5,
+          0.35,
+          0.9
+        ],
+        "textColor": "#c8a0ff",
+        "textGlow": "rgba(200,160,255,0.4)",
+        "breatheColor": "rgba(160,120,255,0.35)"
+      }
+    },
+    {
       "id": "sleep",
       "name": "Sleep",
       "description": "Drift into deep, restful sleep.",
@@ -83,44 +121,6 @@
       "description": "An intimate journey of letting go.",
       "icon": "\ud83d\udd25",
       "contentWarning": "This session contains erotic content.\n18+ only.",
-      "photoWarning": true,
-      "themePreview": {
-        "primaryColor": [
-          0.5,
-          0.3,
-          0.8
-        ],
-        "secondaryColor": [
-          0.3,
-          0.3,
-          0.7
-        ],
-        "accentColor": [
-          0.6,
-          0.4,
-          1.0
-        ],
-        "bgColor": [
-          0.03,
-          0.02,
-          0.08
-        ],
-        "particleColor": [
-          0.5,
-          0.35,
-          0.9
-        ],
-        "textColor": "#c8a0ff",
-        "textGlow": "rgba(200,160,255,0.4)",
-        "breatheColor": "rgba(160,120,255,0.35)"
-      }
-    },
-    {
-      "id": "relax",
-      "name": "Relax",
-      "description": "",
-      "icon": "",
-      "contentWarning": null,
       "photoWarning": true,
       "themePreview": {
         "primaryColor": [
