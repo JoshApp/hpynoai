@@ -1,91 +1,90 @@
 // Auto-generated texts from voice manifest — do not edit manually.
-// Regenerate with: python3 scripts/generate-session.py scripts/relax.txt
+// Regenerate with: python3 scripts/generate-session.py scripts/relax-v3.txt
 // Session: relax
 
 export const generatedTexts: Record<string, string[]> = {
   'settle': [
-    'let\'s begin... by simply breathing... breathe in... when the tunnel expands... breathe out... when it contracts.',
-    'good... just like that... keep breathing... nice and slow.',
-    'you are watching the screen... and that... is perfectly fine.',
-    'notice your breath... moving in... and out... without any effort.',
-    'there is nothing you need to do... nowhere you need to be... just here just now',
+    'good. you\'re here now.',
+    'you\'re looking at the screen... watching the spiral move... and that\'s all you need to do.',
+    'you can hear my voice... you can feel your body... in the chair... or wherever you are... and both of those things... are true.',
+    'the spiral keeps turning... your breath keeps moving... and you don\'t have to think about either one. they happen on their own',
+    'notice something interesting... the longer you watch... the less you notice watching. it becomes automatic',
   ],
   'induction': [
-    'and as you watch... you might notice... something interesting...',
-    'the more you look... the easier it becomes... to relax',
-    'you can feel your body... in the chair... or wherever you are... and that weight... is comfort.',
-    'your eyes are open... and each blink... feels a little heavier... a little slower.',
-    'that\'s it... just notice... you don\'t need to try... it happens... on its own.',
-    'every breath... carries you... a little deeper... a little further... from wherever you were before.',
+    'and as you settle in... you might notice... something curious.',
+    'your body knows things... that your mind hasn\'t caught up with yet. ... your shoulders... have already dropped... just a little. your jaw... is already looser... than it was a moment ago. your body is ahead of you',
+    'that\'s right. ... and the more you try to notice these changes... the more changes there are to notice.',
+    'each blink... feels different now. a little slower... a little heavier... not because you\'re trying... because you\'ve stopped trying',
+    'the spiral draws your attention in... and everything else... moves to the edges. the room around you... the sounds... the day... all of it... becoming distant. just this... remains',
+    'and with each breath out... something loosens. something you were holding... that you didn\'t know about. let it go',
   ],
   'deepening': [
-    'now... let your attention drift... to your shoulders.',
-    'notice any tension there... and as you breathe out... let it soften let it go',
-    'feel the warmth... spreading down... through your arms... your hands... your fingertips... tingling... softening.',
-    'your jaw... unclenching... your forehead... smoothing... every muscle... finding its own rest.',
-    'with each exhale... something releases... something you didn\'t even know... you were holding.',
-    'heavier now... and that heaviness... is not weight... it\'s permission... permission to stop trying ...',
-    'would you like to go deeper?',
-    'good... let yourself sink ... a little more.',
+    'now... I want you to notice... your hands. ... wherever they are.',
+    'can you feel the weight of them? really feel it? heavier than you\'d expect. ... as if they\'re sinking... slowly... into whatever they\'re resting on. sinking... deeper',
+    'and that heaviness... is spreading. up through your arms... into your shoulders... down through your chest... your stomach. a warm... heavy... wave. everything it touches... relaxes',
+    'your legs now. you might notice... you\'ve already forgotten about them. that\'s good. the less you think about your body... the more it relaxes',
+    'and here\'s something interesting... try to feel tense for a moment. ...',
+    'notice how hard that is? your body doesn\'t want to go back. it knows where it\'s going',
+    'deeper now. not because I\'m telling you to. because there\'s nowhere else to go. you\'re already there',
+  ],
+  'post_gate': [
+    'good. let yourself fall... just a little more that\'s it.',
   ],
   'trance': [
-    'imagine... warmth.',
-    'a gentle warmth... surrounding you... like sinking... into something soft.',
-    'you might notice... how comfortable this feels... perhaps deeper... than you expected.',
-    'and that is perfectly fine... your unconscious mind... knows exactly what to do.',
-    'there is nothing... you need to figure out... nothing to solve... nothing to fix. ...',
-    'just allow this... to happen like water... finding its level... you find yours.',
-    'deeper now without even trying... each breath... taking you further.',
-    'the sounds around you... become part of this... everything carries you... deeper',
+    'you\'re somewhere now... between awake and asleep. and you know exactly where that is.',
+    'thoughts might appear. like bubbles... rising... and popping. you don\'t need to follow them. just watch them dissolve',
+    'my voice is here. not as instructions... not as something to follow. just... a sound. like the wind... or the water. part of the space you\'re in',
+    'and in this space... there\'s nothing to figure out. nothing to solve. nothing to fix. ...',
+    'nothing',
+    'every breath... is a wave. and every wave... takes you further. not out... but in. deeper into this feeling. deeper into yourself',
+    'if someone asked you... right now... how relaxed you are... you might find it hard to answer. because the part of you that measures things... has already let go',
+    'this is yours. this feeling. this depth. you can come back here... anytime you want. remember this',
   ],
   'deep': [
-    'pure stillness ...',
-    'complete peace ...',
-    'nothing to do. ...',
-    'nowhere to be. ...',
+    'stillness ...',
+    'peace ...',
     'just this. ...',
-    'floating. ...',
-    'safe. ...',
-    'rest here... for as long as you like.',
+    'nothing else. ...',
+    'floating ...',
+    'safe ...',
+    'rest here. as long as you like.',
   ],
   'emergence': [
-    'gently now... beginning to return. ...',
-    'carrying this calm... with you... like a warm blanket... you can wrap around yourself... anytime. ...',
-    'feeling refreshed... and clear... and rested. ...',
-    'your body... remembering how to move... slowly... gently... in your own time. ...',
-    'whenever you are ready... take a deeper breath... and open your eyes... fully. ...',
+    'and now... gently... something begins to shift. ...',
+    'like the first light of morning... not sudden... not harsh... just... a warmth... returning.',
+    'you\'re bringing something back with you. this calm... this stillness... it stays. it\'s yours now',
+    'your body... remembering itself. fingers first... then toes... a stretch... maybe... if it feels right.',
+    'the room... coming back. the sounds... the air... the weight of being here. ...',
+    'and that\'s okay. you carry the depth with you',
+    'take a deeper breath... when you\'re ready. ...',
+    'and open your eyes. ...',
     'welcome back.',
   ],
 };
 
 // Interaction markers from script (gate, breath-sync, etc.)
 export const stageInteractions: Record<string, Array<{ index: number; type: string; text: string }>> = {
-  'settle': [
-    { index: 0, type: 'breath-sync', text: 'let\'s begin... by simply breathing... breathe in... when the tunnel expands... breathe out... when it contracts.' },
-  ],
-  'deepening': [
-    { index: 6, type: 'gate', text: 'would you like to go deeper?' },
-  ],
 };
 
 // Stage durations from audio (use these in session config)
 export const stageDurations: Record<string, number> = {
-  'settle': 49,
-  'induction': 74,
-  'deepening': 85,
-  'trance': 106,
-  'deep': 54,
-  'emergence': 65,
+  'settle': 56,
+  'induction': 90,
+  'deepening': 120,
+  'post_gate': 16,
+  'trance': 207,
+  'deep': 44,
+  'emergence': 75,
 };
 
 // Interludes — ambient-only silence after each stage (seconds)
 export const stageInterludes: Record<string, number> = {
-  'settle': 5,
-  'induction': 5,
-  'deepening': 8,
-  'trance': 10,
-  'deep': 20,
-  'emergence': 15,
+  'settle': 5.0,
+  'induction': 5.0,
+  'deepening': 6.0,
+  'trance': 10.0,
+  'deep': 20.0,
+  'emergence': 15.0,
 };
 
 // Interactive clips — standalone audio files for interactions
