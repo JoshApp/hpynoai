@@ -857,7 +857,10 @@ def main():
         print(f"  raw: {stage_dur:.0f}s")
 
         # ── Transcribe raw audio (script-constrained for best accuracy) ──
+        # Build known text — strip ellipsis pauses (... is not spoken)
         known_text = " ".join(stage['slices'])
+        known_text = re.sub(r'\.{2,}', '', known_text)  # remove ... and ..
+        known_text = re.sub(r'\s+', ' ', known_text).strip()
         print(f"  transcribe (script-constrained)...", end=" ", flush=True)
         words = transcribe(stage_path, args.whisper_model, known_text=known_text)
         if words:

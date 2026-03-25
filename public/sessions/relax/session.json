@@ -8,7 +8,7 @@
   "stages": [
     {
       "name": "settle",
-      "duration": 51.22,
+      "duration": 51.21,
       "intensity": 0.5,
       "textInterval": 9,
       "breathCycle": 10,
@@ -24,7 +24,7 @@
     },
     {
       "name": "induction",
-      "duration": 85.38,
+      "duration": 87.77,
       "intensity": 0.5,
       "textInterval": 9,
       "breathCycle": 10,
@@ -41,7 +41,7 @@
     },
     {
       "name": "deepening",
-      "duration": 115.24,
+      "duration": 118.79,
       "intensity": 0.5,
       "textInterval": 9,
       "breathCycle": 10,
@@ -59,7 +59,7 @@
     },
     {
       "name": "post_gate",
-      "duration": 10.62,
+      "duration": 10.59,
       "intensity": 0.5,
       "textInterval": 9,
       "breathCycle": 10,
@@ -70,7 +70,7 @@
     },
     {
       "name": "trance",
-      "duration": 202.26,
+      "duration": 201.93,
       "intensity": 0.5,
       "textInterval": 9,
       "breathCycle": 10,
@@ -89,7 +89,7 @@
     },
     {
       "name": "deep",
-      "duration": 39.37,
+      "duration": 41.49,
       "intensity": 0.5,
       "textInterval": 9,
       "breathCycle": 10,
@@ -107,7 +107,7 @@
     },
     {
       "name": "emergence",
-      "duration": 70.43,
+      "duration": 70.85,
       "intensity": 0.5,
       "textInterval": 9,
       "breathCycle": 10,
