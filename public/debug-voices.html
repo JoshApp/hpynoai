@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>HPYNO Voice Lab</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0a0a12; color: #c0b0e0; font: 13px/1.5 monospace; padding: 20px; max-width: 900px; margin: 0 auto; }
+h1 { font-size: 18px; color: #e0d0ff; margin-bottom: 4px; }
+.subtitle { font-size: 11px; color: #605070; margin-bottom: 20px; }
+
+/* Voice card */
+.card { background: #12121e; border: 1px solid rgba(200,160,255,0.1); border-radius: 6px; padding: 14px 16px; margin-bottom: 10px; transition: border-color 0.2s; }
+.card:hover { border-color: rgba(200,160,255,0.25); }
+.card.playing { border-color: rgba(200,160,255,0.5); background: #16162a; }
+.card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.card-name { font-size: 14px; color: #d0c0f0; font-weight: bold; }
+.card-dur { font-size: 11px; color: #605070; }
+.card-style { font-size: 11px; color: #806090; line-height: 1.4; margin-bottom: 10px; padding: 6px 8px; background: rgba(200,160,255,0.03); border-radius: 3px; }
+
+/* Player */
+.player { display: flex; align-items: center; gap: 8px; }
+.play-btn { width: 36px; height: 36px; border-radius: 50%; background: rgba(200,160,255,0.1); border: 1px solid rgba(200,160,255,0.25); color: #c8a0ff; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; flex-shrink: 0; }
+.play-btn:hover { background: rgba(200,160,255,0.2); border-color: rgba(200,160,255,0.4); }
+.card.playing .play-btn { background: rgba(200,160,255,0.25); border-color: #c8a0ff; }
+.waveform-wrap { flex: 1; height: 50px; position: relative; cursor: pointer; border-radius: 3px; overflow: hidden; background: rgba(200,160,255,0.03); }
+.waveform-canvas { width: 100%; height: 100%; display: block; }
+.waveform-cursor { position: absolute; top: 0; bottom: 0; width: 2px; background: #c8a0ff; pointer-events: none; left: 0; box-shadow: 0 0 6px rgba(200,160,255,0.4); }
+.waveform-time { position: absolute; bottom: 2px; right: 4px; font-size: 9px; color: #605070; pointer-events: none; }
+
+/* Rating */
+.rating { display: flex; gap: 4px; margin-top: 8px; }
+.star { width: 24px; height: 24px; border-radius: 3px; background: rgba(200,160,255,0.05); border: 1px solid rgba(200,160,255,0.1); color: #504060; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.1s; }
+.star:hover, .star.active { background: rgba(200,160,255,0.2); border-color: rgba(200,160,255,0.4); color: #c8a0ff; }
+.notes { margin-top: 6px; }
+.notes textarea { width: 100%; height: 40px; background: rgba(200,160,255,0.03); border: 1px solid rgba(200,160,255,0.1); border-radius: 3px; color: #c0b0e0; font: 11px monospace; padding: 4px 8px; resize: vertical; }
+.notes textarea:focus { border-color: rgba(200,160,255,0.3); outline: none; }
+
+/* Compare bar */
+.compare-bar { position: sticky; bottom: 0; background: rgba(10,10,18,0.95); border-top: 1px solid rgba(200,160,255,0.1); padding: 10px 16px; margin: 20px -20px 0; backdrop-filter: blur(8px); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.compare-bar button { background: rgba(200,160,255,0.08); border: 1px solid rgba(200,160,255,0.2); color: #c0b0e0; padding: 4px 12px; border-radius: 3px; font: inherit; cursor: pointer; }
+.compare-bar button:hover { background: rgba(200,160,255,0.15); }
+.compare-bar button.active { background: rgba(200,160,255,0.25); border-color: #c8a0ff; }
+.compare-bar .info { font-size: 11px; color: #605070; }
+
+/* Custom gen */
+.custom { background: #12121e; border: 1px solid rgba(200,160,255,0.15); border-radius: 6px; padding: 16px; margin-top: 20px; }
+.custom h2 { font-size: 14px; color: #d0c0f0; margin-bottom: 10px; }
+.custom label { font-size: 11px; color: #806090; display: block; margin-bottom: 2px; }
+.custom input, .custom textarea { width: 100%; background: rgba(200,160,255,0.05); border: 1px solid rgba(200,160,255,0.15); border-radius: 3px; color: #c0b0e0; font: 12px monospace; padding: 6px 8px; margin-bottom: 8px; }
+.custom textarea { height: 60px; resize: vertical; }
+.custom button { background: rgba(200,160,255,0.15); border: 1px solid rgba(200,160,255,0.3); color: #c8a0ff; padding: 6px 16px; border-radius: 3px; font: inherit; cursor: pointer; }
+.custom button:hover { background: rgba(200,160,255,0.25); }
+.custom .gen-status { font-size: 11px; color: #605070; margin-top: 6px; }
+</style>
+</head>
+<body>
+
+<h1>HPYNO Voice Lab</h1>
+<div class="subtitle">Compare voice styles, rate them, generate custom tests. All files in /audio/voice-tests/</div>
+
+<div id="cards"></div>
+
+<div class="compare-bar">
+  <span class="info">A/B compare:</span>
+  <button id="btn-ab-prev">&laquo; Prev</button>
+  <button id="btn-ab-next">Next &raquo;</button>
+  <button id="btn-loop">Loop</button>
+  <span class="info" id="compare-label">--</span>
+  <span style="flex:1"></span>
+  <button id="btn-export">Export ratings</button>
+</div>
+
+<div class="custom">
+  <h2>Generate custom test</h2>
+  <label>Text</label>
+  <textarea id="gen-text">just let your body sink... into the bed... there's nothing you need to do... nowhere you need to be... just here... just this warmth...</textarea>
+  <label>Style description</label>
+  <input id="gen-style" value="very intimate whispering, barely audible, slow with long pauses, sleep-inducing">
+  <label>Voice</label>
+  <input id="gen-voice" value="zephyr">
+  <label>Seed (change for variation)</label>
+  <input id="gen-seed" type="number" value="42">
+  <button id="btn-gen" onclick="generateCustom()">Generate</button>
+  <div class="gen-status" id="gen-status"></div>
+</div>
+
+<script>
+const STYLES = {
+  "01_calm_guide": "calm, gentle, warm, like a meditation guide, slow with long pauses between phrases",
+  "02_intimate_whisper": "very intimate whispering, barely audible, soft breath sounds, like speaking directly into someone's ear in bed",
+  "03_slow_dreamy": "extremely slow and dreamy, each word floating in space, hypnotic monotone, like drifting in and out of consciousness",
+  "04_warm_maternal": "warm and nurturing, like a mother soothing a child to sleep, soft and tender, gentle",
+  "05_deep_resonant": "deep, resonant, with chest voice, slow and deliberate, like a warm blanket wrapping around you",
+  "06_asmr_breathy": "asmr style, very breathy and close, soft mouth sounds between words, intimate and close",
+  "07_hypnotic_monotone": "hypnotic monotone, minimal pitch variation, steady and predictable, metronomic pacing, sleep-inducing",
+  "08_ethereal_distant": "ethereal and distant, as if the voice is coming from far away, echoing, dissolving into air",
+};
+
+let currentAudio = null;
+let currentCard = null;
+let looping = false;
+let ratings = JSON.parse(localStorage.getItem('hpyno-voice-ratings') || '{}');
+let allCards = [];
+
+const $cards = document.getElementById('cards');
+
+// Discover all wav files in voice-tests
+async function loadCards() {
+  // Try loading known styles + any custom files
+  const files = Object.keys(STYLES).map(k => k + '.wav');
+
+  // Also check for custom files (custom_*.wav)
+  for (let i = 1; i <= 20; i++) {
+    files.push(`custom_${i}.wav`);
+  }
+
+  for (const file of files) {
+    const name = file.replace('.wav', '');
+    const url = `audio/voice-tests/${file}`;
+
+    try {
+      const resp = await fetch(url, { method: 'HEAD' });
+      if (!resp.ok) continue;
+    } catch { continue; }
+
+    createCard(name, url, STYLES[name] || 'Custom generation');
+  }
+}
+
+function createCard(name, url, style) {
+  const div = document.createElement('div');
+  div.className = 'card';
+  div.dataset.name = name;
+  div.dataset.url = url;
+
+  const prettyName = name.replace(/^\d+_/, '').replace(/_/g, ' ');
+  const saved = ratings[name] || {};
+
+  div.innerHTML = `
+    <div class="card-header">
+      <span class="card-name">${prettyName}</span>
+      <span class="card-dur" data-dur>--</span>
+    </div>
+    <div class="card-style">${style}</div>
+    <div class="player">
+      <button class="play-btn" data-play>&#9654;</button>
+      <div class="waveform-wrap" data-wave-wrap>
+        <canvas class="waveform-canvas" data-wave></canvas>
+        <div class="waveform-cursor" data-cursor></div>
+        <div class="waveform-time" data-time>0:00</div>
+      </div>
+    </div>
+    <div class="rating" data-rating>
+      ${[1,2,3,4,5].map(i => `<div class="star ${saved.rating >= i ? 'active' : ''}" data-star="${i}">${i}</div>`).join('')}
+      <span style="font-size:10px;color:#504060;margin-left:4px">${saved.rating ? saved.rating + '/5' : 'rate'}</span>
+    </div>
+    <div class="notes">
+      <textarea placeholder="Notes..." data-notes>${saved.notes || ''}</textarea>
+    </div>
+  `;
+
+  // Load audio for waveform
+  loadWaveform(div, url);
+
+  // Play button
+  div.querySelector('[data-play]').addEventListener('click', () => togglePlay(div, url));
+
+  // Click waveform to seek
+  div.querySelector('[data-wave-wrap]').addEventListener('click', (e) => {
+    if (!currentAudio || currentCard !== div) {
+      togglePlay(div, url);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pct = (e.clientX - rect.left) / rect.width;
+    currentAudio.currentTime = pct * currentAudio.duration;
+  });
+
+  // Rating
+  div.querySelectorAll('[data-star]').forEach(star => {
+    star.addEventListener('click', () => {
+      const val = parseInt(star.dataset.star);
+      ratings[name] = ratings[name] || {};
+      ratings[name].rating = val;
+      saveRatings();
+      // Update stars
+      div.querySelectorAll('[data-star]').forEach(s => {
+        s.classList.toggle('active', parseInt(s.dataset.star) <= val);
+      });
+      div.querySelector('.rating span').textContent = val + '/5';
+    });
+  });
+
+  // Notes
+  div.querySelector('[data-notes]').addEventListener('input', (e) => {
+    ratings[name] = ratings[name] || {};
+    ratings[name].notes = e.target.value;
+    saveRatings();
+  });
+
+  $cards.appendChild(div);
+  allCards.push(div);
+}
+
+async function loadWaveform(card, url) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const resp = await fetch(url);
+    const buf = await ctx.decodeAudioData(await resp.arrayBuffer());
+    const data = buf.getChannelData(0);
+    ctx.close();
+
+    card.querySelector('[data-dur]').textContent = `${buf.duration.toFixed(1)}s`;
+
+    const canvas = card.querySelector('[data-wave]');
+    drawWaveform(canvas, data);
+  } catch {}
+}
+
+function drawWaveform(canvas, data) {
+  requestAnimationFrame(() => {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const W = rect.width;
+    const H = rect.height;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+
+    const mid = H / 2;
+    const samplesPerPx = data.length / W;
+
+    // RMS envelope fill
+    ctx.fillStyle = 'rgba(160,120,255,0.12)';
+    ctx.beginPath();
+    ctx.moveTo(0, mid);
+    for (let x = 0; x < W; x++) {
+      const si = Math.floor(x * samplesPerPx);
+      const ei = Math.min(si + Math.floor(samplesPerPx * 3), data.length);
+      let sum = 0;
+      for (let j = si; j < ei; j += 3) sum += data[j] * data[j];
+      const rms = Math.sqrt(sum / ((ei - si) / 3 + 1));
+      ctx.lineTo(x, mid - rms * mid * 2.5);
+    }
+    for (let x = W - 1; x >= 0; x--) {
+      const si = Math.floor(x * samplesPerPx);
+      const ei = Math.min(si + Math.floor(samplesPerPx * 3), data.length);
+      let sum = 0;
+      for (let j = si; j < ei; j += 3) sum += data[j] * data[j];
+      const rms = Math.sqrt(sum / ((ei - si) / 3 + 1));
+      ctx.lineTo(x, mid + rms * mid * 2.5);
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    // Waveform line
+    ctx.strokeStyle = 'rgba(160,120,255,0.4)';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    for (let x = 0; x < W; x++) {
+      const si = Math.floor(x * samplesPerPx);
+      const ei = Math.min(Math.floor((x + 1) * samplesPerPx), data.length);
+      let mn = 0, mx = 0;
+      for (let j = si; j < ei; j += Math.max(1, Math.floor((ei - si) / 3))) {
+        if (data[j] < mn) mn = data[j];
+        if (data[j] > mx) mx = data[j];
+      }
+      ctx.moveTo(x, mid + mn * mid * 0.9);
+      ctx.lineTo(x, mid + mx * mid * 0.9);
+    }
+    ctx.stroke();
+  });
+}
+
+function togglePlay(card, url) {
+  if (currentAudio && currentCard === card) {
+    if (currentAudio.paused) {
+      currentAudio.play();
+      card.classList.add('playing');
+      tick();
+    } else {
+      currentAudio.pause();
+      card.classList.remove('playing');
+    }
+    return;
+  }
+
+  stopAll();
+  currentCard = card;
+  currentAudio = new Audio(url);
+  currentAudio.play();
+  card.classList.add('playing');
+  card.querySelector('[data-play]').textContent = '\u23F8';
+
+  currentAudio.onended = () => {
+    if (looping) {
+      currentAudio.currentTime = 0;
+      currentAudio.play();
+    } else {
+      card.classList.remove('playing');
+      card.querySelector('[data-play]').textContent = '\u25B6';
+    }
+  };
+
+  tick();
+}
+
+function stopAll() {
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio = null;
+  }
+  if (currentCard) {
+    currentCard.classList.remove('playing');
+    currentCard.querySelector('[data-play]').textContent = '\u25B6';
+    currentCard = null;
+  }
+}
+
+function tick() {
+  if (!currentAudio || currentAudio.paused || !currentCard) return;
+  const dur = currentAudio.duration || 1;
+  const pct = currentAudio.currentTime / dur;
+  const cursor = currentCard.querySelector('[data-cursor]');
+  const timeEl = currentCard.querySelector('[data-time]');
+  cursor.style.left = `${pct * 100}%`;
+  const t = currentAudio.currentTime;
+  timeEl.textContent = `${Math.floor(t/60)}:${(t%60).toFixed(1).padStart(4,'0')}`;
+  requestAnimationFrame(tick);
+}
+
+function saveRatings() {
+  localStorage.setItem('hpyno-voice-ratings', JSON.stringify(ratings));
+}
+
+// A/B compare
+let abIndex = 0;
+document.getElementById('btn-ab-next').addEventListener('click', () => {
+  abIndex = (abIndex + 1) % allCards.length;
+  const card = allCards[abIndex];
+  togglePlay(card, card.dataset.url);
+  document.getElementById('compare-label').textContent = card.dataset.name.replace(/^\d+_/, '').replace(/_/g, ' ');
+});
+document.getElementById('btn-ab-prev').addEventListener('click', () => {
+  abIndex = (abIndex - 1 + allCards.length) % allCards.length;
+  const card = allCards[abIndex];
+  togglePlay(card, card.dataset.url);
+  document.getElementById('compare-label').textContent = card.dataset.name.replace(/^\d+_/, '').replace(/_/g, ' ');
+});
+document.getElementById('btn-loop').addEventListener('click', (e) => {
+  looping = !looping;
+  e.target.classList.toggle('active', looping);
+});
+
+// Export ratings
+document.getElementById('btn-export').addEventListener('click', () => {
+  const lines = ['Voice Style Ratings:'];
+  for (const [name, data] of Object.entries(ratings).sort((a, b) => (b[1].rating || 0) - (a[1].rating || 0))) {
+    lines.push(`  ${name}: ${data.rating || '-'}/5${data.notes ? ' — ' + data.notes : ''}`);
+  }
+  alert(lines.join('\n'));
+});
+
+// Custom generation
+async function generateCustom() {
+  const text = document.getElementById('gen-text').value;
+  const style = document.getElementById('gen-style').value;
+  const voice = document.getElementById('gen-voice').value;
+  const seed = document.getElementById('gen-seed').value;
+  const status = document.getElementById('gen-status');
+
+  status.textContent = 'Generating...';
+
+  try {
+    const resp = await fetch('/api/generate-voice', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, style, voice, seed: parseInt(seed) }),
+    });
+
+    if (!resp.ok) {
+      // No server API — use the python script hint
+      status.textContent = 'No server API. Run: .venv/bin/python scripts/test-voices.py (or add custom styles to the script)';
+      return;
+    }
+
+    const data = await resp.json();
+    status.textContent = `Generated: ${data.file}`;
+    // Reload to show new card
+    location.reload();
+  } catch {
+    status.textContent = 'Run from terminal: .venv/bin/python -c "from scripts... (copy style to test-voices.py)"';
+  }
+}
+
+// Keyboard
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
+  if (e.code === 'Space') { e.preventDefault(); if (currentCard) togglePlay(currentCard, currentCard.dataset.url); }
+  if (e.code === 'ArrowRight') { e.preventDefault(); document.getElementById('btn-ab-next').click(); }
+  if (e.code === 'ArrowLeft') { e.preventDefault(); document.getElementById('btn-ab-prev').click(); }
+  if (e.key === 'l') { document.getElementById('btn-loop').click(); }
+});
+
+// Init
+loadCards();
+</script>
+</body>
+</html>

@@ -169,17 +169,34 @@ html, body {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
-  background: rgba(10, 8, 16, 0.92);
-  border: 1px solid rgba(200, 160, 255, 0.15);
-  border-radius: 6px;
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 14px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 11px;
-  color: #c0b0e0;
+  color: rgba(255, 255, 255, 0.65);
   pointer-events: auto;
   display: none;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   user-select: none;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+#settings-panel .settings-advanced-toggle {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.35);
+  font: 11px -apple-system, sans-serif;
+  padding: 10px 16px;
+  cursor: pointer;
+  text-align: left;
+}
+#settings-panel .settings-advanced-toggle:hover {
+  color: rgba(255,255,255,0.55);
 }
 
 #settings-panel.visible {
@@ -203,19 +220,22 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 12px 8px;
-  border-bottom: 1px solid rgba(200, 160, 255, 0.1);
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   position: sticky;
   top: 0;
-  background: rgba(10, 8, 16, 0.95);
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(16px);
   z-index: 1;
+  border-radius: 14px 14px 0 0;
 }
 
 #settings-panel .settings-header span {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.2em;
-  color: #c8a0ff;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.15em;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: lowercase;
 }
 
 #settings-panel #settings-close {

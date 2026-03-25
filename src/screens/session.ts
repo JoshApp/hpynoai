@@ -41,7 +41,7 @@ export class SessionScreen implements Screen {
     this.startPosition = opts?.resumePosition ?? 0;
   }
 
-  async enter(ctx: ScreenContext, _from: string | null): Promise<void> {
+  enter(ctx: ScreenContext, _from: string | null): void {
     this.ctx = ctx;
     log.info('session', `Starting: ${this.session.name}`);
 
@@ -55,27 +55,48 @@ export class SessionScreen implements Screen {
     this.lastStageIndex = -1;
     this.renderBlockIndex = -1;
 
-    // Theme
+    // Theme (immediate — visual)
     ctx.tunnelLayer.applyTheme(this.session.theme);
     ctx.particlesLayer.setColor(...this.session.theme.particleColor);
     ctx.presenceActor.setColors(this.session.theme.accentColor);
     ctx.textActor.setColors(this.session.theme.textColor, this.session.theme.textGlow);
+    ctx.presenceActor.setDirective({ type: 'presence', directive: { role: 'narrator' } });
 
-    // Wakelock
+    // Input handlers (immediate — always ready)
+    this.unsubs.push(ctx.bus.on('input:back', () => {
+      if (ctx.screenManager.isTransitioning) return;
+      this.returnToMenu();
+    }));
+    this.unsubs.push(ctx.bus.on('input:confirm', () => {
+      if (ctx.timeline.started && ctx.timeline.paused) {
+        ctx.audioClipActor.setDirective({ type: 'audio-clip', directive: { clip: 'gate_yes' } });
+        ctx.audioCompositor.silenceDip(1.5, 5);
+        ctx.timeline.resume();
+      }
+    }));
+
+    // Wakelock (sync, from user gesture context)
     resumeAudioFromGesture(ctx.audio);
     acquireWakeLock();
     registerMediaSession(this.session.name);
     startSilentAudioKeepAlive();
+    ctx.hud.setMode('session');
 
-    // Audio + timeline init
+    // Async init — audio, manifest, timeline (runs in background)
+    this.initSession(ctx).catch(e => log.warn('session', 'Init failed', e));
+  }
+
+  /** Async init — audio compositor, manifest, timeline. Called from enter(). */
+  private async initSession(ctx: ScreenContext): Promise<void> {
+    // Wait for audio + narration manifest
     await Promise.all([ctx.audio.init(), ctx.narration.waitForManifest()]);
+    if (!this.ctx) return; // screen was exited while waiting
 
     // Audio compositor
     try {
       await ensureAudioCompositor(ctx.audio, ctx.audioCompositor);
       if (!ctx.audioCompositor['isPlaying']) ctx.audioCompositor.start();
 
-      // Session sequencer
       const { SequencerActor } = await import('../audio-compositor/actors/sequencer');
       const sequencer = new SequencerActor(hashSeed(this.session.id));
       const padLayer = ctx.audioCompositor.getLayer('pad');
@@ -92,13 +113,15 @@ export class SessionScreen implements Screen {
       log.warn('session', 'Audio compositor setup failed', e);
     }
 
-    // Apply session audio preset
+    if (!this.ctx) return; // exited while waiting
+
+    // Audio preset
     const rootNotes: Record<string, number> = { relax: 48, sleep: 45, focus: 52, surrender: 50 };
     const preset = buildSessionAudioPreset(this.session, ctx.settings.current.binauralVolume, rootNotes[this.session.id] ?? 48);
     ctx.audioCompositor.applyPreset(preset, 2);
     ctx.audioCompositor.setMasterVolume(ctx.settings.current.ambientVolume);
 
-    // Build timeline
+    // Build + start timeline
     ctx.timeline.build(
       this.session.stages,
       (name) => ctx.narration.hasStageAudio(name),
@@ -107,7 +130,6 @@ export class SessionScreen implements Screen {
     ctx.timebar.buildBlocks();
     ctx.devMode.rebuildStageButtons();
 
-    // Start
     ctx.machine.transition('session');
     ctx.bus.emit('session:started', { session: this.session });
     ctx.timeline.start();
@@ -115,44 +137,23 @@ export class SessionScreen implements Screen {
       ctx.timeline.seek(this.startPosition);
       log.info('session', `Resumed at ${this.startPosition.toFixed(1)}s`);
     }
-    ctx.hud.setMode('session');
 
-    // Auto-save progress every 5s
+    // Auto-save
     this.stopAutoSave = startAutoSave(() => {
       if (!ctx.timeline.started) return null;
-      return {
-        sessionId: this.session.id,
-        position: ctx.timeline.position,
-        stageIndex: ctx.timeline.currentIndex,
-      };
+      return { sessionId: this.session.id, position: ctx.timeline.position, stageIndex: ctx.timeline.currentIndex };
     });
 
-    // Tick interval
+    // Tick interval — starts after timeline is ready
     this.tickInterval = setInterval(() => this.sessionTick(), 1000 / 60);
 
-    // Input: ESC to return to menu
-    this.unsubs.push(ctx.bus.on('input:back', () => {
-      if (ctx.screenManager.isTransitioning) return;
-      this.returnToMenu();
-    }));
-
-    // Input: confirm for interaction boundaries
-    this.unsubs.push(ctx.bus.on('input:confirm', () => {
-      if (ctx.timeline.started && ctx.timeline.paused) {
-        ctx.audioClipActor.setDirective({ type: 'audio-clip', directive: { clip: 'gate_yes' } });
-        ctx.audioCompositor.silenceDip(1.5, 5);
-        ctx.timeline.resume();
-      }
-    }));
-
-    log.info('session', 'Session started');
+    log.info('session', 'Session fully initialized');
   }
 
   exit(): void {
     if (!this.ctx) return;
     const ctx = this.ctx;
 
-    // Stop auto-save
     if (this.stopAutoSave) { this.stopAutoSave(); this.stopAutoSave = null; }
 
     for (const u of this.unsubs) u();
@@ -232,7 +233,6 @@ export class SessionScreen implements Screen {
     ctx.interactions.setDepth(s.interactionDepth);
     ctx.interactions.setScale(s.interactionScale);
     ctx.interactions.update(time, intensity, ctx.breath.value);
-    ctx.transition.update();
     ctx.devMode.update();
 
     // Presence + wisp audio — driven by PresenceActor via compositor.update() in tick
@@ -243,19 +243,7 @@ export class SessionScreen implements Screen {
       (wispAudio as { setPosition: (x: number, y: number, z: number) => void }).setPosition(p.x, p.y, p.z);
     }
 
-    // Render passes
-    ctx.renderer.setRenderTarget(ctx.feedbackLayer.tunnelTarget);
-    ctx.renderer.render(ctx.scene, ctx.camera);
-    ctx.renderer.setRenderTarget(null);
-    ctx.feedbackLayer.render({
-      renderer: ctx.renderer, scene: ctx.scene, overlayScene: ctx.overlayScene,
-      camera: ctx.camera, compositeScene: ctx.compositeScene, compositeCamera: ctx.compositeCamera,
-      time: this.renderTime, dt,
-    });
-    ctx.renderer.render(ctx.compositeScene, ctx.compositeCamera);
-    ctx.renderer.autoClear = false;
-    ctx.renderer.render(ctx.overlayScene, ctx.camera);
-    ctx.renderer.autoClear = true;
+    // Render passes handled by main renderLoop()
 
     appState.stageIndex = ctx.timeline.currentIndex;
     ctx.timebar.update();

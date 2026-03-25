@@ -15,6 +15,17 @@ Requires: ffmpeg, openai-whisper
 import json, sys, os, re, wave, time, subprocess, urllib.request, argparse, shutil
 
 API_URL = "https://sexyvoice.ai/api/v1/speech"
+
+# Load .env file if present
+_env_path = os.path.join(os.path.dirname(__file__), '..', '.env')
+if os.path.exists(_env_path):
+    with open(_env_path) as _ef:
+        for _line in _ef:
+            _line = _line.strip()
+            if _line and not _line.startswith('#') and '=' in _line:
+                _k, _v = _line.split('=', 1)
+                os.environ.setdefault(_k.strip(), _v.strip().strip("'\""))
+
 API_KEY = os.environ.get("SEXYVOICE_API_KEY", "")
 DEFAULT_STYLE = "very slow and deliberate, long pauses between phrases, hypnotic, soft dominance, breathy"
 DEFAULT_VOICE = "zephyr"

@@ -1,0 +1,145 @@
+# HPYNO Sleep Session
+#
+# Goal: guide the user into sleep. No emergence — voice fades to nothing.
+# The user should barely notice when they cross from listening to sleeping.
+#
+# Key principles:
+# - No gates or decisions — nothing that requires conscious thought
+# - Voice gets progressively quieter and slower
+# - Longer pauses as we go deeper — let silence do the work
+# - Body scan creates heaviness — weight is sleep's doorway
+# - Final stage fades to pure ambient
+# - No emergence — the session ends in silence
+
+[INTERACTIVE: prompt sleep_ready]
+find a comfortable position...
+close your eyes... when you're ready.
+
+[STAGE: settle]
+good...
+you've chosen to rest.
+[SLICE]
+the day is behind you now...
+all of it... done.
+[SLICE]
+whatever happened today...
+you can set it down.
+[PAUSE 2]
+[CMD it doesn't need you anymore]
+[SLICE]
+the only thing that matters...
+is right here...
+this bed... this warmth... this breath.
+[SLICE]
+you don't need to try to sleep...
+sleep will come... on its own...
+[CMD when you stop trying]
+[INTERLUDE 5]
+
+[STAGE: drift]
+notice where your body meets the bed...
+every point of contact...
+[CMD sinking... just a little]
+[SLICE]
+your feet... let them be heavy...
+heavier than you'd expect...
+as if they're made of warm sand...
+slowly settling.
+[PAUSE 2]
+[SLICE]
+your legs... the weight of them...
+you might notice... you've forgotten them already...
+that's good... [CMD let them go]
+[SLICE]
+your hips... your lower back...
+pressing into the mattress...
+the bed is holding you...
+[CMD you don't need to hold yourself]
+[PAUSE 2]
+[SLICE]
+your stomach... softening...
+each breath... a slow wave...
+rising... falling... rising... falling...
+without any effort.
+[SLICE]
+your chest... your shoulders...
+dropping... melting...
+[CMD heavier... and heavier]
+[SLICE]
+your arms... your hands...
+you might notice a tingling...
+or a warmth... or nothing at all...
+all of that is fine.
+[PAUSE 3]
+[SLICE]
+your neck... your jaw...
+[CMD let it all go]
+your face... smoothing...
+forehead... softening...
+every tiny muscle... releasing.
+[INTERLUDE 8]
+
+[STAGE: sinking]
+you're sinking now...
+and that's exactly right.
+[SLICE]
+notice how comfortable this is...
+how easy it is... to just... be here.
+[PAUSE 2]
+[SLICE]
+thoughts might drift through...
+like clouds... passing...
+you don't need to follow them...
+[CMD just let them go]
+[SLICE]
+each breath takes you deeper...
+not because you're trying...
+[CMD because you've stopped trying]
+[PAUSE 3]
+[SLICE]
+the sounds around you...
+are becoming distant...
+everything... moving further away...
+[CMD except this voice... and soon... even this]
+[PAUSE 3]
+[SLICE]
+you're somewhere between...
+awake and asleep...
+and that place... is perfect.
+[CMD stay here... as long as you like]
+[INTERLUDE 12]
+
+[STAGE: dissolve]
+so heavy now.
+[PAUSE 3]
+[SLICE]
+so warm.
+[PAUSE 3]
+[SLICE]
+[CMD drifting]
+[PAUSE 4]
+[SLICE]
+nothing to do.
+[PAUSE 3]
+[SLICE]
+nothing to think.
+[PAUSE 3]
+[SLICE]
+[CMD just... letting go]
+[PAUSE 5]
+[SLICE]
+the bed... holds you.
+[PAUSE 4]
+[SLICE]
+[CMD sleep... is here]
+[INTERLUDE 15]
+
+[STAGE: sleep]
+[CMD sleep]
+[PAUSE 8]
+[SLICE]
+[CMD rest]
+[PAUSE 8]
+[SLICE]
+[CMD safe]
+[INTERLUDE 45]

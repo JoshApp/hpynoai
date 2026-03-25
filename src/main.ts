@@ -322,8 +322,25 @@ function renderLoop(): void {
   };
   compositor.update(inputs, dt);
 
-  // Screen-specific rendering
+  // Transition manager — must run every frame for screen transitions to work
+  transition.update();
+
+  // Screen-specific updates (text, interactions, audio, etc.)
   screenManager.render(time, dt);
+
+  // Always render the 3D world — screens configure it, we draw it
+  renderer.setRenderTarget(feedbackLayer.tunnelTarget);
+  renderer.render(scene, camera);
+  renderer.setRenderTarget(null);
+  feedbackLayer.render({
+    renderer, scene, overlayScene, camera,
+    compositeScene, compositeCamera,
+    time: _renderTime, dt,
+  });
+  renderer.render(compositeScene, compositeCamera);
+  renderer.autoClear = false;
+  renderer.render(overlayScene, camera);
+  renderer.autoClear = true;
 }
 
 // ══════════════════════════════════════════════════════════════════════

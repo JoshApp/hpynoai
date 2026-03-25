@@ -20,7 +20,7 @@ export class PresenceActor implements Actor {
 
   private presence: Presence;
   private tunnelLayer: TunnelLayer;
-  private currentRole: PresenceDirective['role'] = 'idle';
+  private currentRole: PresenceDirective['role'] | null = null; // null = never set
   private followTarget: { x: number; y: number; z: number } | null = null;
 
   constructor(presence: Presence, tunnelLayer: TunnelLayer) {
@@ -52,7 +52,11 @@ export class PresenceActor implements Actor {
         this.presence.setSessionMode();
         break;
       case 'idle':
-        this.presence.transitionTo('idle', { duration: 2.0 });
+        this.presence.transitionTo('idle', {
+          size: 3.5,
+          basePos: new THREE.Vector3(0, 0.04, -1.3),
+          duration: 2.0,
+        });
         break;
       case 'hidden':
         this.presence.hide();
@@ -88,6 +92,7 @@ export class PresenceActor implements Actor {
   }
 
   update(inputs: WorldInputs, _dt: number): void {
+    if (this.currentRole === null) return; // never activated
     const t = inputs.renderTime;
     const bv = inputs.breathValue;
 

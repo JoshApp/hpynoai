@@ -51,8 +51,7 @@ body { background: #0a0a12; color: #c0b0e0; font: 12px/1.4 monospace; overflow-x
 
 <div class="topbar">
   <select id="sel-session">
-    <option value="relax">relax (original)</option>
-    <option value="relax-v2" selected>relax-v2 (processed)</option>
+    <option value="relax" selected>relax</option>
   </select>
   <div class="sep"></div>
   <button id="btn-play">&#9654; Play</button>
@@ -104,7 +103,7 @@ let viewMode = 'waveform';
 let zoom = 1;
 
 const CMD_PHRASES = {
-  'relax-v2': {
+  'relax': {
     settle: ['just here', 'just now'],
     induction: ['to relax'],
     deepening: ['let it soften', 'let it go', 'permission to stop trying', 'let yourself sink'],
@@ -145,7 +144,7 @@ async function loadSession(id) {
       const proc = procBuf.getChannelData(0);
 
       let raw = null;
-      const rawFile = stage.file.replace('relax-v2','relax/raw').replace('.mp3','.wav');
+      const rawFile = stage.file.replace('relax','relax/raw').replace('.mp3','.wav');
       try {
         const rawResp = await fetch(rawFile);
         if (rawResp.ok) {
@@ -539,7 +538,7 @@ function playStage(idx, startTime = 0) {
   $stage.textContent = stage.name;
 
   const file = abMode
-    ? stage.file.replace('relax-v2','relax/raw').replace('.mp3','.wav')
+    ? stage.file.replace('relax','relax/raw').replace('.mp3','.wav')
     : stage.file;
 
   audio = new Audio(file);

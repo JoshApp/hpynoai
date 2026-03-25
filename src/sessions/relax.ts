@@ -1,5 +1,5 @@
 import type { SessionConfig } from '../session';
-import { generatedTexts, stageDurations, stageInteractions } from './relax-texts';
+import { generatedTexts, stageDurations, stageInterludes } from './relax-texts';
 
 export const relax: SessionConfig = {
   id: 'relax',
@@ -28,34 +28,34 @@ export const relax: SessionConfig = {
   stages: [
     {
       name: 'settle',
-      duration: stageDurations['settle'] ?? 45,
+      duration: stageDurations['settle'] ?? 50,
       intensity: 0.2,
       texts: generatedTexts['settle'] ?? [],
       textInterval: 10,
       breathCycle: 14,
       breathPattern: { inhale: 5, holdIn: 3, exhale: 6 },
       spiralSpeed: 0.8,
+      interlude: stageInterludes['settle'],
       interactions: [
-        { type: 'breath-sync', triggerAt: 0, duration: 30 },
+        { type: 'breath-sync', triggerAt: 0, duration: 30, data: { clipId: 'settle_breath' } },
       ],
-      // Gentle, open sound — melody present, bright filter, low noise
       ambient: { melodyLevel: 0.4, noiseLevel: 0.2, filterMax: 1400, padLevel: 0.4, padType: 'sawtooth' as OscillatorType },
     },
     {
       name: 'induction',
-      duration: stageDurations['induction'] ?? 50,
+      duration: stageDurations['induction'] ?? 60,
       intensity: 0.3,
       texts: generatedTexts['induction'] ?? [],
       textInterval: 9,
       breathCycle: 9,
       breathPattern: { inhale: 4, holdIn: 1, exhale: 4 },
       spiralSpeed: 0.85,
-      // Starting to close down — less melody, warmer
+      interlude: stageInterludes['induction'],
       ambient: { melodyLevel: 0.3, noiseLevel: 0.25, filterMax: 1200, padLevel: 0.45 },
     },
     {
       name: 'deepening',
-      duration: stageDurations['deepening'] ?? 60,
+      duration: stageDurations['deepening'] ?? 100,
       intensity: 0.55,
       texts: generatedTexts['deepening'] ?? [],
       textInterval: 9,
@@ -63,15 +63,15 @@ export const relax: SessionConfig = {
       breathPattern: { inhale: 4, holdIn: 2, exhale: 6 },
       spiralSpeed: 0.7,
       fractionationDip: 0.3,
+      interlude: stageInterludes['deepening'],
       interactions: [
-        { type: 'gate', triggerAt: 50, duration: 20, data: { text: 'would you like to go deeper?' } },
+        { type: 'gate', triggerAt: stageDurations['deepening'] ?? 95, duration: 10, data: { text: 'would you like to go deeper?', clipId: 'deepening_gate' } },
       ],
-      // Darker, more immersive — melody fading, more noise texture
       ambient: { melodyLevel: 0.15, noiseLevel: 0.35, filterMax: 900, padLevel: 0.5 },
     },
     {
       name: 'trance',
-      duration: stageDurations['trance'] ?? 70,
+      duration: stageDurations['trance'] ?? 95,
       intensity: 0.8,
       texts: generatedTexts['trance'] ?? [],
       textInterval: 9,
@@ -79,12 +79,12 @@ export const relax: SessionConfig = {
       breathPattern: { inhale: 4, holdIn: 3, exhale: 8 },
       spiralSpeed: 0.55,
       fractionationDip: 0.4,
-      // Deep — no melody, warm drone + wind texture, closed filter
+      interlude: stageInterludes['trance'],
       ambient: { melodyLevel: 0, noiseLevel: 0.4, filterMax: 600, padLevel: 0.55, warmth: 0.85 },
     },
     {
       name: 'deep',
-      duration: stageDurations['deep'] ?? 60,
+      duration: stageDurations['deep'] ?? 50,
       intensity: 0.95,
       texts: generatedTexts['deep'] ?? [],
       textInterval: 12,
@@ -92,19 +92,19 @@ export const relax: SessionConfig = {
       breathPattern: { inhale: 4, holdIn: 4, exhale: 8, holdOut: 4 },
       spiralSpeed: 0.3,
       fractionationDip: 0.55,
-      // Deepest — pure warm drone, maximum noise, minimal filter movement
+      interlude: stageInterludes['deep'],
       ambient: { melodyLevel: 0, noiseLevel: 0.5, filterMax: 400, padLevel: 0.6, warmth: 0.95 },
     },
     {
       name: 'emergence',
-      duration: stageDurations['emergence'] ?? 40,
+      duration: stageDurations['emergence'] ?? 60,
       intensity: 0.3,
       texts: generatedTexts['emergence'] ?? [],
       textInterval: 8,
       breathCycle: 10,
       breathPattern: { inhale: 5, exhale: 5 },
       spiralSpeed: 0.9,
-      // Brightening up — melody returns, filter opens, lighter texture
+      interlude: stageInterludes['emergence'],
       ambient: { melodyLevel: 0.35, noiseLevel: 0.15, filterMax: 1400, padLevel: 0.35, warmth: 0.6 },
     },
   ],

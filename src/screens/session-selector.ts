@@ -45,14 +45,14 @@ export class SessionSelectorScreen implements Screen {
     this.skipIntro = opts?.skipIntro ?? false;
   }
 
-  async enter(ctx: ScreenContext, from: string | null): Promise<void> {
+  enter(ctx: ScreenContext, from: string | null): void {
     this.ctx = ctx;
     setPhase('selector');
     ctx.machine.transition('selector');
     ctx.hud.setMode('menu');
 
-    // Start menu audio
-    await this.startMenuAudio(ctx);
+    // Start menu audio in background — don't block screen setup
+    this.startMenuAudio(ctx).catch(() => {});
 
     // Create selector carousel
     this.selector = new SessionSelector(
@@ -140,7 +140,6 @@ export class SessionSelectorScreen implements Screen {
       this.selector.update(time);
     }
 
-    this.ctx.transition.update();
 
     // Tunnel settings
     this.ctx.tunnelLayer.setSettings({
@@ -150,23 +149,7 @@ export class SessionSelectorScreen implements Screen {
     this.ctx.tunnelLayer.setPortalColors(this.targetColors.c1, this.targetColors.c2, 1);
     this.ctx.cameraLayer.setCameraSway(s.cameraSway);
 
-    // Presence driven by PresenceActor via compositor
-
-    // Render passes
-    this.ctx.renderer.setRenderTarget(this.ctx.feedbackLayer.tunnelTarget);
-    this.ctx.renderer.render(this.ctx.scene, this.ctx.camera);
-    this.ctx.renderer.setRenderTarget(null);
-
-    this.ctx.feedbackLayer.render({
-      renderer: this.ctx.renderer, scene: this.ctx.scene,
-      overlayScene: this.ctx.overlayScene, camera: this.ctx.camera,
-      compositeScene: this.ctx.compositeScene, compositeCamera: this.ctx.compositeCamera,
-      time, dt,
-    });
-    this.ctx.renderer.render(this.ctx.compositeScene, this.ctx.compositeCamera);
-    this.ctx.renderer.autoClear = false;
-    this.ctx.renderer.render(this.ctx.overlayScene, this.ctx.camera);
-    this.ctx.renderer.autoClear = true;
+    // Render passes handled by main renderLoop()
   }
 
   getAudioPreset(): Partial<AudioPreset> {

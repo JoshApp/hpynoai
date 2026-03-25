@@ -262,26 +262,30 @@ export class SettingsManager {
     // Store slider defs for refreshPanel
     this.sliderDefs = sliders.map(s => ({ key: s.key, unit: s.unit }));
 
-    const groups = ['camera', 'tunnel', 'spatial', 'particles', 'audio'];
+    // Quick settings = audio + experience/visual level
+    const quickSliders = sliders.filter(s => s.group === 'audio');
+    const advancedGroups = ['camera', 'tunnel', 'spatial', 'particles'];
 
     let html = `
       <div class="settings-header">
-        <span>SETTINGS</span>
+        <span>settings</span>
         <button id="settings-close">\u00D7</button>
       </div>
       <div class="settings-body">
-        ${groups.map(g => `
+        <!-- Quick settings: always visible -->
+        <div class="settings-section settings-quick">
           <div class="settings-group">
-            <div class="settings-group-title">${g}</div>
-            ${g === 'audio' ? `
-              <div class="settings-row settings-toggle-row">
-                <label>muted</label>
-                <input type="checkbox" id="settings-muted" ${this.settings.muted ? 'checked' : ''} />
-              </div>
-            ` : ''}
-            ${sliders.filter(s => s.group === g).map(s => this.sliderHTML(s)).join('')}
+            <div class="settings-row settings-toggle-row">
+              <label>muted</label>
+              <input type="checkbox" id="settings-muted" ${this.settings.muted ? 'checked' : ''} />
+            </div>
+            ${quickSliders.map(s => this.sliderHTML(s)).join('')}
           </div>
-        `).join('')}
+        <!-- Advanced settings: collapsed by default -->
+        <div class="settings-section settings-advanced" style="display: none;">
+          <button class="settings-advanced-toggle" id="settings-toggle-advanced" style="display: none;">
+            ▸ advanced settings
+          </button>
         <div class="settings-group">
           <div class="settings-group-title">visual level</div>
           <div class="settings-level-picker" id="settings-visualLevel">
@@ -338,12 +342,22 @@ export class SettingsManager {
         <div class="settings-group">
           <button id="settings-calibrate" class="settings-btn-calibrate">calibrate experience</button>
         </div>
+        ${advancedGroups.map(g => `
+          <div class="settings-group">
+            <div class="settings-group-title">${g}</div>
+            ${sliders.filter(s => s.group === g).map(s => this.sliderHTML(s)).join('')}
+          </div>
+        `).join('')}
         <div class="settings-group">
           <button id="settings-reset" class="settings-btn-reset">reset to defaults</button>
           <button id="settings-reset-calibration" class="settings-btn-reset">reset auto-calibration</button>
         </div>
+        </div><!-- end advanced section -->
       </div>
     `;
+
+    // Add the advanced toggle button BEFORE the advanced section (outside it, after quick)
+    // This gets wired up in the event binding below
 
     panel.innerHTML = html;
 
@@ -368,6 +382,20 @@ export class SettingsManager {
       });
 
       panel.querySelector('#settings-close')!.addEventListener('click', () => this.hide());
+
+      // Advanced toggle
+      const advSection = panel.querySelector('.settings-advanced') as HTMLDivElement;
+      const advToggle = panel.querySelector('#settings-toggle-advanced') as HTMLButtonElement;
+      if (advSection && advToggle) {
+        // Move the toggle out of the hidden section so it's always visible
+        advSection.parentElement?.insertBefore(advToggle, advSection);
+        advToggle.style.display = '';
+        advToggle.addEventListener('click', () => {
+          const visible = advSection.style.display !== 'none';
+          advSection.style.display = visible ? 'none' : '';
+          advToggle.textContent = visible ? '▸ advanced settings' : '▾ advanced settings';
+        });
+      }
 
       panel.querySelector<HTMLInputElement>('#settings-muted')!.addEventListener('change', (e) => {
         const checked = (e.target as HTMLInputElement).checked;

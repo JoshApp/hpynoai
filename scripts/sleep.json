@@ -1,0 +1,46 @@
+{
+  "id": "sleep",
+  "voice": "zephyr",
+  "model": "gpro",
+  "seed": 77,
+  "default_style": "very intimate whispering, barely audible, slow with long pauses, like speaking directly into someone's ear as they fall asleep",
+  "stages": {
+    "settle": {
+      "style": "warm and gentle, reassuring, like someone sitting on the edge of the bed",
+      "speed": 1.0,
+      "pause_scale": 1.2
+    },
+    "drift": {
+      "style": "slower, softer, intimate, progressive relaxation voice, body scan",
+      "speed": 0.95,
+      "pause_scale": 1.5,
+      "reverb_wet": 0.06
+    },
+    "sinking": {
+      "style": "very slow, dreamy, hypnotic monotone, words dissolving",
+      "speed": 0.90,
+      "pause_scale": 2.0,
+      "reverb_wet": 0.1,
+      "whisper_layer": true,
+      "whisper_volume": 0.1
+    },
+    "dissolve": {
+      "style": "barely above a whisper, minimal, fading, like a voice heard through deep water",
+      "speed": 0.88,
+      "pause_scale": 2.5,
+      "reverb_wet": 0.15,
+      "reverb_full": 0.1,
+      "whisper_layer": true,
+      "whisper_volume": 0.15
+    },
+    "sleep": {
+      "style": "the quietest whisper possible, each word barely formed, dissolving into silence",
+      "speed": 0.85,
+      "pause_scale": 3.0,
+      "reverb_full": 0.2,
+      "whisper_layer": true,
+      "whisper_volume": 0.2,
+      "interlude": 45
+    }
+  }
+}
