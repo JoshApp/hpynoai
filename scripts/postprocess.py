@@ -278,7 +278,7 @@ def _find_gaps(words, min_gap=0.3):
     for i in range(1, len(words)):
         gap = words[i]["start"] - words[i-1]["end"]
         if gap >= min_gap:
-            # Natural phrase boundary: speaker paused >= 0.5s or gap is 2x+ median
+            # Natural: speaker intentionally paused (large absolute or relative gap)
             natural = gap >= 0.5 or gap >= median * 2.5
             gaps.append({
                 "after_word_idx": i - 1,
@@ -291,90 +291,81 @@ def _find_gaps(words, min_gap=0.3):
 
 
 def _insert_pauses(y, sr, words, gaps, opts):
-    """Insert silence at boundaries. Uses different fade profiles:
-    - Natural gaps (speaker paused): tight 40ms crossfades
-    - Tight gaps (inserted pause): longer 120ms fade-out to simulate phrase ending
+    """Insert silence at boundaries. Processes forward, tracking cumulative shift.
+
+    Word timestamps are shifted deterministically — each insertion adds to
+    a running offset applied to all subsequent words. No re-analysis needed.
     """
     min_pause = opts["min_sentence_pause"]
     max_pause = opts["max_sentence_pause"]
     scale = opts["pause_scale"]
 
-    pause_info = []
-
-    for gap in reversed(gaps):
+    # Pre-compute what we'll insert at each gap (forward order)
+    insertions = []  # [(gap_idx, gap, add_secs, natural)]
+    for gi, gap in enumerate(gaps):
         current_gap = gap["original_gap"]
         natural = gap.get("natural", True)
 
-        # For tight (non-natural) gaps, add less silence — just enough breathing room
         if natural:
             desired = min(max_pause, max(min_pause, current_gap * scale * 1.5))
         else:
-            # Tight gap: add just 60% of what we'd normally add
             desired = min(max_pause * 0.6, max(min_pause * 0.7, current_gap * scale * 1.2))
 
         if desired <= current_gap:
             continue
 
         add_secs = desired - current_gap
+        insertions.append((gi, gap, add_secs, natural))
+
+    # Process audio in REVERSE (so sample indices stay valid)
+    for gi, gap, add_secs, natural in reversed(insertions):
         add_samples = int(add_secs * sr)
-
-        # Splice at center of gap
         splice_at = int((gap["gap_start"] + gap["original_gap"] * 0.5) * sr)
-
-        if natural:
-            # Natural gap: tight 40ms fades (speaker already intended a pause here)
-            xfade = int(0.04 * sr)
-        else:
-            # Tight gap: longer 120ms fade-out to simulate the voice "landing"
-            # This makes the preceding word sound like it was meant to end
-            xfade = int(0.12 * sr)
-
+        xfade = int((0.04 if natural else 0.12) * sr)
         splice_at = max(xfade, min(splice_at, len(y) - xfade))
+
         fill = np.zeros(add_samples)
 
-        # Fade out
         before = y[splice_at - xfade:splice_at].copy()
         if natural:
             fill[:xfade] = before * np.exp(-np.linspace(0, 6, xfade))
         else:
-            # Gentler fade for tight gaps — cubic ease-out (holds volume longer, drops late)
             fade = np.linspace(1, 0, xfade)
-            fade = fade * fade * fade  # cubic: stays loud longer, drops near end
-            fill[:xfade] = before * fade
+            fill[:xfade] = before * fade * fade * fade
 
-        # Fade in (always 40ms — the next word should start cleanly)
         fade_in_len = int(0.04 * sr)
         tail_start = splice_at
         tail_end = min(tail_start + fade_in_len, len(y))
         tail = y[tail_start:tail_end].copy()
-        tail_len = tail_end - tail_start
-        if tail_len > 0:
-            ramp = np.linspace(0, 1, tail_len)
+        if tail_end > tail_start:
+            ramp = np.linspace(0, 1, tail_end - tail_start)
             tail *= ramp * ramp
 
-        y = np.concatenate([
-            y[:splice_at - xfade],
-            fill,
-            tail,
-            y[tail_end:],
-        ])
+        y = np.concatenate([y[:splice_at - xfade], fill, tail, y[tail_end:]])
 
-        # Track where we inserted (will be corrected to final time below)
-        pause_info.append({"at": round(gap["gap_start"], 3), "added": round(add_secs, 3)})
+    # Now shift word timestamps FORWARD ORDER using cumulative offset
+    # This is pure arithmetic — we know exactly how much silence was added where
+    cumulative_shift = 0.0
+    insertion_idx = 0
+    pause_info = []
 
-        # Shift word timestamps after this gap
-        for w in words:
-            if w["start"] > gap["gap_start"]:
-                w["start"] += add_secs
-                w["end"] += add_secs
+    for w in words:
+        # Apply shifts for all insertions that come before this word
+        while insertion_idx < len(insertions):
+            _, gap, add_secs, _ = insertions[insertion_idx]
+            if gap["gap_start"] < w["start"] - cumulative_shift:
+                # This insertion happened before this word (in original time)
+                cumulative_shift += add_secs
+                pause_info.append({
+                    "at": round(gap["gap_start"] + sum(ins[2] for ins in insertions[:insertion_idx]), 3),
+                    "added": round(add_secs, 3),
+                })
+                insertion_idx += 1
+            else:
+                break
 
-    # Correct pause positions to final timeline (they were recorded in pre-shift time)
-    # Since we processed in reverse, earlier pauses need cumulative shift from later ones
-    pause_info.reverse()  # now in chronological order
-    cumulative = 0.0
-    for p in pause_info:
-        p["at"] = round(p["at"] + cumulative, 3)
-        cumulative += p["added"]
+        w["start"] = round(w["start"] + cumulative_shift, 4)
+        w["end"] = round(w["end"] + cumulative_shift, 4)
 
     return y, words, pause_info
 

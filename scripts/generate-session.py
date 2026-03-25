@@ -889,20 +889,10 @@ def main():
             words = result["whisper_words"]
             stage_dur = result["duration"]
 
-            # Re-timestamp using energy detection — finds where speech actually is
-            # in the processed audio. More reliable than re-running Whisper which
-            # gets confused by inserted silence.
-            try:
-                from retimestamp import retimestamp
-                print(f"  re-timestamp (energy detection)...", end=" ", flush=True)
-                new_words = retimestamp(stage_public, words)
-                if new_words:
-                    words = new_words
-                    print(f"{len(words)} words")
-                else:
-                    print(f"kept postprocessor timestamps")
-            except ImportError:
-                print(f"  retimestamp not available, keeping postprocessor timestamps")
+            # No re-transcription needed — the postprocessor tracks all transformations
+            # deterministically (time-stretch scale + cumulative pause shifts).
+            # Word timestamps from the postprocessor ARE the final timestamps.
+            print(f"  timestamps: deterministic ({len(words)} words, shifts tracked)")
         else:
             # No post-processing — just copy raw to public
             if os.path.abspath(stage_path) != os.path.abspath(stage_public):
