@@ -1,0 +1,157 @@
+{
+  "version": 1,
+  "sessions": [
+    {
+      "id": "relax",
+      "name": "Relax",
+      "description": "An immersive descent into deep relaxation \u2014 utilization, embedded commands, and sensory deepening.",
+      "icon": "\ud83c\udf0a",
+      "contentWarning": null,
+      "photoWarning": true,
+      "themePreview": {
+        "primaryColor": [
+          0.45,
+          0.25,
+          0.85
+        ],
+        "secondaryColor": [
+          0.25,
+          0.3,
+          0.75
+        ],
+        "accentColor": [
+          0.6,
+          0.4,
+          1.0
+        ],
+        "bgColor": [
+          0.03,
+          0.02,
+          0.08
+        ],
+        "particleColor": [
+          0.5,
+          0.35,
+          0.9
+        ],
+        "textColor": "#c8b8ff",
+        "textGlow": "rgba(160, 120, 255, 0.6)",
+        "breatheColor": "rgba(160, 120, 255, 0.35)"
+      }
+    },
+    {
+      "id": "sleep",
+      "name": "Sleep",
+      "description": "Drift into deep, restful sleep.",
+      "icon": "\ud83c\udf19",
+      "contentWarning": null,
+      "photoWarning": true,
+      "themePreview": {
+        "primaryColor": [
+          0.5,
+          0.3,
+          0.8
+        ],
+        "secondaryColor": [
+          0.3,
+          0.3,
+          0.7
+        ],
+        "accentColor": [
+          0.6,
+          0.4,
+          1.0
+        ],
+        "bgColor": [
+          0.03,
+          0.02,
+          0.08
+        ],
+        "particleColor": [
+          0.5,
+          0.35,
+          0.9
+        ],
+        "textColor": "#c8a0ff",
+        "textGlow": "rgba(200,160,255,0.4)",
+        "breatheColor": "rgba(160,120,255,0.35)"
+      }
+    },
+    {
+      "id": "focus",
+      "name": "Focus",
+      "description": "Sharpen your concentration and clarity.",
+      "icon": "\ud83c\udfaf",
+      "contentWarning": null,
+      "photoWarning": true,
+      "themePreview": {
+        "primaryColor": [
+          0.5,
+          0.3,
+          0.8
+        ],
+        "secondaryColor": [
+          0.3,
+          0.3,
+          0.7
+        ],
+        "accentColor": [
+          0.6,
+          0.4,
+          1.0
+        ],
+        "bgColor": [
+          0.03,
+          0.02,
+          0.08
+        ],
+        "particleColor": [
+          0.5,
+          0.35,
+          0.9
+        ],
+        "textColor": "#c8a0ff",
+        "textGlow": "rgba(200,160,255,0.4)",
+        "breatheColor": "rgba(160,120,255,0.35)"
+      }
+    },
+    {
+      "id": "erotic",
+      "name": "Surrender",
+      "description": "An intimate journey of letting go.",
+      "icon": "\ud83d\udd25",
+      "contentWarning": "This session contains erotic content.\n18+ only.",
+      "photoWarning": true,
+      "themePreview": {
+        "primaryColor": [
+          0.5,
+          0.3,
+          0.8
+        ],
+        "secondaryColor": [
+          0.3,
+          0.3,
+          0.7
+        ],
+        "accentColor": [
+          0.6,
+          0.4,
+          1.0
+        ],
+        "bgColor": [
+          0.03,
+          0.02,
+          0.08
+        ],
+        "particleColor": [
+          0.5,
+          0.35,
+          0.9
+        ],
+        "textColor": "#c8a0ff",
+        "textGlow": "rgba(200,160,255,0.4)",
+        "breatheColor": "rgba(160,120,255,0.35)"
+      }
+    }
+  ]
+}

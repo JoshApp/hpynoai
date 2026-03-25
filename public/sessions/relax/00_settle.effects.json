@@ -1,0 +1,94 @@
+{
+  "speed": 1.0,
+  "time_stretch": [],
+  "pauses_inserted": [
+    {
+      "at": 3.634,
+      "duration": 1.461
+    },
+    {
+      "at": 5.876,
+      "duration": 1.341
+    },
+    {
+      "at": 9.138,
+      "duration": 1.481
+    },
+    {
+      "at": 11.42,
+      "duration": 1.181
+    },
+    {
+      "at": 13.662,
+      "duration": 1.561
+    },
+    {
+      "at": 15.563,
+      "duration": 1.181
+    },
+    {
+      "at": 18.045,
+      "duration": 1.341
+    },
+    {
+      "at": 20.367,
+      "duration": 1.441
+    },
+    {
+      "at": 23.109,
+      "duration": 1.461
+    },
+    {
+      "at": 29.054,
+      "duration": 1.464
+    },
+    {
+      "at": 32.725,
+      "duration": 1.443
+    },
+    {
+      "at": 34.369,
+      "duration": 1.203
+    },
+    {
+      "at": 37.076,
+      "duration": 1.444
+    },
+    {
+      "at": 40.345,
+      "duration": 1.364
+    },
+    {
+      "at": 43.273,
+      "duration": 1.183
+    },
+    {
+      "at": 45.299,
+      "duration": 1.223
+    }
+  ],
+  "cmd_words": [
+    {
+      "start": 44.456,
+      "end": 44.757,
+      "word": "just"
+    },
+    {
+      "start": 44.858,
+      "end": 45.299,
+      "word": "here,"
+    },
+    {
+      "start": 46.522,
+      "end": 46.923,
+      "word": "just"
+    },
+    {
+      "start": 47.605,
+      "end": 47.926,
+      "word": "now."
+    }
+  ],
+  "reverb_regions": [],
+  "whisper_layer": false
+}

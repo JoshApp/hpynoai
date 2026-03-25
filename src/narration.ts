@@ -796,7 +796,10 @@ export class NarrationEngine {
     // Session starting → load manifest
     this.busUnsubs.push(bus.on('session:starting', ({ session }) => {
       this.clearManifest();
-      this._manifestPromise = this.loadManifest(`audio/${session.id}/manifest.json`).catch(() => {});
+      // Try session store path first, fall back to legacy audio path
+      this._manifestPromise = this.loadManifest(`sessions/${session.id}/manifest.json`)
+        .catch(() => this.loadManifest(`audio/${session.id}/manifest.json`))
+        .catch(() => {});
       this.warmup();
     }));
 

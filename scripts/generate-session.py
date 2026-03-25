@@ -479,7 +479,7 @@ def slice_audio(input_path, cuts, out_dir, stage_idx, stage_name):
             dur = wav_duration(out_path)
             words = [{"word": w["word"], "start": round(max(0, w["start"] - start), 3),
                        "end": round(w["end"] - start, 3)} for w in ct.get("words", [])]
-            entry = {"file": f"audio/{os.path.basename(out_dir)}/{fname}", "text": ct["text"], "duration": round(dur, 2)}
+            entry = {"file": f"sessions/{os.path.basename(out_dir)}/{fname}", "text": ct["text"], "duration": round(dur, 2)}
             if words:
                 entry["words"] = words
             files.append(entry)
@@ -503,7 +503,7 @@ def slice_by_duration(input_path, slices, out_dir, stage_idx, stage_name):
         subprocess.run(["ffmpeg", "-y", "-i", input_path, "-ss", str(start), "-to", str(end),
                         "-c", "copy", out_path], capture_output=True, timeout=10)
         if os.path.exists(out_path) and os.path.getsize(out_path) > 100:
-            files.append({"file": f"audio/{os.path.basename(out_dir)}/{fname}", "text": text, "duration": round(wav_duration(out_path), 2)})
+            files.append({"file": f"sessions/{os.path.basename(out_dir)}/{fname}", "text": text, "duration": round(wav_duration(out_path), 2)})
         t += dur
 
     return files
@@ -599,6 +599,84 @@ def generate_session_config(manifest, script_path, stages):
     return out_path
 
 
+def generate_session_package(manifest, session_config, out_dir):
+    """Generate session.json (full config for runtime loading) and update sessions.json index."""
+    session_id = manifest["session"]
+
+    # Build stages with texts from manifest merged with config
+    stage_cfgs = session_config.get("stages", {})
+    stages = []
+    for ms in manifest["stages"]:
+        sc = dict(stage_cfgs.get(ms["name"], {}))
+        sc["name"] = ms["name"]
+        sc["duration"] = ms["duration"]
+        sc.setdefault("intensity", 0.5)
+        sc.setdefault("textInterval", 9)
+        sc.setdefault("breathCycle", 10)
+        sc.setdefault("spiralSpeed", 0.7)
+        sc["texts"] = [line["text"] for line in ms.get("lines", [])]
+        if ms.get("interlude"):
+            sc["interlude"] = ms["interlude"]
+        # Remove pipeline-only keys
+        for k in ("style", "speed", "pause_scale", "reverb_wet", "reverb_full", "whisper_layer", "whisper_volume"):
+            sc.pop(k, None)
+        stages.append(sc)
+
+    # Build full session config
+    config = {
+        "id": session_id,
+        "name": session_config.get("name", session_id.title()),
+        "description": session_config.get("description", ""),
+        "icon": session_config.get("icon", ""),
+        "theme": session_config.get("theme", {}),
+        "audio": session_config.get("audio", {}),
+        "stages": stages,
+        "photoWarning": session_config.get("photoWarning", True),
+        "contentWarning": session_config.get("contentWarning", None),
+    }
+
+    # Write session.json
+    session_json_path = os.path.join(out_dir, "session.json")
+    with open(session_json_path, "w") as f:
+        json.dump(config, f, indent=2)
+    print(f"  Generated: {session_json_path}")
+
+    # Update sessions.json index
+    index_path = os.path.join("public", "sessions.json")
+    if os.path.exists(index_path):
+        with open(index_path) as f:
+            index = json.load(f)
+    else:
+        index = {"version": 1, "sessions": []}
+
+    # Remove existing entry for this session
+    index["sessions"] = [s for s in index["sessions"] if s["id"] != session_id]
+
+    theme = config.get("theme", {})
+    index["sessions"].append({
+        "id": session_id,
+        "name": config["name"],
+        "description": config["description"],
+        "icon": config.get("icon", ""),
+        "contentWarning": config.get("contentWarning"),
+        "photoWarning": config.get("photoWarning", False),
+        "themePreview": {
+            "primaryColor": theme.get("primaryColor", [0.5, 0.3, 0.8]),
+            "secondaryColor": theme.get("secondaryColor", [0.3, 0.3, 0.7]),
+            "accentColor": theme.get("accentColor", [0.6, 0.4, 1.0]),
+            "bgColor": theme.get("bgColor", [0.03, 0.02, 0.08]),
+            "particleColor": theme.get("particleColor", [0.5, 0.35, 0.9]),
+            "textColor": theme.get("textColor", "#c8a0ff"),
+            "textGlow": theme.get("textGlow", "rgba(200,160,255,0.4)"),
+            "breatheColor": theme.get("breatheColor", "rgba(160,120,255,0.35)"),
+        },
+    })
+
+    with open(index_path, "w") as f:
+        json.dump(index, f, indent=2)
+    print(f"  Updated: {index_path}")
+
+
 # ── Command Word Matching ──
 
 def _find_cmd_word_indices(whisper_words, cmd_texts):
@@ -673,7 +751,8 @@ def main():
     seed = args.seed if args.seed is not None else session_config.get("seed", 42)
     stage_configs = session_config.get("stages", {})
 
-    out_dir = os.path.join("public", "audio", session)
+    # Output to session store format: public/sessions/{id}/
+    out_dir = os.path.join("public", "sessions", session)
     raw_dir = os.path.join(out_dir, "raw")
     os.makedirs(out_dir, exist_ok=True)
     os.makedirs(raw_dir, exist_ok=True)
@@ -830,7 +909,7 @@ def main():
 
         stage_entry = {
             "name": stage['name'],
-            "file": f"audio/{session}/{si:02d}_{stage['name']}.wav",
+            "file": f"sessions/{session}/{si:02d}_{stage['name']}.wav",
             "duration": round(stage_dur, 2),
             "lines": lines,
         }
@@ -864,7 +943,7 @@ def main():
             ix_entry = {
                 "id": ix['id'],
                 "type": ix['type'],
-                "file": f"audio/{session}/{ix['id']}.wav",
+                "file": f"sessions/{session}/{ix['id']}.wav",
                 "text": ix['text'],
                 "duration": round(ix_dur, 2),
             }
@@ -881,14 +960,17 @@ def main():
         name = f.replace('.wav', '')
         if name in existing: continue
         try:
-            manifest["interactive"].append({"id": name, "file": f"audio/{session}/{f}", "duration": round(wav_duration(os.path.join(out_dir, f)), 2)})
+            manifest["interactive"].append({"id": name, "file": f"sessions/{session}/{f}", "duration": round(wav_duration(os.path.join(out_dir, f)), 2)})
         except: pass
 
     # Write manifest
     with open(manifest_path, "w") as f:
         json.dump(manifest, f, indent=2)
 
-    # Generate TypeScript texts
+    # Generate session package (session.json + update sessions.json index)
+    generate_session_package(manifest, session_config, out_dir)
+
+    # Also generate TypeScript texts (backward compat during migration)
     generate_session_config(manifest, args.script, stages)
 
     # Summary
