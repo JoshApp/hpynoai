@@ -9,196 +9,197 @@
   "pauses_inserted": [
     {
       "at": 2.06,
-      "duration": 2.36
-    },
-    {
-      "at": 9.02,
-      "duration": 2.2
-    },
-    {
-      "at": 14.44,
       "duration": 2.24
     },
     {
-      "at": 21.22,
-      "duration": 2.08
-    },
-    {
-      "at": 26.2,
-      "duration": 1.44
-    },
-    {
-      "at": 31.12,
-      "duration": 2.38
-    },
-    {
-      "at": 37.94,
-      "duration": 2.38
-    },
-    {
-      "at": 45.34,
+      "at": 8.68,
       "duration": 2.36
     },
     {
-      "at": 49.24,
-      "duration": 2.28
+      "at": 14.18,
+      "duration": 2.22
     },
     {
-      "at": 54.16,
-      "duration": 2.04
+      "at": 20.96,
+      "duration": 2.0
     },
     {
-      "at": 59.2,
-      "duration": 2.25
+      "at": 30.64,
+      "duration": 2.3
     },
     {
-      "at": 63.4,
-      "duration": 2.8
+      "at": 37.42,
+      "duration": 2.16
     },
     {
-      "at": 67.52,
-      "duration": 2.2
+      "at": 44.74,
+      "duration": 2.26
     },
     {
-      "at": 71.46,
-      "duration": 2.32
+      "at": 48.52,
+      "duration": 2.14
     },
     {
-      "at": 76.64,
-      "duration": 2.8
+      "at": 58.28,
+      "duration": 2.16
+    },
+    {
+      "at": 62.42,
+      "duration": 2.7
+    },
+    {
+      "at": 66.28,
+      "duration": 1.88
+    },
+    {
+      "at": 70.32,
+      "duration": 2.18
+    },
+    {
+      "at": 75.36,
+      "duration": 2.52
+    },
+    {
+      "at": 81.74,
+      "duration": 1.96
     }
   ],
   "cmd_words": [
     {
-      "start": 66.2,
-      "end": 66.74,
+      "start": 65.12,
+      "end": 65.66,
       "word": "Deeper"
     },
     {
-      "start": 66.74,
-      "end": 67.52,
+      "start": 65.66,
+      "end": 66.28,
       "word": "now,"
     },
     {
-      "start": 83.32,
-      "end": 85.94,
+      "start": 83.7,
+      "end": 84.68,
       "word": "Everything"
     },
     {
-      "start": 51.52,
-      "end": 52.16,
+      "start": 50.66,
+      "end": 51.38,
       "word": "Just"
     },
     {
-      "start": 52.16,
-      "end": 52.72,
+      "start": 51.38,
+      "end": 51.92,
       "word": "allow"
     },
     {
-      "start": 52.72,
-      "end": 53.24,
+      "start": 51.92,
+      "end": 52.42,
       "word": "this"
     },
     {
-      "start": 53.24,
-      "end": 53.6,
+      "start": 52.42,
+      "end": 52.8,
       "word": "to"
     },
     {
-      "start": 53.6,
-      "end": 54.16,
+      "start": 52.8,
+      "end": 53.7,
       "word": "happen."
     },
     {
-      "start": 85.94,
-      "end": 87.0,
+      "start": 84.68,
+      "end": 85.56,
       "word": "carries"
     },
     {
-      "start": 87.0,
-      "end": 87.86,
+      "start": 85.56,
+      "end": 86.4,
       "word": "you"
     },
     {
-      "start": 87.86,
-      "end": 88.46,
+      "start": 86.4,
+      "end": 87.0,
       "word": "deeper."
     }
   ],
   "reverb_regions": [
     {
-      "start": 7.82,
-      "end": 10.22,
+      "start": 7.48,
+      "end": 9.88,
       "wet": 0.1
     },
     {
-      "start": 13.24,
-      "end": 15.64,
+      "start": 12.98,
+      "end": 15.38,
       "wet": 0.1
     },
     {
-      "start": 20.02,
-      "end": 22.42,
+      "start": 19.76,
+      "end": 22.16,
       "wet": 0.1
     },
     {
-      "start": 25.0,
-      "end": 27.4,
+      "start": 24.56,
+      "end": 26.11,
       "wet": 0.1
     },
     {
-      "start": 29.92,
-      "end": 32.32,
+      "start": 29.44,
+      "end": 31.84,
       "wet": 0.1
     },
     {
-      "start": 36.74,
-      "end": 39.14,
+      "start": 36.22,
+      "end": 38.62,
       "wet": 0.1
     },
     {
-      "start": 42.26,
-      "end": 44.06,
+      "start": 41.8,
+      "end": 43.42,
       "wet": 0.1
     },
     {
-      "start": 44.14,
-      "end": 46.54,
+      "start": 43.54,
+      "end": 45.94,
       "wet": 0.1
     },
     {
-      "start": 48.04,
-      "end": 50.44,
+      "start": 47.32,
+      "end": 49.72,
       "wet": 0.1
     },
     {
-      "start": 52.96,
-      "end": 55.36,
+      "start": 52.5,
+      "end": 54.26,
       "wet": 0.1
     },
     {
-      "start": 58.0,
-      "end": 60.4,
+      "start": 57.08,
+      "end": 59.48,
       "wet": 0.1
     },
     {
-      "start": 62.2,
-      "end": 64.6,
+      "start": 61.22,
+      "end": 63.62,
       "wet": 0.1
     },
     {
-      "start": 66.32,
-      "end": 68.72,
+      "start": 65.08,
+      "end": 67.48,
       "wet": 0.1
     },
     {
-      "start": 70.26,
-      "end": 72.66,
+      "start": 69.12,
+      "end": 71.52,
       "wet": 0.1
     },
     {
-      "start": 75.44,
-      "end": 77.84,
+      "start": 74.16,
+      "end": 76.56,
+      "wet": 0.1
+    },
+    {
+      "start": 80.54,
+      "end": 82.94,
       "wet": 0.1
     }
   ],

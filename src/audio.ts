@@ -90,9 +90,7 @@ export class AudioEngine {
     for (const u of this.busUnsubs) u();
     this.busUnsubs = [];
 
-    this.busUnsubs.push(bus.on('session:ending', ({ fadeSec }) => {
-      this.fadeOut(fadeSec ?? 2);
-    }));
+    // session:ending fade is handled by audioCompositor.stop() — don't touch engine master gain
 
     this.busUnsubs.push(bus.on('settings:changed', ({ settings: s }) => {
       this.setMuted(s.muted);

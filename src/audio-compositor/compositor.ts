@@ -20,6 +20,7 @@ export class AudioCompositor {
   private layers: AudioLayer[] = [];
   private currentPreset: AudioPreset = { ...DEFAULT_AUDIO_PRESET };
   private isPlaying = false;
+  private _stopTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Master bus nodes
   private reverb: Tone.Reverb | null = null;
@@ -62,6 +63,9 @@ export class AudioCompositor {
    * @param output The GainNode to connect to (e.g., AudioEngine's masterGain → analyzer → destination)
    */
   async init(output: GainNode): Promise<void> {
+    log.info('audio-compositor', `init called, pending stop timer=${!!this._stopTimer}, layers=${this.layers.length}`);
+    // Cancel any pending disposal from a previous stop()
+    if (this._stopTimer) { clearTimeout(this._stopTimer); this._stopTimer = null; }
     this.output = output;
 
     // Share the existing AudioContext with Tone.js (they must use the same context)
@@ -130,9 +134,10 @@ export class AudioCompositor {
     }
 
     // Fade in master
-    this.masterGain?.gain.rampTo(this.currentPreset.master.volume, 3);
+    log.info('audio-compositor', `Start: masterGain=${!!this.masterGain}, _userVolume=${this._userVolume}, layers=${this.layers.length}`);
+    this.masterGain?.gain.rampTo(this._userVolume, 3);
 
-    log.info('audio-compositor', `Started, master volume target: ${this.currentPreset.master.volume}`);
+    log.info('audio-compositor', `Started, ramping to ${this._userVolume}`);
   }
 
   /** Smoothly transition to a new preset (on stage change) */
@@ -143,8 +148,7 @@ export class AudioCompositor {
     if (this.reverbSend) this.reverbSend.gain.rampTo(this.currentPreset.reverb.wet, rampTime);
     if (this.dryGain) this.dryGain.gain.rampTo(1 - this.currentPreset.reverb.wet, rampTime);
 
-    // Master volume
-    if (this.masterGain) this.masterGain.gain.rampTo(this.currentPreset.master.volume, rampTime);
+    // Master volume controlled by setMasterVolume (settings slider) — not by presets
 
     // All layers
     for (const layer of this.layers) {
@@ -153,27 +157,30 @@ export class AudioCompositor {
   }
 
   private _duckLevel = 1;
+  private _userVolume = 0.5;  // from settings slider — the single source of truth
+
+  /** Set user volume (from settings). This is the base volume everything multiplies against. */
+  setMasterVolume(v: number): void {
+    this._userVolume = v;
+  }
 
   /** Update each frame — breath modulation, voice ducking */
   update(inputs: WorldInputs, dt: number): void {
     if (!this.isPlaying) return;
 
-    // Voice ducking — lower ambient when narration is speaking
+    // Voice ducking
     const voiceActive = inputs.voiceEnergy > 0.05;
     const duckTarget = voiceActive ? 0.45 : 1;
-    this._duckLevel += (duckTarget - this._duckLevel) * (voiceActive ? 0.08 : 0.03); // fast duck, slow release
+    this._duckLevel += (duckTarget - this._duckLevel) * (voiceActive ? 0.08 : 0.03);
+
+    // Master gain = user volume × duck level (simple, no preset override)
     if (this.masterGain) {
-      this.masterGain.gain.rampTo(this.currentPreset.master.volume * this._duckLevel, 0.1);
+      this.masterGain.gain.rampTo(this._userVolume * this._duckLevel, 0.15);
     }
 
     for (const layer of this.layers) {
       layer.update(inputs, dt);
     }
-  }
-
-  /** Set master volume (from settings) */
-  setMasterVolume(v: number): void {
-    if (this.masterGain) this.masterGain.gain.rampTo(v, 0.3);
   }
 
   /**
@@ -211,29 +218,40 @@ export class AudioCompositor {
     if (!this.isPlaying) return;
     this.isPlaying = false;
 
+    // Stop + dispose layers immediately (they fade internally)
     for (const layer of this.layers) {
-      layer.stop(3);
+      try { layer.stop(3); } catch { /* ok */ }
     }
+    const layersToDispose = [...this.layers];
+    this.layers = [];
 
     if (this.masterGain) {
       this.masterGain.gain.rampTo(0, 3);
     }
 
-    // Dispose after fade
-    setTimeout(() => {
-      for (const layer of this.layers) {
-        layer.dispose();
+    // Dispose bus nodes after fade
+    if (this._stopTimer) clearTimeout(this._stopTimer);
+    const busNodes = {
+      reverb: this.reverb, reverbSend: this.reverbSend,
+      dryGain: this.dryGain, compressor: this.compressor,
+      masterGain: this.masterGain,
+    };
+    this.reverb = null;
+    this.reverbSend = null;
+    this.dryGain = null;
+    this.compressor = null;
+    this.masterGain = null;
+
+    this._stopTimer = setTimeout(() => {
+      this._stopTimer = null;
+      for (const layer of layersToDispose) {
+        try { layer.dispose(); } catch { /* ok */ }
       }
-      this.reverb?.dispose();
-      this.reverbSend?.dispose();
-      this.dryGain?.dispose();
-      this.compressor?.dispose();
-      this.masterGain?.dispose();
-      this.reverb = null;
-      this.reverbSend = null;
-      this.dryGain = null;
-      this.compressor = null;
-      this.masterGain = null;
+      busNodes.reverb?.dispose();
+      busNodes.reverbSend?.dispose();
+      busNodes.dryGain?.dispose();
+      busNodes.compressor?.dispose();
+      busNodes.masterGain?.dispose();
     }, 5000);
 
     log.info('audio-compositor', 'Stopped');

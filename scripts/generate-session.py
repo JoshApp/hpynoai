@@ -37,6 +37,7 @@ def parse_script(path):
       [GATE]               — tag previous slice as gate prompt
       [GATE: text]         — separate gate prompt
       [BREATH-SYNC]        — start breathing interaction
+      [INTERLUDE N]        — N seconds of silence after this stage (ambient takes over)
     """
     stages = []
     current = None
@@ -59,11 +60,18 @@ def parse_script(path):
                     'style': None,   # per-stage voice style override
                     'speed': None,   # per-stage post-process speed override
                     'pauses': [],    # [(after_slice_idx, duration)] — explicit pause durations
+                    'interlude': 0,  # seconds of silence after this stage
                     '_buf': '',
                 }
                 continue
 
             if not current:
+                continue
+
+            # Interlude — silence after this stage
+            m = re.match(r'\[INTERLUDE\s+(\d+(?:\.\d+)?)\]', line)
+            if m:
+                current['interlude'] = float(m.group(1))
                 continue
 
             # Per-stage style override
@@ -155,6 +163,7 @@ def parse_script(path):
         s.setdefault('pauses', [])
         s.setdefault('style', None)
         s.setdefault('speed', None)
+        s.setdefault('interlude', 0)
 
     return stages
 
@@ -452,8 +461,18 @@ def generate_session_config(manifest, script_path, stages):
     config_lines.append("export const stageDurations: Record<string, number> = {")
     for stage in manifest["stages"]:
         dur = stage.get("duration", 0)
-        # Add 5s buffer for interaction/transition time
+        # Add 5s buffer for interaction/transition time (interlude is separate)
         config_lines.append(f"  '{stage['name']}': {round(dur + 5)},")
+    config_lines.append("};")
+
+    # Export interludes
+    config_lines.append("")
+    config_lines.append("// Interludes — ambient-only silence after each stage (seconds)")
+    config_lines.append("export const stageInterludes: Record<string, number> = {")
+    for stage in manifest["stages"]:
+        interlude = stage.get("interlude", 0)
+        if interlude > 0:
+            config_lines.append(f"  '{stage['name']}': {interlude},")
     config_lines.append("};")
 
     out_path = os.path.join("src", "sessions", f"{session_id}-texts.ts")
@@ -698,8 +717,11 @@ def main():
             "duration": round(stage_dur, 2),
             "lines": lines,
         }
+        if stage.get('interlude', 0) > 0:
+            stage_entry["interlude"] = stage['interlude']
         manifest["stages"].append(stage_entry)
-        print(f"  {len(lines)} lines mapped, {stage_dur:.0f}s continuous")
+        interlude_str = f" + {stage['interlude']}s interlude" if stage.get('interlude') else ""
+        print(f"  {len(lines)} lines mapped, {stage_dur:.0f}s continuous{interlude_str}")
 
         # Gates
         for gi, gate in enumerate(stage['gates']):

@@ -3,13 +3,14 @@
 # Pure prose + structural markers. Config in relax.json.
 #
 # Markers:
-#   [STAGE: name]    — new stage (one continuous audio take)
-#   [SLICE]          — text display boundary
-#   [PAUSE]          — natural pause in audio
-#   [PAUSE 3]        — longer pause (target seconds, expanded in post-processing)
-#   [CMD text]       — embedded command (emphasized in playback)
-#   [GATE]           — previous slice is a gate prompt
-#   [BREATH-SYNC]    — start breathing interaction
+#   [STAGE: name]     — new stage (one continuous audio take)
+#   [SLICE]           — text display boundary
+#   [PAUSE]           — natural pause in audio
+#   [PAUSE N]         — longer pause (target seconds)
+#   [CMD text]        — embedded command (emphasized in playback)
+#   [GATE]            — previous slice is a gate prompt
+#   [BREATH-SYNC]     — start breathing interaction
+#   [INTERLUDE N]     — N seconds of ambient-only silence after this stage
 
 [STAGE: settle]
 let's begin... by simply breathing...
@@ -30,6 +31,7 @@ there is nothing you need to do...
 nowhere you need to be...
 [CMD just here]
 [CMD just now]
+[INTERLUDE 5]
 
 [STAGE: induction]
 and as you watch...
@@ -53,6 +55,7 @@ it happens... on its own.
 every breath... carries you...
 a little deeper... a little further...
 from wherever you were before.
+[INTERLUDE 5]
 
 [STAGE: deepening]
 now... let your attention drift...
@@ -82,6 +85,7 @@ is not weight... it's permission...
 would you like to go deeper?
 [GATE]
 good... [CMD let yourself sink]... a little more.
+[INTERLUDE 8]
 
 [STAGE: trance]
 imagine... warmth.
@@ -113,47 +117,55 @@ each breath... taking you further.
 the sounds around you...
 become part of this...
 [CMD everything carries you... deeper]
+[INTERLUDE 10]
 
 [STAGE: deep]
 [CMD pure stillness]
-[PAUSE 3]
+[PAUSE 4]
 [SLICE]
 [CMD complete peace]
-[PAUSE 3]
+[PAUSE 4]
 [SLICE]
 nothing to do.
-[PAUSE 2]
+[PAUSE 3]
 [SLICE]
 nowhere to be.
-[PAUSE 2]
+[PAUSE 3]
 [SLICE]
 just this.
-[PAUSE 3]
+[PAUSE 4]
 [SLICE]
 floating.
-[PAUSE 3]
+[PAUSE 4]
 [SLICE]
 safe.
-[PAUSE 3]
+[PAUSE 4]
 [SLICE]
 rest here... for as long as you like.
+[INTERLUDE 20]
 
 [STAGE: emergence]
 gently now...
 beginning to return.
+[PAUSE 3]
 [SLICE]
 carrying this calm... with you...
 like a warm blanket...
 you can wrap around yourself... anytime.
+[PAUSE 2]
 [SLICE]
 feeling refreshed...
 and clear... and rested.
+[PAUSE 2]
 [SLICE]
 your body... remembering how to move...
 slowly... gently... in your own time.
+[PAUSE 3]
 [SLICE]
 whenever you are ready...
 take a deeper breath...
 and open your eyes... fully.
+[PAUSE 5]
 [SLICE]
 welcome back.
+[INTERLUDE 15]

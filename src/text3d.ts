@@ -159,6 +159,15 @@ export class Text3D {
   /** Alias for backwards compat */
   clear(): void { this.set(null); }
 
+  /** Force reset — clears cached state so next set() rebuilds even with same text */
+  reset(): void {
+    this.clearSprites();
+    this.activeText = null;
+    this.activeStyle = null;
+    this.focusCurrentWord = '';
+    this.focusWords = [];
+  }
+
   // Legacy compat methods used by interactions.ts / calibration — forward to set()
   show(text: string, _duration?: number, _words?: unknown, _audioRef?: unknown, _audioLineStart?: unknown): void { this.set(text, 'narration'); }
   showFocus(text: string, _duration: number, words?: Array<{ word: string; start: number; end: number }>, audioRef?: HTMLAudioElement | null, audioLineStart?: number): void { this.set(text, 'focus', { words, audioRef, audioLineStart }); }

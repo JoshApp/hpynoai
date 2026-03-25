@@ -91,6 +91,10 @@ export interface SessionStage {
   fractionationDip?: number;
   // Optional per-stage ambient sound profile (overrides session defaults)
   ambient?: Partial<import('./ambient').AmbientProfile>;
+  // Seconds of silence after this stage (ambient-only interlude)
+  interlude?: number;
+  // Optional ambient profile during the interlude (defaults to stage ambient)
+  interludeAmbient?: Partial<import('./ambient').AmbientProfile>;
 }
 
 // ── Block-based timeline types ──────────────────────────────────

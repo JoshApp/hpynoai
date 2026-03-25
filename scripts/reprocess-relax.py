@@ -169,11 +169,11 @@ def main():
                     "word": w["word"],
                 })
 
-        # Reverb regions: only when stage actually has reverb applied
-        has_reverb = sc.get("reverb_wet", 0) > 0 or sc.get("reverb_full", 0) > 0
+        # Reverb regions: only for tail reverb (not full reverb — that's everywhere)
+        has_tail_reverb = sc.get("reverb_wet", 0) > 0 and not sc.get("reverb_full", 0)
         reverb_regions = []
 
-        if has_reverb:
+        if has_tail_reverb:
             all_gaps = []
             for i in range(len(words) - 1):
                 all_gaps.append(words[i + 1]["start"] - words[i]["end"])
@@ -238,12 +238,17 @@ def main():
                         entry["type"] = orig_line["type"]
                     lines.append(entry)
 
-            new_manifest["stages"].append({
+            stage_manifest = {
                 "name": stage_name,
                 "file": f"audio/relax-v2/{filename}.mp3",
                 "duration": round(result["duration"], 2),
                 "lines": lines,
-            })
+            }
+            # Add interlude from config
+            interlude = sc.get("interlude", 0)
+            if interlude > 0:
+                stage_manifest["interlude"] = interlude
+            new_manifest["stages"].append(stage_manifest)
 
         print(f"  Done: {result['duration']:.1f}s")
 

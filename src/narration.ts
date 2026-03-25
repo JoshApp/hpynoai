@@ -233,26 +233,35 @@ export class NarrationEngine {
     this.stageCurrentLine = -1;
     this.stagePlaybackActive = true;
 
-    // Play the full stage audio — routed through spatial panner if available
+    // Play the full stage audio
     const audio = new Audio(stage.file);
-    audio.crossOrigin = 'anonymous'; // needed for MediaElementSource
+    audio.crossOrigin = 'anonymous';
     this.stageAudio = audio;
+    this.stageMediaSource = null;
 
-    // Route through Web Audio spatial panner (if enabled)
+    // Route through Web Audio spatial panner if available.
+    // We connect AFTER the element is ready to avoid sample rate issues.
     if (this._audioCtx && this._panner) {
-      try {
-        const source = this._audioCtx.createMediaElementSource(audio);
-        source.connect(this._panner);
-        this.stageMediaSource = source;
-        audio.volume = 1; // volume controlled by gain nodes, not element
-      } catch (e) {
-        log.warn('narration', 'Spatial routing failed, using direct playback', e);
-        audio.volume = this.config.volume;
-        this.stageMediaSource = null;
-      }
+      audio.volume = 1; // volume via gain nodes
+      const connectSpatial = () => {
+        if (!this._audioCtx || !this._panner || this.stageAudio !== audio) return;
+        try {
+          // createMediaElementSource can only be called once per element
+          const source = this._audioCtx.createMediaElementSource(audio);
+          const volumeGain = this._audioCtx.createGain();
+          volumeGain.gain.value = this.config.volume;
+          source.connect(volumeGain);
+          volumeGain.connect(this._panner);
+          this.stageMediaSource = source;
+          log.info('narration', 'Spatial audio connected');
+        } catch (e) {
+          log.warn('narration', 'Spatial routing failed', e);
+        }
+      };
+      // Connect immediately — the element handles buffering internally
+      connectSpatial();
     } else {
       audio.volume = this.config.volume;
-      this.stageMediaSource = null;
     }
     this._isSpeaking = true;
     this._active = true;

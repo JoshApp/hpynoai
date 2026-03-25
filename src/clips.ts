@@ -18,6 +18,7 @@ export type ClipType =
   | 'breathing-core'
   | 'breathing-outro'
   | 'interaction'
+  | 'interlude'
   | 'transition';
 
 export type TextStyle = 'cue' | 'narration' | 'prompt' | 'focus';
@@ -37,6 +38,7 @@ export interface ClipFrame {
   narrationStageName: string | null;
   narrationAudioOffset: number;
   atBoundary: boolean;
+  isInterlude: boolean;
 }
 
 // ── Per-clip-type data (stored on TimelineBlock.data) ────────────
@@ -64,6 +66,10 @@ export interface BreathCoreData {
 export interface BreathOutroData {
   pattern: BreathPatternConfig;
   outroTexts: string[];
+}
+
+export interface InterludeData {
+  duration: number;
 }
 
 export interface InteractionClipData {
@@ -112,7 +118,7 @@ const EMPTY_FRAME: ClipFrame = {
   breathValue: null, breathStage: null, breathDrive: false, slotDepth: null,
   audioClip: null, presenceMode: 'session',
   wantsNarrationAudio: false, narrationStageName: null, narrationAudioOffset: 0,
-  atBoundary: false,
+  atBoundary: false, isInterlude: false,
 };
 
 // ── Derive functions ─────────────────────────────────────────────
@@ -196,6 +202,10 @@ function deriveInteraction(elapsed: number, data: InteractionClipData, interacti
   };
 }
 
+function deriveInterlude(): ClipFrame {
+  return { ...EMPTY_FRAME, isInterlude: true };
+}
+
 function deriveTransition(): ClipFrame {
   return EMPTY_FRAME;
 }
@@ -211,5 +221,6 @@ export const clipDerivers: Record<ClipType, ClipDeriver> = {
   'breathing-core': (e, d) => deriveBreathCore(e, d),
   'breathing-outro': (e, d) => deriveBreathOutro(e, d),
   'interaction': (e, d, im) => deriveInteraction(e, d, im),
+  'interlude': () => deriveInterlude(),
   'transition': () => deriveTransition(),
 };

@@ -50,6 +50,7 @@ export class SessionSelector {
     camera: THREE.Camera,
     canvas: HTMLCanvasElement,
     bus: EventBus,
+    skipIntro = false,
   ) {
     this.sessions = sessions;
     this.onSelect = onSelect;
@@ -59,7 +60,11 @@ export class SessionSelector {
     this.bus = bus;
     this.group = new THREE.Group();
     this.scene.add(this.group);
-    this.startSequence();
+    if (skipIntro) {
+      this.showCarousel();
+    } else {
+      this.startSequence();
+    }
   }
 
   setThemeControl(setter: typeof this._setThemeColors): void {
@@ -336,6 +341,90 @@ export class SessionSelector {
       }, 0, -0.1, -0.1);
       await this.animateIn(confirm, 400);
 
+      await this.waitForInput();
+      for (const s of this.allSprites) this.animateOut(s, 600);
+      await this.sleep(600);
+    }
+
+    this.onSelect(session);
+    this.dispose();
+  }
+
+  /** Skip intro — go straight to carousel (used when returning from session) */
+  private async showCarousel(): Promise<void> {
+    await this.sleep(300);
+    if (this.disposed) return;
+
+    const question = this.addSprite('what do you seek', { height: 0.10, fontSize: 56, color: '#a080cc', glow: 'rgba(160,128,204,0.3)' }, 0, 0.28, -0.1);
+    await this.animateIn(question, 800);
+    if (this.disposed) return;
+
+    // Create orbs + labels
+    const n = this.sessions.length;
+    for (let i = 0; i < n; i++) {
+      if (this.disposed) return;
+      const s = this.sessions[i];
+      const [r, g, b] = s.theme.accentColor;
+      let diff = i - 0;
+      if (diff > n / 2) diff -= n;
+      if (diff < -n / 2) diff += n;
+      const absDiff = Math.abs(diff);
+      const posX = diff * 0.6;
+      const posZ = -absDiff * 0.4;
+      const posY = -0.05;
+
+      const orb = createOrbSprite(r, g, b, 0.22);
+      orb.position.set(posX, posY, posZ);
+      (orb.material as THREE.SpriteMaterial).opacity = 0;
+      this.group.add(orb);
+      this.orbSprites.push(orb);
+      this.allSprites.push(orb);
+
+      const label = SpriteText.create(s.name.toLowerCase(), {
+        height: 0.06, fontSize: 36, color: s.theme.textColor, glow: s.theme.textGlow,
+      });
+      label.position.set(posX, posY - 0.12, posZ);
+      SpriteText.setOpacity(label, 0);
+      this.group.add(label);
+      this.orbLabels.push(label);
+      this.allSprites.push(label);
+    }
+
+    for (let i = 0; i < n; i++) {
+      if (i === 0) {
+        this.fadeIn(this.orbLabels[i], 0.6, 800);
+      } else {
+        this.fadeIn(this.orbSprites[i], 0.5, 800);
+        this.fadeIn(this.orbLabels[i], 0.5, 800);
+      }
+    }
+
+    this.selectedIndex = 0;
+    this.prevSelectedIndex = -1;
+
+    const selected = await this.waitForChoice();
+    if (this.disposed) return;
+    const session = this.sessions[selected];
+
+    question.visible = false;
+    if (this.descSprite) this.animateOut(this.descSprite, 400);
+    for (let i = 0; i < this.orbSprites.length; i++) {
+      this.animateOut(this.orbSprites[i], 500);
+      this.animateOut(this.orbLabels[i], 500);
+    }
+    if (this._pulsePresence) this._pulsePresence();
+    await this.sleep(1200);
+
+    if (session.contentWarning) {
+      const warning = this.addSprite(session.contentWarning, {
+        height: 0.06, fontSize: 36, color: '#cc8090', glow: 'rgba(200,80,100,0.3)',
+      }, 0, 0.1, -0.1);
+      await this.animateIn(warning, 500);
+      const ctext = 'ontouchstart' in window ? 'tap to enter' : 'press space to enter';
+      const confirm = this.addSprite(ctext, {
+        height: 0.04, fontSize: 28, color: '#8060aa', glow: 'rgba(128,96,170,0.3)',
+      }, 0, -0.1, -0.1);
+      await this.animateIn(confirm, 400);
       await this.waitForInput();
       for (const s of this.allSprites) this.animateOut(s, 600);
       await this.sleep(600);

@@ -170,11 +170,10 @@ def postprocess_stage(audio_path, whisper_words, slices, opts=None, cmd_words=No
         y = _add_whisper_layer(y, sr, whisper_words, o)
         print(f"    whisper layer: {o['whisper_semitones']}st, vol={o['whisper_volume']:.0%}")
 
-    # ── Step 8: Normalize ──
+    # ── Step 8: Mastering pass ──
     if o["normalize"]:
-        peak = np.max(np.abs(y))
-        if peak > 0:
-            y = y / peak * 0.95  # leave headroom
+        y = _master(y, sr)
+        print(f"    mastered")
 
     # ── Write output ──
     out_path = audio_path.replace(".wav", "_processed.wav")
@@ -242,47 +241,44 @@ def _insert_pauses(y, sr, words, gaps, opts):
         add_secs = desired - current_gap
         add_samples = int(add_secs * sr)
 
-        # Splice point: middle of the existing gap (in original sample space)
-        gap_mid = (gap["gap_start"] + gap["gap_end"]) / 2
-        splice_at = int(gap_mid * sr)
+        # Splice at 30% into the gap (safely past word end, safely before next word)
+        splice_at = int((gap["gap_start"] + gap["original_gap"] * 0.3) * sr)
         splice_at = max(xfade_samples, min(splice_at, len(y) - xfade_samples))
 
-        # Pure silence
+        # ── Natural fade out (150ms exponential) + silence + natural fade in (80ms) ──
+        fade_out_len = min(int(0.15 * sr), splice_at)
+        fade_in_len = min(int(0.08 * sr), len(y) - splice_at)
+
         fill = np.zeros(add_samples)
 
-        # Fade out audio into silence at start of fill
-        fade_out = np.linspace(1, 0, xfade_samples)
-        fade_in = np.linspace(0, 1, xfade_samples)
+        # Exponential fade out — mimics voice trailing off naturally
+        before = y[splice_at - fade_out_len:splice_at].copy()
+        fade_out = np.exp(-np.linspace(0, 5, fade_out_len))  # fast exponential
+        fill[:fade_out_len] = before * fade_out
 
-        before_region = y[splice_at - xfade_samples:splice_at].copy()
-        fill[:xfade_samples] = before_region * fade_out
-
-        # Build the tail: fade the continuing audio back in from silence
-        tail_start = splice_at + xfade_samples
-        tail_end = min(tail_start + xfade_samples, len(y))
-        tail_len = tail_end - tail_start
+        # Smooth fade in — short linear ramp back into speech
+        tail_start = splice_at
+        tail_end = min(tail_start + fade_in_len, len(y))
         tail = y[tail_start:tail_end].copy()
-
-        # Fade the end of fill into the tail
+        tail_len = tail_end - tail_start
         if tail_len > 0:
-            fi = np.linspace(0, 1, tail_len)
-            fill[-tail_len:] = 0  # ensure silence
-            # The tail itself gets faded in
-            tail *= fi
+            fade_in = np.linspace(0, 1, tail_len)
+            fade_in = fade_in * fade_in  # quadratic for gentler onset
+            tail *= fade_in
 
         y = np.concatenate([
-            y[:splice_at - xfade_samples],
+            y[:splice_at - fade_out_len],
             fill,
             tail,
             y[tail_end:],
         ])
 
         # Track where we inserted (will be corrected to final time below)
-        pause_info.append({"at": round(gap_mid, 3), "added": round(add_secs, 3)})
+        pause_info.append({"at": round(gap["gap_start"], 3), "added": round(add_secs, 3)})
 
         # Shift word timestamps after this gap
         for w in words:
-            if w["start"] > gap_mid:
+            if w["start"] > gap["gap_start"]:
                 w["start"] += add_secs
                 w["end"] += add_secs
 
@@ -389,9 +385,9 @@ def _add_reverb_tails(y, sr, words, opts):
 
     # ── Deterministic impulse response (seeded noise × exponential decay) ──
     # Fixed seed = same reverb character every run
-    ir_len = int(decay_time * 0.8 * sr)  # ~1.2s IR
+    ir_len = int(decay_time * sr)  # ~1.5s IR
     rng = np.random.RandomState(42)
-    ir = rng.randn(ir_len) * np.exp(-np.linspace(0, 8, ir_len))  # faster decay
+    ir = rng.randn(ir_len) * np.exp(-np.linspace(0, 6, ir_len))  # moderate decay
     ir = ir / np.max(np.abs(ir)) * 0.25
 
     # Convolve full signal with reverb
@@ -469,6 +465,56 @@ def _add_reverb_tails(y, sr, words, opts):
     out = y + reverbed * envelope * wet
 
     return out, reverb_regions
+
+
+def _master(y, sr):
+    """Final mastering pass — compression, EQ, normalization.
+    Smooths out level differences and cleans up the signal after all effects."""
+
+    # 1. High-pass filter at 80Hz — remove sub-bass rumble from processing
+    if HAS_SCIPY:
+        from scipy.signal import butter, sosfilt
+        sos_hp = butter(2, 80, btype='high', fs=sr, output='sos')
+        y = sosfilt(sos_hp, y)
+
+    # 2. Gentle compression — even out loud/quiet parts
+    # Simple RMS-based compressor
+    threshold = 0.15   # compress above this RMS level
+    ratio = 3.0        # 3:1 ratio
+    window = int(0.05 * sr)  # 50ms RMS window
+
+    if len(y) > window:
+        # Compute RMS envelope
+        y_sq = y ** 2
+        rms = np.sqrt(np.convolve(y_sq, np.ones(window) / window, mode='same'))
+        rms = np.maximum(rms, 1e-10)
+
+        # Compute gain reduction
+        gain = np.ones_like(rms)
+        above = rms > threshold
+        gain[above] = threshold + (rms[above] - threshold) / ratio
+        gain[above] /= rms[above]
+
+        # Smooth gain changes (10ms attack, 100ms release)
+        from scipy.ndimage import uniform_filter1d
+        gain = uniform_filter1d(gain, int(0.05 * sr))
+
+        y = y * gain
+
+    # 3. Presence boost — gentle +2dB around 3kHz for voice clarity
+    if HAS_SCIPY:
+        from scipy.signal import butter, sosfilt
+        # Bandpass 2-5kHz
+        sos_bp = butter(2, [2000, 5000], btype='band', fs=sr, output='sos')
+        presence = sosfilt(sos_bp, y)
+        y = y + presence * 0.25  # ~+2dB in that band
+
+    # 4. Peak normalize with headroom
+    peak = np.max(np.abs(y))
+    if peak > 0:
+        y = y / peak * 0.92  # -0.7dB headroom
+
+    return y
 
 
 def _add_full_reverb(y, sr, opts):

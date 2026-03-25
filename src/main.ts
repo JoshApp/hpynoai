@@ -3,6 +3,7 @@ import * as Tone from 'tone';
 import { AudioEngine } from './audio';
 import { Timeline, type TimelineState } from './timeline';
 import { Timebar } from './timebar';
+import { PlaybackControls } from './playback-controls';
 import { DevMode } from './devmode';
 import { InteractionManager } from './interactions';
 import { SessionSelector } from './selector';
@@ -255,10 +256,13 @@ const narrationActor = new NarrationActor(narration, timeline);
 compositor.addActor(narrationActor);
 
 let _completionHandled = false;
+let _completionWaitStart = 0;
 let _lastStageIndex = -1;
 
 // Timebar — dev widget for timeline scrubbing (toggle with T key)
 const timebar = new Timebar(timeline);
+const playbackControls = new PlaybackControls(timeline, settings, audioCompositor);
+playbackControls.setNarration(narration);
 onTeardown(() => timebar.destroy());
 
 // ── Stage events driven by pull-model in sessionTick() ──
@@ -369,6 +373,7 @@ function startSession(session: SessionConfig): void {
 
   // Reset state
   _completionHandled = false;
+  _completionWaitStart = 0;
 
   applyTheme(session);
 
@@ -404,10 +409,9 @@ function startSession(session: SessionConfig): void {
         audioCompositor.start();
       }
 
-      // Enable spatial narration
-      if (audio.context && audio.masterGainNode) {
-        narration.enableSpatialAudio(audio.context, audio.masterGainNode);
-      }
+      // Voice stays direct/center — no spatial processing.
+      // The wisp's crystalline tone provides spatial presence.
+      // HRTF panning colors the voice too much for clear narration.
 
       // Add session-only layers if not already present
       if (!audioCompositor.getLayer('sub-pulse')) audioCompositor.addLayer(new SubPulseLayer());
@@ -443,9 +447,14 @@ function startSession(session: SessionConfig): void {
       pad: { chord: [rootNote, rootNote + 4, rootNote + 7, rootNote + 12], filterMax: 1200, warmth: session.audio.warmth, chorusRate: 0.3, volume: 0.2 },
       noise: { type: 'pink', filterFreq: 400, volume: 0.1 },
       melody: { rootNote, volume: 0.12, tempo: 5 },
-      master: { volume: settings.current.ambientVolume },
     };
-    audioCompositor.start(sessionAudioPreset);
+    // Apply session preset (compositor may already be running from menu)
+    if (!audioCompositor['isPlaying']) {
+      audioCompositor.start(sessionAudioPreset);
+    } else {
+      audioCompositor.applyPreset(sessionAudioPreset, 2);
+    }
+    audioCompositor.setMasterVolume(settings.current.ambientVolume);
 
     // Build timeline AFTER manifest is available
     timeline.build(
@@ -461,6 +470,7 @@ function startSession(session: SessionConfig): void {
     bus.emit('session:started', { session });
     timeline.start();
     startSessionTick();
+    playbackControls.activate();
     render();
   });
 }
@@ -592,8 +602,8 @@ function sessionTick(): void {
     config.actors.push({ type: 'text', directive: { mode: 'clear' } });
   }
 
-  // Stage change → apply per-stage audio preset to audio compositor
-  if (tlState.block.stageIndex !== _lastStageIndex) {
+  // Stage change OR seek → apply per-stage audio preset to audio compositor
+  if (tlState.block.stageIndex !== _lastStageIndex || tlState.seeked) {
     _lastStageIndex = tlState.block.stageIndex;
     const stage = tlState.block.stage;
     const intensity = stage.intensity;
@@ -660,6 +670,17 @@ function sessionTick(): void {
     }
   }
 
+  // Interlude — ambient swells, no voice, tunnel calms
+  if (tlState.isInterlude && tlState.blockJustChanged) {
+    // Swell pad + noise, fade melody, longer reverb tails
+    audioCompositor.applyPreset({
+      pad: { volume: 0.5, filterMax: 800, warmth: 0.9 } as AudioPreset['pad'],
+      noise: { volume: 0.35, filterFreq: 300 } as AudioPreset['noise'],
+      melody: { volume: 0 } as AudioPreset['melody'],
+      reverb: { decay: 8, wet: 0.7 },
+    }, 4); // 4s crossfade into interlude sound
+  }
+
   // Build world inputs
   const micSig = mic.signals;
   const audioBands = audio.analyzer?.update() ?? null;
@@ -690,10 +711,20 @@ function sessionTick(): void {
     playGatePrompt();
   }
 
-  // Completion
+  // Completion — retry each tick until transition is free
   if (tlState.complete && !_completionHandled) {
-    _completionHandled = true;
-    endExperience();
+    if (!transition.isActive) {
+      _completionHandled = true;
+      endExperience();
+    } else if (!_completionWaitStart) {
+      _completionWaitStart = performance.now();
+    } else if (performance.now() - _completionWaitStart > 10000) {
+      // Safety: force end if stuck waiting for transition > 10s
+      log.warn('session', 'Forced end — transition stuck');
+      transition.cancel();
+      _completionHandled = true;
+      endExperience();
+    }
   }
 }
 
@@ -732,6 +763,11 @@ function render(): void {
 
   // ── Visual-only: presence (still old system, will become actor later) ──
   if (tlState) {
+    // On seek — force text to re-derive (even same position)
+    if (tlState.seeked) {
+      text3d.reset();
+    }
+
     const renderBlockChanged = tlState.blockIndex !== _renderBlockIndex;
     if (renderBlockChanged) {
       _renderBlockIndex = tlState.blockIndex;
@@ -794,6 +830,7 @@ function render(): void {
 
   appState.stageIndex = timeline.currentIndex;
   timebar.update();
+  playbackControls.update();
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -801,12 +838,14 @@ function render(): void {
 // ══════════════════════════════════════════════════════════════════════
 /** Shared cleanup for any session → selector transition */
 function cleanupSession(): void {
-  log.info('session', 'Cleanup — returning to selector');
+  log.info('session', 'cleanupSession START');
   sessionEpoch++;
   isRunning = false;
   setPhase('selector');
   machine.transition('selector');
   bus.emit('session:ended', {});
+
+  playbackControls.deactivate();
 
   // Release platform locks
   releaseWakeLock();
@@ -816,23 +855,31 @@ function cleanupSession(): void {
   // Stop tick + timeline + audio
   stopSessionTick();
   audioCompositor.stop();
+  _menuAudioStarted = false; // allow menu audio to restart on next gesture
   timeline.stop();
   interactions.clear();
   text3d.clear();
   audioClipActor.deactivate();
   activeSession = null;
 
-  bootSelector();
+  log.info('session', 'cleanupSession — calling bootSelector');
+  bootSelector(true); // skip intro, go straight to carousel
+  log.info('session', 'cleanupSession DONE');
 }
 
 function endExperience(): void {
   if (transition.isActive) return;
+  log.info('session', 'endExperience — starting fade');
   text3d.set('welcome back', 'narration');
   machine.transition('ending');
   bus.emit('session:ending', { fadeSec: 3 });
   audioCompositor.resolve();
-  playClosingTone();
-  transition.run(() => cleanupSession(), { fadeOutMs: 3000, holdMs: 500, fadeInMs: 2000 });
+  try { playClosingTone(); } catch (e) { log.warn('session', 'closing tone failed', e); }
+  transition.run(() => {
+    log.info('session', 'endExperience — midpoint, calling cleanupSession');
+    cleanupSession();
+    log.info('session', 'endExperience — cleanupSession done, bootSelector started');
+  }, { fadeOutMs: 3000, holdMs: 500, fadeInMs: 2000 });
 }
 
 /** Warm descending tone — like a gentle bell settling */
@@ -943,6 +990,7 @@ let _menuAudioStarted = false;
 
 /** Start subtle ambient audio on the menu screen (called on first user gesture) */
 async function startMenuAudio(): Promise<void> {
+  log.info('audio', `startMenuAudio called, already started=${_menuAudioStarted}`);
   if (_menuAudioStarted) return;
   _menuAudioStarted = true;
 
@@ -962,24 +1010,27 @@ async function startMenuAudio(): Promise<void> {
     const wispAudio = new WispAudioLayer();
     audioCompositor.addLayer(wispAudio);
 
-    const menuVol = settings.current.ambientVolume * 0.5;
+    audioCompositor.setMasterVolume(settings.current.ambientVolume);
     audioCompositor.start({
       binaural: { carrierFreq: 120, beatFreq: 10, volume: 0.15 },
-      drone: { rootNote: 36, harmonicity: 2, modIndex: 2, volume: 0.08 },
-      pad: { chord: [48, 52, 55, 60], filterMax: 800, warmth: 0.5, chorusRate: 0.2, volume: 0.1 },
-      noise: { type: 'pink', filterFreq: 300, volume: 0.04 },
+      drone: { rootNote: 36, harmonicity: 2, modIndex: 2, volume: 0.1 },
+      pad: { chord: [48, 52, 55, 60], filterMax: 800, warmth: 0.5, chorusRate: 0.2, volume: 0.12 },
+      noise: { type: 'pink', filterFreq: 300, volume: 0.05 },
       spatial: { rate: 0.05, depth: 0.3 },
       melody: { rootNote: 48, volume: 0, tempo: 0 },
-      master: { volume: menuVol },
     } as Partial<AudioPreset>);
 
-    // Opening tone
     playOpeningTone();
 
-    // Fade ambient to whisper after the chime settles (~8s), then near-silence
+    // After chime settles, fade layers to whisper (menu shouldn't drone)
     setTimeout(() => {
       if (_menuAudioStarted && !isRunning) {
-        audioCompositor.applyPreset({ master: { volume: menuVol * 0.15 } } as Partial<AudioPreset>, 6);
+        audioCompositor.applyPreset({
+          pad: { chord: [48, 52, 55, 60], filterMax: 400, warmth: 0.5, chorusRate: 0.2, volume: 0.03 },
+          drone: { rootNote: 36, harmonicity: 2, modIndex: 1, volume: 0.02 },
+          noise: { type: 'pink', filterFreq: 200, volume: 0.01 },
+          binaural: { carrierFreq: 120, beatFreq: 10, volume: 0.03 },
+        } as Partial<AudioPreset>, 6);
       }
     }, 8000);
 
@@ -1109,11 +1160,11 @@ onTeardown(() => {
   document.removeEventListener('touchstart', startMenuOnGesture);
 });
 
-function bootSelector(): void {
+function bootSelector(skipIntro = false): void {
   setPhase('selector');
   isRunning = false;
 
-  selector = new SessionSelector(sessions, startSession, overlayScene, camera, canvas, bus);
+  selector = new SessionSelector(sessions, startSession, overlayScene, camera, canvas, bus, skipIntro);
 
   selector.setExperienceLevelControl((level) => {
     settings.updateBatch({ experienceLevel: level });
@@ -1140,47 +1191,37 @@ function bootSelector(): void {
   // Audio preview — shift ambient soundscape toward the hovered session's character
   // Audio preview — swell on hover with session flavor, fade back after
   let _previewFadeTimer: number | null = null;
-  const menuWhisperVol = settings.current.ambientVolume * 0.5 * 0.15;
 
   selector.setAudioPreview((session) => {
     if (!_menuAudioStarted) return;
-
-    // Cancel pending fade-back
     if (_previewFadeTimer) { clearTimeout(_previewFadeTimer); _previewFadeTimer = null; }
 
     const rootNotes: Record<string, number> = { relax: 48, sleep: 45, focus: 52, surrender: 50 };
     const root = rootNotes[session.id] ?? 48;
 
-    // Swell up with session's sonic character
+    // Swell with session's sonic character
     audioCompositor.applyPreset({
-      binaural: {
-        carrierFreq: session.audio.carrierFreq,
-        beatFreq: session.audio.binauralRange[0],
-        volume: 0.15,
-      },
-      drone: { rootNote: root - 12, harmonicity: 2, modIndex: 2, volume: 0.08 },
-      pad: {
-        chord: [root, root + 4, root + 7, root + 12],
-        filterMax: 800,
-        warmth: session.audio.warmth,
-        chorusRate: 0.2,
-        volume: 0.12,
-      },
-      noise: {
-        type: session.audio.warmth > 0.7 ? 'brown' : 'pink',
-        filterFreq: 300,
-        volume: 0.04,
-      },
-      master: { volume: settings.current.ambientVolume * 0.4 },  // swell to preview level
+      binaural: { carrierFreq: session.audio.carrierFreq, beatFreq: session.audio.binauralRange[0], volume: 0.15 },
+      drone: { rootNote: root - 12, harmonicity: 2, modIndex: 2, volume: 0.1 },
+      pad: { chord: [root, root + 4, root + 7, root + 12], filterMax: 800, warmth: session.audio.warmth, chorusRate: 0.2, volume: 0.12 },
+      noise: { type: session.audio.warmth > 0.7 ? 'brown' : 'pink', filterFreq: 300, volume: 0.05 },
     } as Partial<AudioPreset>, 1.5);
 
-    // Fade back to whisper after 4 seconds
+    // Fade layers back to whisper after 4s
     _previewFadeTimer = window.setTimeout(() => {
       if (_menuAudioStarted && !isRunning) {
-        audioCompositor.applyPreset({ master: { volume: menuWhisperVol } } as Partial<AudioPreset>, 3);
+        audioCompositor.applyPreset({
+          pad: { chord: [48, 52, 55, 60], filterMax: 400, warmth: 0.5, chorusRate: 0.2, volume: 0.03 },
+          drone: { rootNote: 36, harmonicity: 2, modIndex: 1, volume: 0.02 },
+          noise: { type: 'pink', filterFreq: 200, volume: 0.01 },
+          binaural: { carrierFreq: 120, beatFreq: 10, volume: 0.03 },
+        } as Partial<AudioPreset>, 3);
       }
     }, 4000);
   });
+
+  // Restart menu ambient (AudioContext is already unlocked from the session)
+  startMenuAudio();
 
   animateBackground();
 }

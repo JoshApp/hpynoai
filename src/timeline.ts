@@ -18,7 +18,7 @@ import {
   type ClipFrame, type ClipType, type TextStyle,
   type NarrationAudioData, type NarrationTTSData,
   type BreathIntroData, type BreathCoreData, type BreathOutroData,
-  type InteractionClipData,
+  type InteractionClipData, type InterludeData,
 } from './clips';
 
 // Re-export for consumers
@@ -185,6 +185,14 @@ export class Timeline {
           stageHasAudio
             ? { stageName: stage.name, audioOffset: stageOffset } satisfies NarrationAudioData
             : { texts: stage.texts, textInterval: stage.textInterval ?? 7 } satisfies NarrationTTSData,
+        );
+      }
+
+      // Interlude — ambient-only silence after this stage
+      const interlude = stage.interlude ?? 0;
+      if (interlude > 0) {
+        cursor = this.addBlock(cursor, interlude, stage, si, 'interlude',
+          { duration: interlude } satisfies InterludeData,
         );
       }
     }

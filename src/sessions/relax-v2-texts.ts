@@ -69,10 +69,20 @@ export const stageInteractions: Record<string, Array<{ index: number; type: stri
 
 // Stage durations from audio (use these in session config)
 export const stageDurations: Record<string, number> = {
-  'settle': 51,
-  'induction': 59,
-  'deepening': 98,
-  'trance': 94,
-  'deep': 48,
-  'emergence': 57,
+  'settle': 50,
+  'induction': 58,
+  'deepening': 96,
+  'trance': 92,
+  'deep': 47,
+  'emergence': 56,
+};
+
+// Interludes — ambient-only silence after each stage (seconds)
+export const stageInterludes: Record<string, number> = {
+  'settle': 5,
+  'induction': 5,
+  'deepening': 8,
+  'trance': 10,
+  'deep': 20,
+  'emergence': 15,
 };

@@ -79,13 +79,15 @@ export class TransitionManager {
         this.state.fadeAmount = ease;
         this.state.intensityMult = 1 - ease * 0.7; // dim to 30%
         if (t >= 1) {
-          // Fire the mid-transition callback
-          if (this.midCallback) {
-            this.midCallback();
-            this.midCallback = null;
-          }
+          // Advance phase BEFORE firing callback — prevents re-entrant loop
+          // (callback may trigger animateBackground which calls update() again)
           this.phase = 'hold';
           this.startTime = performance.now();
+          if (this.midCallback) {
+            const cb = this.midCallback;
+            this.midCallback = null;
+            cb();
+          }
         }
         break;
       }
