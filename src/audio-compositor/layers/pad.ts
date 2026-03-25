@@ -19,18 +19,21 @@ export class PadLayer implements AudioLayer {
   private warmth = 0.7;
 
   constructor() {
+    // Warm, lush pad — low harmonicity for smoothness, gentle modulation
     this.synth = new Tone.PolySynth(Tone.FMSynth, {
-      harmonicity: 2,
-      modulationIndex: 3,
+      harmonicity: 1.5,
+      modulationIndex: 2,
       oscillator: { type: 'sine' },
-      modulation: { type: 'triangle' },
-      envelope: { attack: 3, decay: 1, sustain: 0.9, release: 5 },
-      modulationEnvelope: { attack: 2, decay: 0.5, sustain: 0.8, release: 4 },
+      modulation: { type: 'sine' },
+      envelope: { attack: 4, decay: 2, sustain: 0.85, release: 8 },
+      modulationEnvelope: { attack: 3, decay: 1, sustain: 0.6, release: 6 },
     });
-    this.synth.volume.value = -6;
+    this.synth.volume.value = -8;
 
-    this.filter = new Tone.Filter({ frequency: 600, type: 'lowpass', Q: 1.5, rolloff: -24 });
-    this.chorus = new Tone.Chorus({ frequency: 0.3, delayTime: 3.5, depth: 0.6, wet: 0.4 }).start();
+    // Gentle lowpass — rolls off high harmonics for warmth
+    this.filter = new Tone.Filter({ frequency: 500, type: 'lowpass', Q: 0.8, rolloff: -24 });
+    // Slow chorus — adds stereo width and subtle detuning
+    this.chorus = new Tone.Chorus({ frequency: 0.15, delayTime: 4, depth: 0.5, wet: 0.35 }).start();
     this.gain = new Tone.Gain(0);
 
     this.synth.connect(this.filter);

@@ -25,10 +25,26 @@ export class AudioEngine {
   get externalInputNode(): GainNode | null { return this.externalInput; }
   get masterGainNode(): GainNode | null { return this.masterGain; }
 
-  async init(): Promise<void> {
-    if (this.ctx) return; // already initialized
+  /**
+   * Ensure AudioContext exists + resume. Call from user gesture handler (mobile).
+   * Safe to call multiple times.
+   */
+  resumeFromGesture(): AudioContext {
+    if (!this.ctx) this.ctx = new AudioContext();
+    this.ctx.resume().catch(() => {});
+    return this.ctx;
+  }
 
-    this.ctx = new AudioContext();
+  /** Get or create the AudioContext (sync) */
+  ensureContext(): AudioContext {
+    if (!this.ctx) this.ctx = new AudioContext();
+    return this.ctx;
+  }
+
+  async init(): Promise<void> {
+    if (this.ctx && this.masterGain) return; // already fully initialized
+
+    this.ctx = this.ctx ?? new AudioContext();
 
     // iOS/Safari suspends AudioContext until a user gesture
     if (this.ctx.state === 'suspended') {

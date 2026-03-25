@@ -16,12 +16,13 @@ export class SubPulseLayer implements AudioLayer {
   private gain: Tone.Gain;
 
   constructor() {
-    // Sub-bass oscillator
-    this.osc = new Tone.Oscillator({ type: 'sine', frequency: 40 });
+    // Sub-bass — pure sine at the edge of hearing, felt in the chest
+    this.osc = new Tone.Oscillator({ type: 'sine', frequency: 35 });
 
-    // LFO modulates the gain at entrainment frequency
+    // LFO pulses the volume at the entrainment frequency
+    // Triangle wave for smoother pulse than sine (less "pumping")
     this.lfoGain = new Tone.Gain(0);
-    this.lfo = new Tone.LFO({ frequency: 6, min: 0, max: 1, type: 'sine' });
+    this.lfo = new Tone.LFO({ frequency: 6, min: 0.2, max: 0.8, type: 'triangle' });
     this.lfo.connect(this.lfoGain.gain);
 
     this.gain = new Tone.Gain(0);

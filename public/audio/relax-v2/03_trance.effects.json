@@ -8,198 +8,265 @@
   ],
   "pauses_inserted": [
     {
-      "at": 2.06,
-      "duration": 2.24
+      "at": 1.859,
+      "duration": 3.061
     },
     {
-      "at": 8.68,
-      "duration": 2.36
+      "at": 6.28,
+      "duration": 2.46
     },
     {
-      "at": 14.18,
-      "duration": 2.22
+      "at": 9.861,
+      "duration": 3.26
     },
     {
-      "at": 20.96,
-      "duration": 2.0
+      "at": 16.182,
+      "duration": 3.48
     },
     {
-      "at": 30.64,
-      "duration": 2.3
-    },
-    {
-      "at": 37.42,
-      "duration": 2.16
-    },
-    {
-      "at": 44.74,
-      "duration": 2.26
-    },
-    {
-      "at": 48.52,
-      "duration": 2.14
-    },
-    {
-      "at": 58.28,
-      "duration": 2.16
-    },
-    {
-      "at": 62.42,
+      "at": 23.223,
       "duration": 2.7
     },
     {
-      "at": 66.28,
-      "duration": 1.88
+      "at": 28.604,
+      "duration": 2.911
     },
     {
-      "at": 70.32,
-      "duration": 2.18
+      "at": 33.716,
+      "duration": 3.002
     },
     {
-      "at": 75.36,
-      "duration": 2.52
+      "at": 40.659,
+      "duration": 3.782
     },
     {
-      "at": 81.74,
-      "duration": 1.96
+      "at": 47.023,
+      "duration": 2.861
+    },
+    {
+      "at": 51.064,
+      "duration": 2.502
+    },
+    {
+      "at": 54.906,
+      "duration": 1.061
+    },
+    {
+      "at": 58.168,
+      "duration": 2.595
+    },
+    {
+      "at": 61.563,
+      "duration": 2.501
+    },
+    {
+      "at": 65.265,
+      "duration": 2.48
+    },
+    {
+      "at": 68.086,
+      "duration": 1.66
+    },
+    {
+      "at": 70.647,
+      "duration": 3.521
+    },
+    {
+      "at": 74.908,
+      "duration": 2.521
+    },
+    {
+      "at": 79.049,
+      "duration": 2.461
+    },
+    {
+      "at": 82.371,
+      "duration": 2.521
+    },
+    {
+      "at": 86.092,
+      "duration": 3.265
+    },
+    {
+      "at": 92.484,
+      "duration": 3.186
+    },
+    {
+      "at": 97.655,
+      "duration": 2.505
     }
   ],
   "cmd_words": [
     {
-      "start": 65.12,
-      "end": 65.66,
-      "word": "Deeper"
-    },
-    {
-      "start": 65.66,
-      "end": 66.28,
-      "word": "now,"
-    },
-    {
-      "start": 83.7,
-      "end": 84.68,
+      "start": 95.67,
+      "end": 96.352,
       "word": "Everything"
     },
     {
-      "start": 50.66,
-      "end": 51.38,
+      "start": 55.967,
+      "end": 56.387,
       "word": "Just"
     },
     {
-      "start": 51.38,
-      "end": 51.92,
+      "start": 56.567,
+      "end": 56.967,
       "word": "allow"
     },
     {
-      "start": 51.92,
-      "end": 52.42,
+      "start": 57.047,
+      "end": 57.327,
       "word": "this"
     },
     {
-      "start": 52.42,
-      "end": 52.8,
+      "start": 57.508,
+      "end": 57.648,
       "word": "to"
     },
     {
-      "start": 52.8,
-      "end": 53.7,
+      "start": 57.728,
+      "end": 58.168,
       "word": "happen."
     },
     {
-      "start": 84.68,
-      "end": 85.56,
+      "start": 96.692,
+      "end": 97.274,
       "word": "carries"
     },
     {
-      "start": 85.56,
-      "end": 86.4,
+      "start": 97.354,
+      "end": 97.655,
       "word": "you"
     },
     {
-      "start": 86.4,
-      "end": 87.0,
+      "start": 100.16,
+      "end": 100.581,
       "word": "deeper."
+    },
+    {
+      "start": 74.168,
+      "end": 74.548,
+      "word": "Deeper"
+    },
+    {
+      "start": 74.608,
+      "end": 74.908,
+      "word": "now,"
     }
   ],
   "reverb_regions": [
     {
-      "start": 7.48,
-      "end": 9.88,
+      "start": 5.08,
+      "end": 7.48,
       "wet": 0.1
     },
     {
-      "start": 12.98,
-      "end": 15.38,
+      "start": 8.661,
+      "end": 11.061,
       "wet": 0.1
     },
     {
-      "start": 19.76,
-      "end": 22.16,
+      "start": 12.961,
+      "end": 14.521,
       "wet": 0.1
     },
     {
-      "start": 24.56,
-      "end": 26.11,
+      "start": 14.982,
+      "end": 17.382,
       "wet": 0.1
     },
     {
-      "start": 29.44,
-      "end": 31.84,
+      "start": 22.023,
+      "end": 24.423,
       "wet": 0.1
     },
     {
-      "start": 36.22,
-      "end": 38.62,
+      "start": 27.404,
+      "end": 29.804,
       "wet": 0.1
     },
     {
-      "start": 41.8,
-      "end": 43.42,
+      "start": 32.516,
+      "end": 34.916,
       "wet": 0.1
     },
     {
-      "start": 43.54,
-      "end": 45.94,
+      "start": 39.459,
+      "end": 41.859,
       "wet": 0.1
     },
     {
-      "start": 47.32,
-      "end": 49.72,
+      "start": 45.823,
+      "end": 48.223,
       "wet": 0.1
     },
     {
-      "start": 52.5,
-      "end": 54.26,
+      "start": 49.864,
+      "end": 52.264,
       "wet": 0.1
     },
     {
-      "start": 57.08,
-      "end": 59.48,
+      "start": 53.706,
+      "end": 55.967,
       "wet": 0.1
     },
     {
-      "start": 61.22,
-      "end": 63.62,
+      "start": 56.968,
+      "end": 59.368,
       "wet": 0.1
     },
     {
-      "start": 65.08,
-      "end": 67.48,
+      "start": 60.363,
+      "end": 62.763,
       "wet": 0.1
     },
     {
-      "start": 69.12,
-      "end": 71.52,
+      "start": 64.065,
+      "end": 66.465,
       "wet": 0.1
     },
     {
-      "start": 74.16,
-      "end": 76.56,
+      "start": 66.886,
+      "end": 69.286,
       "wet": 0.1
     },
     {
-      "start": 80.54,
-      "end": 82.94,
+      "start": 69.447,
+      "end": 71.847,
+      "wet": 0.1
+    },
+    {
+      "start": 73.708,
+      "end": 76.108,
+      "wet": 0.1
+    },
+    {
+      "start": 77.849,
+      "end": 80.249,
+      "wet": 0.1
+    },
+    {
+      "start": 81.171,
+      "end": 83.571,
+      "wet": 0.1
+    },
+    {
+      "start": 84.892,
+      "end": 87.292,
+      "wet": 0.1
+    },
+    {
+      "start": 91.284,
+      "end": 93.684,
+      "wet": 0.1
+    },
+    {
+      "start": 95.152,
+      "end": 96.692,
+      "wet": 0.1
+    },
+    {
+      "start": 96.455,
+      "end": 98.855,
       "wet": 0.1
     }
   ],

@@ -35,8 +35,6 @@ export interface HpynoEventMap {
   'input:right': {};                                      // arrow right / swipe left
   'input:hold-start': {};                                 // space down / touch start
   'input:hold-end': {};                                   // space up / touch end
-  'input:swipe': { direction: 'left' | 'right' | 'up' | 'down'; dx: number; dy: number };
-  'input:pointer-move': { x: number; y: number };         // NDC coords (-1 to 1)
   'input:tap': { x: number; y: number; clientX: number; clientY: number }; // NDC + screen coords
 }
 

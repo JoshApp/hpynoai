@@ -4,28 +4,24 @@
 # Usage:
 #   ./scripts/run-reprocess.sh              # reprocess relax → relax-v2
 #
-# First run will set up the Python venv automatically.
+# Uses .venv-whisperx (Python 3.12, WhisperX forced alignment) if available,
+# falls back to .venv (Python 3.14, faster-whisper).
 
 set -e
 cd "$(dirname "$0")/.."
 
-VENV=".venv"
-PYTHON="$VENV/bin/python"
-
-# ── Ensure venv exists ──
-if [ ! -f "$PYTHON" ]; then
-    echo "Setting up Python venv..."
-    python3 -m venv "$VENV"
-    "$VENV/bin/pip" install --quiet librosa soundfile scipy numpy faster-whisper
-    echo "Venv ready."
+# Prefer whisperx venv (Python 3.12) for forced alignment
+if [ -f ".venv-whisperx/bin/python" ]; then
+    PYTHON=".venv-whisperx/bin/python"
+    echo "Using WhisperX venv (forced alignment)"
+elif [ -f ".venv/bin/python" ]; then
+    PYTHON=".venv/bin/python"
+    echo "Using standard venv (faster-whisper)"
+else
+    echo "No venv found. Run:"
+    echo "  python3.12 -m venv .venv-whisperx && .venv-whisperx/bin/pip install whisperx librosa soundfile pyrubberband"
+    exit 1
 fi
 
-# ── Check deps ──
-"$PYTHON" -c "import librosa, soundfile, faster_whisper" 2>/dev/null || {
-    echo "Installing missing dependencies..."
-    "$VENV/bin/pip" install --quiet librosa soundfile scipy numpy faster-whisper
-}
-
-# ── Run reprocess ──
 echo ""
 "$PYTHON" scripts/reprocess-relax.py "$@"

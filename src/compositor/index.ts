@@ -14,6 +14,7 @@ export { TextActor } from './actors/text';
 export { NarrationActor } from './actors/narration';
 export { BreathActor } from './actors/breath';
 export { AudioClipActor } from './actors/audio-clip';
+export { PresenceActor } from './actors/presence';
 
 // Types
 export type {

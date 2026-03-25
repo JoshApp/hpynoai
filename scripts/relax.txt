@@ -81,9 +81,11 @@ something you didn't even know... you were holding.
 heavier now... and that heaviness...
 is not weight... it's permission...
 [CMD permission to stop trying]
+[SLICE]
 [PAUSE 3]
 would you like to go deeper?
 [GATE]
+[SLICE]
 good... [CMD let yourself sink]... a little more.
 [INTERLUDE 8]
 

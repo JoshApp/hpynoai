@@ -118,6 +118,9 @@ def postprocess_stage(audio_path, whisper_words, slices, opts=None, cmd_words=No
     y, sr = librosa.load(audio_path, sr=None, mono=True)
     original_dur = len(y) / sr
 
+    # ── Step 0: Refine word boundaries to zero-crossings ──
+    whisper_words = refine_word_boundaries(y, sr, whisper_words)
+
     # ── Step 1: Time-stretch (global) ──
     if o["speed"] != 1.0 and 0.7 <= o["speed"] <= 1.0:
         y = _time_stretch(y, sr, o["speed"])
@@ -191,6 +194,61 @@ def postprocess_stage(audio_path, whisper_words, slices, opts=None, cmd_words=No
 # INTERNALS
 # ══════════════════════════════════════════════════════════════════════
 
+def refine_word_boundaries(y, sr, words, search_ms=30):
+    """Snap word start/end times to the nearest quiet point in the waveform.
+    Improves on Whisper/WhisperX boundaries by finding actual silence.
+
+    For each word boundary, searches ±search_ms for the sample with the
+    lowest RMS energy, then snaps to the nearest zero-crossing near that point.
+    """
+    search_samples = int(search_ms / 1000 * sr)
+    window = int(0.005 * sr)  # 5ms RMS window
+
+    # Precompute RMS envelope
+    y_sq = y ** 2
+    rms = np.sqrt(np.convolve(y_sq, np.ones(window) / window, mode='same'))
+
+    refined = 0
+    for w in words:
+        for key in ('start', 'end'):
+            t = w[key]
+            center = int(t * sr)
+            lo = max(0, center - search_samples)
+            hi = min(len(rms) - 1, center + search_samples)
+            if lo >= hi:
+                continue
+
+            # Find lowest energy point in search window
+            region = rms[lo:hi]
+            min_idx = lo + np.argmin(region)
+
+            # Snap to nearest zero-crossing near the min-energy point
+            zc_search = min(int(0.003 * sr), search_samples)  # ±3ms from min
+            zc_lo = max(1, min_idx - zc_search)
+            zc_hi = min(len(y) - 1, min_idx + zc_search)
+            crossings = np.where(np.diff(np.sign(y[zc_lo:zc_hi])))[0]
+            if len(crossings) > 0:
+                # Nearest zero-crossing to min-energy point
+                nearest = crossings[np.argmin(np.abs(crossings - (min_idx - zc_lo)))]
+                snap_sample = zc_lo + nearest
+            else:
+                snap_sample = min_idx
+
+            new_t = snap_sample / sr
+            if abs(new_t - t) > 0.001:  # only count if actually moved
+                refined += 1
+            w[key] = round(new_t, 4)
+
+        # Ensure start < end
+        if w["start"] >= w["end"]:
+            w["end"] = w["start"] + 0.05
+
+    if refined > 0:
+        print(f"    [refined] {refined} boundaries snapped to zero-crossings")
+
+    return words
+
+
 def _time_stretch(y, sr, rate):
     """Time-stretch audio. Uses Rubberband (high quality speech) if available,
     falls back to librosa phase vocoder."""
@@ -203,71 +261,99 @@ def _time_stretch(y, sr, rate):
 
 
 def _find_gaps(words, min_gap=0.3):
-    """Find silence gaps between words that likely correspond to sentence/phrase boundaries."""
+    """Find all gaps suitable for pause insertion.
+    Returns gaps with a 'natural' flag — True if the speaker naturally paused
+    there (gap >= 0.5s), False if it's a tight gap where we're inserting
+    a pause that the speaker didn't intend (needs gentler treatment)."""
+    all_inter = []
+    for i in range(1, len(words)):
+        all_inter.append(words[i]["start"] - words[i-1]["end"])
+
+    if not all_inter:
+        return []
+
+    median = sorted(all_inter)[len(all_inter) // 2]
+
     gaps = []
     for i in range(1, len(words)):
         gap = words[i]["start"] - words[i-1]["end"]
         if gap >= min_gap:
+            # Natural phrase boundary: speaker paused >= 0.5s or gap is 2x+ median
+            natural = gap >= 0.5 or gap >= median * 2.5
             gaps.append({
                 "after_word_idx": i - 1,
                 "gap_start": words[i-1]["end"],
                 "gap_end": words[i]["start"],
                 "original_gap": gap,
+                "natural": natural,
             })
     return gaps
 
 
 def _insert_pauses(y, sr, words, gaps, opts):
-    """Insert or extend silence at sentence boundaries.
-
-    Works in reverse order so sample indices stay valid.
-    Crossfades with existing audio at splice points to avoid clicks.
+    """Insert silence at boundaries. Uses different fade profiles:
+    - Natural gaps (speaker paused): tight 40ms crossfades
+    - Tight gaps (inserted pause): longer 120ms fade-out to simulate phrase ending
     """
     min_pause = opts["min_sentence_pause"]
     max_pause = opts["max_sentence_pause"]
     scale = opts["pause_scale"]
-    xfade_ms = 30  # crossfade duration in ms
-    xfade_samples = int(xfade_ms / 1000 * sr)
 
     pause_info = []
 
     for gap in reversed(gaps):
         current_gap = gap["original_gap"]
-        desired = min(max_pause, max(min_pause, current_gap * scale * 1.5))
+        natural = gap.get("natural", True)
+
+        # For tight (non-natural) gaps, add less silence — just enough breathing room
+        if natural:
+            desired = min(max_pause, max(min_pause, current_gap * scale * 1.5))
+        else:
+            # Tight gap: add just 60% of what we'd normally add
+            desired = min(max_pause * 0.6, max(min_pause * 0.7, current_gap * scale * 1.2))
 
         if desired <= current_gap:
-            continue  # already long enough
+            continue
 
         add_secs = desired - current_gap
         add_samples = int(add_secs * sr)
 
-        # Splice at 30% into the gap (safely past word end, safely before next word)
-        splice_at = int((gap["gap_start"] + gap["original_gap"] * 0.3) * sr)
-        splice_at = max(xfade_samples, min(splice_at, len(y) - xfade_samples))
+        # Splice at center of gap
+        splice_at = int((gap["gap_start"] + gap["original_gap"] * 0.5) * sr)
 
-        # ── Natural fade out (150ms exponential) + silence + natural fade in (80ms) ──
-        fade_out_len = min(int(0.15 * sr), splice_at)
-        fade_in_len = min(int(0.08 * sr), len(y) - splice_at)
+        if natural:
+            # Natural gap: tight 40ms fades (speaker already intended a pause here)
+            xfade = int(0.04 * sr)
+        else:
+            # Tight gap: longer 120ms fade-out to simulate the voice "landing"
+            # This makes the preceding word sound like it was meant to end
+            xfade = int(0.12 * sr)
 
+        splice_at = max(xfade, min(splice_at, len(y) - xfade))
         fill = np.zeros(add_samples)
 
-        # Exponential fade out — mimics voice trailing off naturally
-        before = y[splice_at - fade_out_len:splice_at].copy()
-        fade_out = np.exp(-np.linspace(0, 5, fade_out_len))  # fast exponential
-        fill[:fade_out_len] = before * fade_out
+        # Fade out
+        before = y[splice_at - xfade:splice_at].copy()
+        if natural:
+            fill[:xfade] = before * np.exp(-np.linspace(0, 6, xfade))
+        else:
+            # Gentler fade for tight gaps — cubic ease-out (holds volume longer, drops late)
+            fade = np.linspace(1, 0, xfade)
+            fade = fade * fade * fade  # cubic: stays loud longer, drops near end
+            fill[:xfade] = before * fade
 
-        # Smooth fade in — short linear ramp back into speech
+        # Fade in (always 40ms — the next word should start cleanly)
+        fade_in_len = int(0.04 * sr)
         tail_start = splice_at
         tail_end = min(tail_start + fade_in_len, len(y))
         tail = y[tail_start:tail_end].copy()
         tail_len = tail_end - tail_start
         if tail_len > 0:
-            fade_in = np.linspace(0, 1, tail_len)
-            fade_in = fade_in * fade_in  # quadratic for gentler onset
-            tail *= fade_in
+            ramp = np.linspace(0, 1, tail_len)
+            tail *= ramp * ramp
 
         y = np.concatenate([
-            y[:splice_at - fade_out_len],
+            y[:splice_at - xfade],
             fill,
             tail,
             y[tail_end:],
@@ -362,12 +448,16 @@ def _boost_words(y, sr, words, word_indices, db):
         if end_s > start_s and end_s <= len(y):
             regions.append((start_s, end_s))
 
-    # Apply one smooth envelope per region — single continuous curve, no flat section
+    # Tight ramps — boundaries are precise, no need for full-length sine hump
     for start_s, end_s in regions:
         seg_len = end_s - start_s
-        # Full-length smooth hump: rises to gain at center, falls back to 1 at edges
-        t = np.linspace(0, np.pi, seg_len)
-        envelope = 1 + (gain - 1) * np.sin(t)  # sine hump: 1 → gain → 1
+        fade = min(int(0.03 * sr), seg_len // 4)  # 30ms ramp
+        envelope = np.ones(seg_len) * gain
+        if fade > 1:
+            ramp = np.linspace(0, 1, fade)
+            ramp = ramp * ramp * (3 - 2 * ramp)  # smoothstep
+            envelope[:fade] = 1 + (gain - 1) * ramp
+            envelope[-fade:] = 1 + (gain - 1) * ramp[::-1]
         y[start_s:end_s] *= envelope
 
     return y
@@ -431,19 +521,19 @@ def _add_reverb_tails(y, sr, words, opts):
     # ── Build envelope ──
     envelope = np.zeros(len(y))
     reverb_regions = []
-    ramp_up = int(1.2 * sr)      # 1.2s gradual fade-in through end of phrase
+    ramp_up = int(0.4 * sr)      # 400ms fade-in — precise boundaries mean we can start closer
     decay_samples = int(decay_time * sr)
 
     for word_end, next_start in phrase_ends:
         if word_end >= len(y):
             continue
 
-        # Ramp up: last 200ms of phrase → smooth quadratic rise to peak
+        # Ramp up: last 400ms of phrase → peaks right at word end
         ramp_start = max(0, word_end - ramp_up)
         ramp_len = word_end - ramp_start
         if ramp_len > 0:
             t_ramp = np.linspace(0, 1, ramp_len)
-            ramp_vals = t_ramp * t_ramp * t_ramp  # cubic ease-in — stays subtle, peaks late
+            ramp_vals = t_ramp * t_ramp  # quadratic — smooth but not as drawn out
             region = slice(ramp_start, word_end)
             envelope[region] = np.maximum(envelope[region], ramp_vals)
 
@@ -468,51 +558,55 @@ def _add_reverb_tails(y, sr, words, opts):
 
 
 def _master(y, sr):
-    """Final mastering pass — compression, EQ, normalization.
-    Smooths out level differences and cleans up the signal after all effects."""
+    """Final mastering pass — gentle cleanup, not aggressive processing.
+    For hypnosis audio we want warmth, not loudness."""
 
-    # 1. High-pass filter at 80Hz — remove sub-bass rumble from processing
-    if HAS_SCIPY:
-        from scipy.signal import butter, sosfilt
-        sos_hp = butter(2, 80, btype='high', fs=sr, output='sos')
-        y = sosfilt(sos_hp, y)
+    if not HAS_SCIPY:
+        # Fallback: just normalize
+        peak = np.max(np.abs(y))
+        if peak > 0:
+            y = y / peak * 0.88
+        return y
 
-    # 2. Gentle compression — even out loud/quiet parts
-    # Simple RMS-based compressor
-    threshold = 0.15   # compress above this RMS level
-    ratio = 3.0        # 3:1 ratio
-    window = int(0.05 * sr)  # 50ms RMS window
+    from scipy.signal import butter, sosfilt
+
+    # 1. Very gentle high-pass at 35Hz — only remove DC rumble, keep bass warmth
+    sos_hp = butter(1, 35, btype='high', fs=sr, output='sos')
+    y = sosfilt(sos_hp, y)
+
+    # 2. Light compression — just tame the loudest peaks
+    threshold = 0.2    # only compress above this RMS level
+    ratio = 2.0        # gentle 2:1 ratio
+    window = int(0.08 * sr)  # 80ms RMS window
 
     if len(y) > window:
-        # Compute RMS envelope
         y_sq = y ** 2
         rms = np.sqrt(np.convolve(y_sq, np.ones(window) / window, mode='same'))
         rms = np.maximum(rms, 1e-10)
 
-        # Compute gain reduction
         gain = np.ones_like(rms)
         above = rms > threshold
         gain[above] = threshold + (rms[above] - threshold) / ratio
         gain[above] /= rms[above]
 
-        # Smooth gain changes (10ms attack, 100ms release)
         from scipy.ndimage import uniform_filter1d
-        gain = uniform_filter1d(gain, int(0.05 * sr))
-
+        gain = uniform_filter1d(gain, int(0.08 * sr))
         y = y * gain
 
-    # 3. Presence boost — gentle +2dB around 3kHz for voice clarity
-    if HAS_SCIPY:
-        from scipy.signal import butter, sosfilt
-        # Bandpass 2-5kHz
-        sos_bp = butter(2, [2000, 5000], btype='band', fs=sr, output='sos')
-        presence = sosfilt(sos_bp, y)
-        y = y + presence * 0.25  # ~+2dB in that band
+    # 3. Subtle presence — very light, just +1dB around 3kHz
+    sos_bp = butter(2, [2500, 4500], btype='band', fs=sr, output='sos')
+    presence = sosfilt(sos_bp, y)
+    y = y + presence * 0.12  # ~+1dB
 
-    # 4. Peak normalize with headroom
+    # 4. De-harsh: gentle cut at 6-8kHz where sibilance lives
+    sos_deharsh = butter(2, [6000, 8000], btype='band', fs=sr, output='sos')
+    harsh = sosfilt(sos_deharsh, y)
+    y = y - harsh * 0.15  # slight reduction
+
+    # 5. Peak normalize with headroom
     peak = np.max(np.abs(y))
     if peak > 0:
-        y = y / peak * 0.92  # -0.7dB headroom
+        y = y / peak * 0.88  # -1.2dB headroom
 
     return y
 
@@ -561,7 +655,7 @@ def _add_whisper_layer(y, sr, words, opts):
     delay_samples = int(0.06 * sr)
     warm = np.concatenate([np.zeros(delay_samples), warm[:-delay_samples]])
 
-    # Speech mask — only during words, with 200ms fade on edges
+    # Speech mask — tight 60ms edges (boundaries are precise)
     mask = np.zeros(len(y))
     for w in words:
         s = int(w["start"] * sr)
@@ -569,7 +663,7 @@ def _add_whisper_layer(y, sr, words, opts):
         mask[s:min(e, len(y))] = 1.0
 
     from scipy.ndimage import uniform_filter1d
-    mask = uniform_filter1d(mask.astype(float), int(0.2 * sr))
+    mask = uniform_filter1d(mask.astype(float), int(0.06 * sr))
 
     y = y + warm[:len(y)] * mask * volume
 

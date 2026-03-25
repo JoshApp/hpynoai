@@ -89,12 +89,19 @@ export interface SessionStage {
   // Optional fractionation dip: intensity drops to this value briefly
   // before ramping to stage intensity
   fractionationDip?: number;
-  // Optional per-stage ambient sound profile (overrides session defaults)
-  ambient?: Partial<import('./ambient').AmbientProfile>;
+  // Optional per-stage ambient sound overrides
+  ambient?: {
+    padLevel?: number;
+    noiseLevel?: number;
+    melodyLevel?: number;
+    filterMax?: number;
+    warmth?: number;
+    padType?: OscillatorType;
+  };
   // Seconds of silence after this stage (ambient-only interlude)
   interlude?: number;
-  // Optional ambient profile during the interlude (defaults to stage ambient)
-  interludeAmbient?: Partial<import('./ambient').AmbientProfile>;
+  // Optional ambient profile during the interlude
+  interludeAmbient?: SessionStage['ambient'];
 }
 
 // ── Block-based timeline types ──────────────────────────────────

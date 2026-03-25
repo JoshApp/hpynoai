@@ -18,21 +18,24 @@ export class DroneLayer implements AudioLayer {
   private currentNote = 'C2';
 
   constructor() {
+    // Deep, evolving drone — singing bowl / bowed glass character
+    // Low harmonicity = smooth fundamental, modIndex LFO creates timbral movement
     this.synth = new Tone.FMSynth({
-      harmonicity: 2,
-      modulationIndex: 3,
+      harmonicity: 1,
+      modulationIndex: 2,
       oscillator: { type: 'sine' },
-      modulation: { type: 'triangle' },
-      envelope: { attack: 5, decay: 2, sustain: 1, release: 10 },
-      modulationEnvelope: { attack: 4, decay: 1, sustain: 0.8, release: 8 },
+      modulation: { type: 'sine' },
+      envelope: { attack: 8, decay: 3, sustain: 1, release: 15 },
+      modulationEnvelope: { attack: 6, decay: 2, sustain: 0.7, release: 10 },
     });
-    this.synth.volume.value = -8;
+    this.synth.volume.value = -6;
 
     this.gain = new Tone.Gain(0);
     this.synth.connect(this.gain);
 
-    // Slow LFO on modulation index for timbral evolution
-    this.lfo = new Tone.LFO({ frequency: 0.02, min: 1, max: 5, type: 'sine' });
+    // Very slow LFO — timbral evolution over 50+ seconds
+    // Feels like the tone is alive, not static
+    this.lfo = new Tone.LFO({ frequency: 0.015, min: 0.5, max: 4, type: 'sine' });
     this.lfo.connect(this.synth.modulationIndex);
   }
 

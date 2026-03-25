@@ -274,9 +274,11 @@ export class Text3D {
       return;
     }
 
-    // Apply opacity + breath modulation
-    const breathMod = 0.7 + breathPulse * 0.3;
-    const finalOpacity = Math.min(0.85, this.opacity * breathMod);
+    // Breath modulation — strong for cue (breathing labels pulse), subtle for text
+    const breathMod = this.activeStyle === 'cue'
+      ? 0.6 + breathPulse * 0.4   // cue: 60-100% (visible pulse)
+      : 0.9 + breathPulse * 0.1;  // narration/prompt: 90-100% (barely noticeable)
+    const finalOpacity = Math.min(0.95, this.opacity * breathMod);
     for (const sprite of this.sprites) {
       (sprite.material as THREE.SpriteMaterial).opacity = finalOpacity;
     }
@@ -323,33 +325,35 @@ export class Text3D {
       this.targetOpacity = 0;
     }
 
-    // Word changed — redraw sprite, trigger punch
+    // Word changed — redraw sprite, trigger gentle scale punch
     if (activeWord && activeWord !== this.focusCurrentWord) {
       this.focusCurrentWord = activeWord;
       this.renderFocusWord(sprite, activeWord);
       this.targetOpacity = 1;
-      this.focusScalePunch = 1;
+      this.focusScalePunch = 0.6; // subtler punch than before
     }
 
-    // Decay punch
-    this.focusScalePunch *= 0.88;
-    if (this.focusScalePunch < 0.01) this.focusScalePunch = 0;
+    // Decay punch (slower settle for elegance)
+    this.focusScalePunch *= 0.92;
+    if (this.focusScalePunch < 0.005) this.focusScalePunch = 0;
 
-    // Smooth opacity
-    this.opacity += (this.targetOpacity - this.opacity) * 0.15;
+    // Smooth opacity — faster fade in, slower fade out
+    const opacitySpeed = this.targetOpacity > this.opacity ? 0.2 : 0.08;
+    this.opacity += (this.targetOpacity - this.opacity) * opacitySpeed;
 
-    const breathMod = 0.8 + breathPulse * 0.2;
+    // Minimal breath modulation for focus text (words should be steady and readable)
+    const breathMod = 0.92 + breathPulse * 0.08;
     (sprite.material as THREE.SpriteMaterial).opacity =
-      Math.max(0, Math.min(0.85, this.opacity * breathMod));
+      Math.max(0, Math.min(0.95, this.opacity * breathMod));
 
-    // Scale with punch
-    const baseScale = 0.3 * this._settings.scale;
-    const punch = 1 + this.focusScalePunch * 0.08;
+    // Scale with subtle punch
+    const baseScale = 0.32 * this._settings.scale;
+    const punch = 1 + this.focusScalePunch * 0.05; // 5% max, not 8%
     const aspect = this.spriteAspects[0] ?? 1;
     sprite.scale.set(baseScale * aspect * punch, baseScale * punch, 1);
 
-    // Breath Y
-    sprite.position.y = -0.25 + (breathPulse - 0.5) * 0.02;
+    // Position — centered, gentle breath sway
+    sprite.position.y = -0.15 + (breathPulse - 0.5) * 0.015;
 
     // Cleanup when fully faded
     if (this.opacity < 0.01 && this.targetOpacity === 0) {
@@ -380,9 +384,9 @@ export class Text3D {
     ctx.font = FONT;
 
     const metrics = ctx.measureText(text);
-    const pad = FONT_SIZE * 0.6;
+    const pad = FONT_SIZE * 1.2; // larger padding so glow + backdrop don't clip
     canvas.width = Math.ceil(metrics.width + pad * 2);
-    canvas.height = Math.ceil(FONT_SIZE * 2 + pad * 2);
+    canvas.height = Math.ceil(FONT_SIZE * 2.5 + pad * 2);
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.minFilter = THREE.LinearFilter;
@@ -401,22 +405,35 @@ export class Text3D {
     const cx = canvas.width / 2;
     const cy = canvas.height / 2;
 
-    // Dark outline
+    // Dark backdrop for readability against bright tunnel
     ctx.shadowColor = 'transparent';
     ctx.shadowBlur = 0;
-    ctx.globalAlpha = 0.5;
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
-    ctx.lineWidth = 3;
+    ctx.globalAlpha = 0.25;
+    ctx.fillStyle = 'rgba(0, 0, 0, 1)';
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+    ctx.shadowBlur = 30;
+    ctx.fillText(text, cx, cy);
+    ctx.fillText(text, cx, cy); // double pass for stronger backdrop
+
+    // Strong dark outline
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 0.7;
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
+    ctx.lineWidth = 5;
     ctx.lineJoin = 'round';
     ctx.strokeText(text, cx, cy);
 
-    // Glowing fill
+    // Main text with glow
     ctx.shadowColor = this.glowColor;
-    ctx.shadowBlur = 20;
-    ctx.globalAlpha = 0.85;
+    ctx.shadowBlur = 25;
+    ctx.globalAlpha = 0.95;
     ctx.fillStyle = this.textColor;
     ctx.fillText(text, cx, cy);
-    ctx.globalAlpha = 0.3;
+
+    // Extra glow pass
+    ctx.globalAlpha = 0.35;
+    ctx.shadowBlur = 40;
     ctx.fillText(text, cx, cy);
 
     ctx.globalAlpha = 1;
@@ -440,21 +457,23 @@ export class Text3D {
   private scaleForStyle(style: TextStyle): number {
     const base = 0.3 * this._settings.scale;
     switch (style) {
-      case 'cue': return base * 1.2;
+      case 'cue': return base * 1.5;    // breathing labels: large and prominent
+      case 'prompt': return base * 1.1;  // gate prompts: slightly larger
       default: return base;
     }
   }
 
   private zForStyle(style: TextStyle): number {
     switch (style) {
-      case 'cue': return -1.0;
-      case 'focus': return this._settings.endZ - 0.15;
-      default: return this._settings.endZ - 0.3;
+      case 'cue': return -0.85;          // breathing labels: close, center stage
+      case 'focus': return this._settings.endZ - 0.1;
+      default: return this._settings.endZ - 0.2;
     }
   }
 
   private positionLines(breathY = 0): void {
-    const baseY = -0.2;
+    // Y position varies by style — cue text centered, narration slightly lower
+    const baseY = this.activeStyle === 'cue' ? -0.05 : -0.15;
     const spacing = 0.12;
     const hasTwo = this.sprites.length === 2;
     const offset = hasTwo ? spacing / 2 : 0;

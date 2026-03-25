@@ -44,9 +44,13 @@ with open("scripts/relax.json") as f:
     config = json.load(f)
 stage_configs = config.get("stages", {})
 
-# Load original manifest for slice info
+# Load original manifest for reference
 with open(MANIFEST_SRC) as f:
     orig_manifest = json.load(f)
+
+# Parse the script for current slice structure and interaction markers
+SCRIPT_PATH = "scripts/relax.txt"
+script_stages = gs.parse_script(SCRIPT_PATH)
 
 # ── CMD words from the new script ──
 # These are the embedded commands we want emphasized
@@ -109,9 +113,11 @@ def main():
         print(f"Stage: {stage_name}")
         print(f"{'='*50}")
 
-        # Step 1: Transcribe raw audio
-        print("  [1/4] Transcribe raw audio...")
-        words = transcribe(raw_path, WHISPER_MODEL)
+        # Step 1: Transcribe raw audio (with known script text for constrained alignment)
+        script_stage = next((s for s in script_stages if s['name'] == stage_name), None)
+        known_text = " ".join(script_stage['slices']) if script_stage else None
+        print(f"  [1/4] Transcribe raw audio{' (script-constrained)' if known_text else ''}...")
+        words = transcribe(raw_path, WHISPER_MODEL, known_text=known_text)
         print(f"         {len(words)} words")
 
         # Step 2: Build post-processing options
@@ -214,11 +220,11 @@ def main():
         if os.path.exists(processed_path) and processed_path != raw_path:
             os.remove(processed_path)
 
-        # Build manifest entry from original (keep slice structure, update timestamps)
-        orig_stage = next((s for s in orig_manifest["stages"] if s["name"] == stage_name), None)
-        if orig_stage:
-            # Re-slice using new word timestamps
-            slices = [line["text"] for line in orig_stage["lines"]]
+        # Build manifest entry — use SCRIPT for slice structure (not old manifest)
+        script_stage = next((s for s in script_stages if s['name'] == stage_name), None)
+        if script_stage:
+            slices = script_stage['slices']
+            slice_types = script_stage['slice_types']
             cuts = gs.find_cuts(words, slices)
 
             lines = []
@@ -232,10 +238,10 @@ def main():
                     }
                     if ct.get("words"):
                         entry["words"] = ct["words"]
-                    # Preserve interaction type from original
-                    orig_line = next((l for l in orig_stage["lines"] if l["text"] == ct["text"]), None)
-                    if orig_line and orig_line.get("type"):
-                        entry["type"] = orig_line["type"]
+                    # Interaction type from script markers
+                    si = ct["index"]
+                    if si < len(slice_types) and slice_types[si] != 'narration':
+                        entry["type"] = slice_types[si]
                     lines.append(entry)
 
             stage_manifest = {

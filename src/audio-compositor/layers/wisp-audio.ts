@@ -21,18 +21,20 @@ export class WispAudioLayer implements AudioLayer {
   private volume = 0.1;
 
   constructor() {
-    // Ethereal high tone — quiet, crystalline
+    // Wisp presence — ethereal, glass harmonic character
+    // harmonicity 4 = musical overtone series (not harsh)
+    // Very low modIndex = mostly pure with subtle shimmer
     this.osc = new Tone.FMSynth({
-      harmonicity: 8,
-      modulationIndex: 4,
+      harmonicity: 4,
+      modulationIndex: 1.5,
       oscillator: { type: 'sine' },
       modulation: { type: 'sine' },
-      envelope: { attack: 3, decay: 1, sustain: 0.8, release: 5 },
-      modulationEnvelope: { attack: 2, decay: 0.5, sustain: 0.6, release: 3 },
+      envelope: { attack: 5, decay: 2, sustain: 0.7, release: 8 },
+      modulationEnvelope: { attack: 3, decay: 1, sustain: 0.4, release: 5 },
     });
-    this.osc.volume.value = -18;
+    this.osc.volume.value = -22; // very quiet — felt more than heard
 
-    this.filter = new Tone.Filter({ frequency: 2000, type: 'lowpass', Q: 1 });
+    this.filter = new Tone.Filter({ frequency: 3000, type: 'lowpass', Q: 0.5 });
 
     // 3D panner — follows wisp position
     this.panner = new Tone.Panner3D({

@@ -208,28 +208,84 @@ def wav_duration(path):
         return w.getnframes() / float(w.getframerate())
 
 
-# ── Transcription (faster-whisper preferred, falls back to openai whisper) ──
+# ── Transcription — WhisperX (forced alignment) > faster-whisper > whisper ──
 
+_wx_model = None
+_wx_align_model = None
+_wx_align_meta = None
 _fw_model = None
 _whisper_model = None
 
-def transcribe(audio_path, model_size="base"):
+def transcribe(audio_path, model_size="base", known_text=None):
     """Transcribe with word-level timestamps.
-    Tries faster-whisper first (4x faster, same accuracy), falls back to openai whisper."""
+    If known_text is provided, uses script-constrained alignment (most accurate).
+    Priority: WhisperX (forced alignment) > faster-whisper > openai whisper."""
 
-    # Try faster-whisper
+    # WhisperX — phoneme-level forced alignment (best precision)
+    try:
+        return _transcribe_whisperx(audio_path, model_size, known_text=known_text)
+    except ImportError:
+        pass
+    except Exception as e:
+        print(f"    whisperx failed ({e}), trying faster-whisper")
+
+    # faster-whisper — fast, decent timestamps
     try:
         return _transcribe_faster_whisper(audio_path, model_size)
     except ImportError:
         pass
     except Exception as e:
-        print(f"    faster-whisper failed ({e}), falling back to whisper")
+        print(f"    faster-whisper failed ({e}), trying whisper")
 
-    # Fallback: openai whisper
+    # openai whisper — fallback
     try:
         return _transcribe_whisper(audio_path, model_size)
     except ImportError:
         return None
+
+
+def _transcribe_whisperx(audio_path, model_size="base", known_text=None):
+    global _wx_model, _wx_align_model, _wx_align_meta
+    import whisperx
+    import torch
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    compute_type = "float16" if device == "cuda" else "int8"
+
+    audio = whisperx.load_audio(audio_path)
+
+    if known_text:
+        # Script-constrained alignment: skip transcription, align known text directly
+        # Build a single segment with our known text
+        segments = [{"text": known_text, "start": 0.0, "end": len(audio) / 16000}]
+    else:
+        # Normal: transcribe first, then align
+        if _wx_model is None:
+            _wx_model = whisperx.load_model(model_size, device, compute_type=compute_type)
+        result = _wx_model.transcribe(audio, batch_size=16)
+        segments = result["segments"]
+
+    # Forced alignment — phoneme-level precision
+    if _wx_align_model is None:
+        _wx_align_model, _wx_align_meta = whisperx.load_align_model(
+            language_code="en", device=device
+        )
+    result = whisperx.align(segments, _wx_align_model, _wx_align_meta, audio, device)
+
+    words = []
+    for seg in result.get("segments", []):
+        for w in seg.get("words", []):
+            if "start" in w and "end" in w:
+                words.append({
+                    "word": w["word"].strip(),
+                    "start": round(w["start"], 3),
+                    "end": round(w["end"], 3),
+                })
+
+    mode = "script-constrained" if known_text else "forced-aligned"
+    if words:
+        print(f"    [whisperx {mode}] {len(words)} words")
+    return words if words else None
 
 
 def _transcribe_faster_whisper(audio_path, model_size="base"):
@@ -473,6 +529,27 @@ def generate_session_config(manifest, script_path, stages):
         interlude = stage.get("interlude", 0)
         if interlude > 0:
             config_lines.append(f"  '{stage['name']}': {interlude},")
+    config_lines.append("};")
+
+    # Export interaction timings derived from audio
+    config_lines.append("")
+    config_lines.append("// Interaction trigger times from audio timestamps")
+    config_lines.append("export const stageInteractionTimings: Record<string, Array<{ type: string; triggerAt: number; text: string }>> = {")
+    for stage in manifest["stages"]:
+        timings = []
+        for line in stage["lines"]:
+            if line.get("type") == "breath-sync":
+                # Trigger breathing after the instruction line finishes
+                timings.append({"type": "breath-sync", "triggerAt": round(line["endTime"]), "text": line["text"]})
+            elif line.get("type") == "gate":
+                # Trigger gate when the prompt starts speaking
+                timings.append({"type": "gate", "triggerAt": round(line["startTime"]), "text": line["text"]})
+        if timings:
+            config_lines.append(f"  '{stage['name']}': [")
+            for t in timings:
+                escaped = t['text'][:60].replace("\\", "\\\\").replace("'", "\\'")
+                config_lines.append(f"    {{ type: '{t['type']}', triggerAt: {t['triggerAt']}, text: '{escaped}...' }},")
+            config_lines.append("  ],")
     config_lines.append("};")
 
     out_path = os.path.join("src", "sessions", f"{session_id}-texts.ts")

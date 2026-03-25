@@ -122,7 +122,6 @@ export class InputController {
     const onMouseMove = (e: MouseEvent) => {
       this.pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
       this.pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
-      this.bus.emit('input:pointer-move', { x: this.pointer.x, y: this.pointer.y });
     };
 
     const onClick = (e: MouseEvent) => {
@@ -177,7 +176,6 @@ export class InputController {
       const t = e.touches[0];
       this.pointer.x = (t.clientX / window.innerWidth) * 2 - 1;
       this.pointer.y = -(t.clientY / window.innerHeight) * 2 + 1;
-      this.bus.emit('input:pointer-move', { x: this.pointer.x, y: this.pointer.y });
     };
 
     const onTouchEnd = (e: TouchEvent) => {
@@ -193,14 +191,12 @@ export class InputController {
       // Swipe detection
       if (Math.abs(dx) > SWIPE_THRESHOLD && Math.abs(dx) > Math.abs(dy)) {
         const dir = dx < 0 ? 'left' : 'right';
-        this.bus.emit('input:swipe', { direction: dir, dx, dy });
         // Swipe left = navigate right, swipe right = navigate left
         this.bus.emit(dir === 'left' ? 'input:right' : 'input:left', {});
         return;
       }
       if (Math.abs(dy) > SWIPE_THRESHOLD && Math.abs(dy) > Math.abs(dx)) {
         const dir = dy < 0 ? 'up' : 'down';
-        this.bus.emit('input:swipe', { direction: dir, dx, dy });
         return;
       }
 

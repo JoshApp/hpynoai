@@ -106,27 +106,31 @@ export class SequencerActor implements AudioLayer {
   constructor(seed: number) {
     this.rng = createRNG(seed);
 
-    // Melody — bell-like FM
+    // Melody — ethereal bell/kalimba character
+    // harmonicity 3.5 gives metallic-but-musical overtones (between pure bell and harsh)
+    // Slow attack + long release = notes bloom and linger
     this.melodySynth = new Tone.FMSynth({
-      harmonicity: 5,
-      modulationIndex: 6,
+      harmonicity: 3.5,
+      modulationIndex: 4,
       oscillator: { type: 'sine' },
-      modulation: { type: 'sine' },
-      envelope: { attack: 1.2, decay: 0.5, sustain: 0.5, release: 4 },
-      modulationEnvelope: { attack: 0.8, decay: 0.2, sustain: 0.4, release: 3 },
+      modulation: { type: 'triangle' },
+      envelope: { attack: 1.5, decay: 1, sustain: 0.4, release: 6 },
+      modulationEnvelope: { attack: 1, decay: 0.5, sustain: 0.3, release: 4 },
     });
-    this.melodySynth.volume.value = -8;
+    this.melodySynth.volume.value = -10;
 
-    // Shimmer — high, quiet, sparkly
+    // Shimmer — crystalline, glass-like
+    // High harmonicity + high modIndex = inharmonic sparkle
+    // Very short attack = percussive ping, long release = hangs in reverb
     this.shimmerSynth = new Tone.FMSynth({
-      harmonicity: 8,
-      modulationIndex: 12,
+      harmonicity: 7,
+      modulationIndex: 10,
       oscillator: { type: 'sine' },
       modulation: { type: 'sine' },
-      envelope: { attack: 0.3, decay: 0.2, sustain: 0.3, release: 5 },
-      modulationEnvelope: { attack: 0.2, decay: 0.1, sustain: 0.2, release: 3 },
+      envelope: { attack: 0.05, decay: 0.3, sustain: 0.15, release: 7 },
+      modulationEnvelope: { attack: 0.03, decay: 0.1, sustain: 0.1, release: 4 },
     });
-    this.shimmerSynth.volume.value = -14;
+    this.shimmerSynth.volume.value = -16;
 
     this.gain = new Tone.Gain(0);
     this.shimmerGain = new Tone.Gain(0);

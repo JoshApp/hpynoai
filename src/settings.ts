@@ -491,6 +491,13 @@ export class SettingsManager {
     return this.visible;
   }
 
+  /** Show/hide the floating mute + gear buttons */
+  setButtonVisibility(visible: boolean): void {
+    const display = visible ? '' : 'none';
+    this.muteBtn.style.display = display;
+    this.gearBtn.style.display = display;
+  }
+
   destroy(): void {
     this.panel.remove();
     this.muteBtn.remove();
