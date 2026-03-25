@@ -131,11 +131,22 @@ async function loadSession(id) {
   stageEffects = {};
   stageWaveforms = {};
   for (const stage of manifest.stages) {
-    const fname = stage.file.split('/').pop().replace('.mp3','').replace('.wav','');
-    try {
-      const r = await fetch(`audio/${id}/${fname}.effects.json`);
-      if (r.ok) stageEffects[stage.name] = await r.json();
-    } catch {}
+    // Derive effects data from manifest word timestamps (no separate effects file needed)
+    const fx = { pauses_inserted: [], cmd_words: [], reverb_regions: [], speed: 1, whisper_layer: false };
+    const allWords = [];
+    for (const line of stage.lines) {
+      for (const w of (line.words || [])) {
+        allWords.push({ start: line.startTime + w.start, end: line.startTime + w.end, word: w.word });
+      }
+    }
+    // Detect pauses: gaps > 1.5s between words
+    for (let i = 1; i < allWords.length; i++) {
+      const gap = allWords[i].start - allWords[i-1].end;
+      if (gap > 1.5) {
+        fx.pauses_inserted.push({ at: allWords[i-1].end, duration: gap });
+      }
+    }
+    stageEffects[stage.name] = fx;
     // Load waveform data
     try {
       const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -207,11 +218,12 @@ function render() {
 
     div.appendChild(wrap);
 
-    // Click to seek
+    // Click to seek — use CSS width (not canvas.width which includes DPR)
     wrap.addEventListener('click', (e) => {
       const rect = canvas.getBoundingClientRect();
       const x = e.clientX - rect.left + wrap.scrollLeft;
-      const pct = x / canvas.width;
+      const cssWidth = parseFloat(canvas.style.width);
+      const pct = x / cssWidth;
       playStage(si, pct * stage.duration);
     });
 
@@ -219,7 +231,8 @@ function render() {
     wrap.addEventListener('mousemove', (e) => {
       const rect = canvas.getBoundingClientRect();
       const x = e.clientX - rect.left + wrap.scrollLeft;
-      const t = (x / canvas.width) * stage.duration;
+      const cssWidth = parseFloat(canvas.style.width);
+      const t = (x / cssWidth) * stage.duration;
       hoverTime.textContent = `${t.toFixed(2)}s`;
       hoverTime.style.left = `${e.clientX - rect.left + 4}px`;
       hoverTime.style.display = 'block';

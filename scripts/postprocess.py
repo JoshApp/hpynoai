@@ -260,11 +260,16 @@ def _time_stretch(y, sr, rate):
         return librosa.effects.time_stretch(y, rate=rate)
 
 
-def _find_gaps(words, min_gap=0.3):
-    """Find all gaps suitable for pause insertion.
-    Returns gaps with a 'natural' flag — True if the speaker naturally paused
-    there (gap >= 0.5s), False if it's a tight gap where we're inserting
-    a pause that the speaker didn't intend (needs gentler treatment)."""
+def _find_gaps(words, min_gap=0.4):
+    """Find phrase boundaries — gaps where the speaker actually paused.
+
+    Only returns gaps clearly longer than normal word spacing. Uses the
+    median inter-word gap as a baseline: a gap must be at least 1.8x the
+    median to be considered a phrase boundary worth expanding.
+
+    This prevents tiny inter-word gaps (0.3s after time-stretch) from being
+    expanded into full pauses, which makes flowing speech sound chopped.
+    """
     all_inter = []
     for i in range(1, len(words)):
         all_inter.append(words[i]["start"] - words[i-1]["end"])
@@ -273,13 +278,15 @@ def _find_gaps(words, min_gap=0.3):
         return []
 
     median = sorted(all_inter)[len(all_inter) // 2]
+    # Threshold: must be clearly above normal word spacing
+    threshold = max(min_gap, median * 1.8)
 
     gaps = []
     for i in range(1, len(words)):
         gap = words[i]["start"] - words[i-1]["end"]
-        if gap >= min_gap:
-            # Natural: speaker intentionally paused (large absolute or relative gap)
-            natural = gap >= 0.5 or gap >= median * 2.5
+        if gap >= threshold:
+            # Natural: speaker clearly paused (large gap, not just slightly above threshold)
+            natural = gap >= 0.5 or gap >= median * 3
             gaps.append({
                 "after_word_idx": i - 1,
                 "gap_start": words[i-1]["end"],
