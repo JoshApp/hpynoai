@@ -889,20 +889,16 @@ def main():
             words = result["whisper_words"]
             stage_dur = result["duration"]
 
-            # Re-transcribe processed audio for potentially better boundaries.
-            # For sparse stages (< 1 word/sec), the postprocessor's shifted timestamps
-            # are more accurate — re-transcription compresses silence.
-            words_per_sec = len(words) / max(stage_dur, 1)
-            if words_per_sec < 1.0:
-                print(f"  sparse stage ({words_per_sec:.1f} words/s) — keeping postprocessor timestamps")
+            # Re-transcribe processed audio WITHOUT known_text constraint.
+            # The pauses are baked in — unconstrained Whisper detects the real gaps.
+            # (Constrained alignment forces words close together, ignoring silence.)
+            print(f"  re-transcribe (unconstrained)...", end=" ", flush=True)
+            new_words = transcribe(stage_public, args.whisper_model)
+            if new_words:
+                words = new_words
+                print(f"{len(words)} words (updated)")
             else:
-                print(f"  re-transcribe...", end=" ", flush=True)
-                new_words = transcribe(stage_public, args.whisper_model, known_text=known_text)
-                if new_words and len(new_words) >= len(words):
-                    words = new_words
-                    print(f"{len(words)} words (updated)")
-                else:
-                    print(f"kept postprocessor timestamps ({len(words)} words)")
+                print(f"kept postprocessor timestamps ({len(words)} words)")
         else:
             # No post-processing — just copy raw to public
             if os.path.abspath(stage_path) != os.path.abspath(stage_public):
