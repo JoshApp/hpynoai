@@ -5,6 +5,25 @@ import type { ExperienceLevel } from './experience-level';
 import { LEVEL_LABELS } from './experience-level';
 import type { EventBus } from './events';
 
+/** Minimal session data needed for the carousel. Both SessionConfig and SessionSummary satisfy this. */
+export interface SelectorSession {
+  id: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  contentWarning?: string | null;
+  theme: {
+    primaryColor: [number, number, number];
+    secondaryColor: [number, number, number];
+    accentColor: [number, number, number];
+    bgColor: [number, number, number];
+    particleColor: [number, number, number];
+    textColor: string;
+    textGlow: string;
+    tunnelShape?: number;
+  };
+}
+
 /**
  * Immersive 3D session selector — the landing IS the experience.
  *
@@ -13,8 +32,8 @@ import type { EventBus } from './events';
  */
 export class SessionSelector {
   private group: THREE.Group;
-  private onSelect: (session: SessionConfig) => void;
-  private sessions: SessionConfig[];
+  private onSelect: (session: SelectorSession) => void;
+  private sessions: SelectorSession[];
   private scene: THREE.Scene;
   private camera: THREE.Camera;
   private canvas: HTMLCanvasElement;
@@ -41,11 +60,11 @@ export class SessionSelector {
   private _setExperienceLevel: ((level: ExperienceLevel) => void) | null = null;
   private _setPresenceTarget: ((x: number, y: number, z: number) => void) | null = null;
   private _pulsePresence: (() => void) | null = null;
-  private _onSessionPreview: ((session: import('./session').SessionConfig) => void) | null = null;
+  private _onSessionPreview: ((session: SelectorSession) => void) | null = null;
 
   constructor(
-    sessions: SessionConfig[],
-    onSelect: (session: SessionConfig) => void,
+    sessions: SelectorSession[],
+    onSelect: (session: SelectorSession) => void,
     scene: THREE.Scene,
     camera: THREE.Camera,
     canvas: HTMLCanvasElement,
@@ -71,7 +90,7 @@ export class SessionSelector {
     this._setThemeColors = setter;
   }
 
-  setAudioPreview(fn: (session: import('./session').SessionConfig) => void): void {
+  setAudioPreview(fn: (session: SelectorSession) => void): void {
     this._onSessionPreview = fn;
   }
 
@@ -556,7 +575,7 @@ export class SessionSelector {
     return sprite;
   }
 
-  private showDescription(session: SessionConfig): void {
+  private showDescription(session: SelectorSession): void {
     if (this.descSprite) {
       this.animateOut(this.descSprite, 200);
       this.descSprite = null;
@@ -569,7 +588,7 @@ export class SessionSelector {
     if (!session) return;
 
     // Short description — first sentence, trimmed
-    let desc = session.description.split('.')[0];
+    let desc = (session.description ?? '').split('.')[0];
     if (desc.length > 55) desc = desc.split(/\s+/).slice(0, 8).join(' ') + '…';
 
     const sprite = this.addSprite(desc, {
@@ -578,10 +597,12 @@ export class SessionSelector {
     this.descSprite = sprite;
     this.animateIn(sprite, 350);
 
-    // Duration + stage count info line
-    const totalDur = session.stages.reduce((sum, s) => sum + s.duration, 0);
+    // Duration + stage count info line (if available)
+    const stages = (session as any).stages;
+    if (!stages) return;
+    const totalDur = stages.reduce((sum: number, s: any) => sum + (s.duration ?? 0), 0);
     const mins = Math.ceil(totalDur / 60);
-    const stageCount = session.stages.length;
+    const stageCount = stages.length;
     const infoText = `${mins} min  ·  ${stageCount} stages`;
 
     const info = this.addSprite(infoText, {

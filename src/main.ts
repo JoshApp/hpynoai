@@ -15,6 +15,7 @@ import { PlaybackControls } from './playback-controls';
 import { DevMode } from './devmode';
 import { InteractionManager } from './interactions';
 import { sessions } from './sessions/index';
+import { sessionStore } from './session-store';
 import { MicrophoneEngine } from './microphone';
 import { NarrationEngine } from './narration';
 import type { SessionConfig } from './session';
@@ -361,13 +362,21 @@ function renderLoop(): void {
 // BOOT — enter the initial screen
 // ══════════════════════════════════════════════════════════════════════
 async function boot(): Promise<void> {
+  // Load session store index (non-blocking — selector can still use hardcoded fallback)
+  sessionStore.loadIndex().catch(() => {});
+
+  // Also register hardcoded sessions in the store cache for backward compat
+  for (const s of sessions) sessionStore.register(s);
+
   const { SessionSelectorScreen } = await import('./screens/session-selector');
   const { SessionScreen } = await import('./screens/session');
 
   if (isHMR && appState.phase === 'session') {
     // HMR restore — restart session at saved position
     const savedId = hotState.activeSessionId;
-    const session = savedId ? sessions.find(s => s.id === savedId) : null;
+    const session = savedId
+      ? (sessionStore.getCached(savedId) ?? sessions.find(s => s.id === savedId) ?? null)
+      : null;
     if (session) {
       screenManager.enterImmediate(new SessionScreen(session));
       if (hotState.timelinePosition > 0) {

@@ -8,8 +8,8 @@
 import type { Screen, ScreenContext } from '../screen';
 import type { AudioPreset } from '../audio-compositor';
 import type { SessionConfig } from '../session';
-import { SessionSelector } from '../selector';
-import { sessions } from '../sessions/index';
+import { SessionSelector, type SelectorSession } from '../selector';
+import { sessionStore, type SessionSummary } from '../session-store';
 import {
   resumeAudioFromGesture, ensureAudioCompositor,
   MENU_AUDIO_PRESET, MENU_WHISPER_PRESET, playOpeningTone,
@@ -54,9 +54,12 @@ export class SessionSelectorScreen implements Screen {
     // Start menu audio in background — don't block screen setup
     this.startMenuAudio(ctx).catch(() => {});
 
+    // Build selector sessions from store (runtime) with fallback to hardcoded
+    const selectorSessions = this.buildSelectorSessions();
+
     // Create selector carousel
     this.selector = new SessionSelector(
-      sessions,
+      selectorSessions,
       (session) => this.onSessionSelect(session),
       ctx.overlayScene,
       ctx.camera,
@@ -88,7 +91,7 @@ export class SessionSelectorScreen implements Screen {
       ctx.presenceActor.setColors(colors.c3 as [number, number, number]);
     });
 
-    // Audio preview on session hover
+    // Audio preview on session hover — uses minimal data, no full config needed
     this.selector.setAudioPreview((session) => {
       if (!this.menuAudioStarted) return;
       if (this.previewFadeTimer) { clearTimeout(this.previewFadeTimer); this.previewFadeTimer = null; }
@@ -97,10 +100,10 @@ export class SessionSelectorScreen implements Screen {
       const root = rootNotes[session.id] ?? 48;
 
       ctx.audioCompositor.applyPreset({
-        binaural: { carrierFreq: session.audio.carrierFreq, beatFreq: session.audio.binauralRange[0], volume: 0.15 },
+        binaural: { carrierFreq: 120, beatFreq: 10, volume: 0.15 },
         drone: { rootNote: root - 12, harmonicity: 2, modIndex: 2, volume: 0.1 },
-        pad: { chord: [root, root + 4, root + 7, root + 12], filterMax: 800, warmth: session.audio.warmth, chorusRate: 0.2, volume: 0.12 },
-        noise: { type: session.audio.warmth > 0.7 ? 'brown' : 'pink', filterFreq: 300, volume: 0.05 },
+        pad: { chord: [root, root + 4, root + 7, root + 12], filterMax: 800, warmth: 0.7, chorusRate: 0.2, volume: 0.12 },
+        noise: { type: 'pink', filterFreq: 300, volume: 0.05 },
       } as Partial<AudioPreset>, 1.5);
 
       this.previewFadeTimer = window.setTimeout(() => {
@@ -183,11 +186,57 @@ export class SessionSelectorScreen implements Screen {
     }
   }
 
-  private async onSessionSelect(session: SessionConfig): Promise<void> {
+  private async onSessionSelect(selectorSession: SelectorSession): Promise<void> {
     if (!this.ctx) return;
     resumeAudioFromGesture(this.ctx.audio);
+
+    // Fetch full session config from store
+    let session: SessionConfig | null = null;
+
+    // Try store first
+    session = await sessionStore.getSession(selectorSession.id);
+
+    // Fallback: try hardcoded sessions
+    if (!session) {
+      try {
+        const { sessions } = await import('../sessions/index');
+        session = sessions.find(s => s.id === selectorSession.id) ?? null;
+      } catch { /* no hardcoded sessions */ }
+    }
+
+    if (!session) {
+      log.warn('session-selector', `Failed to load session: ${selectorSession.id}`);
+      return;
+    }
+
     const { SessionScreen } = await import('./session');
-    // No fade — tunnel is already there, just seamlessly reconfigure and start
     this.ctx.screenManager.replace(new SessionScreen(session));
+  }
+
+  private buildSelectorSessions(): SelectorSession[] {
+    // Try store summaries first
+    const summaries = sessionStore.getSummaries();
+    if (summaries.length > 0) {
+      return summaries.map(s => ({
+        id: s.id,
+        name: s.name,
+        description: s.description,
+        icon: s.icon,
+        contentWarning: s.contentWarning,
+        theme: {
+          primaryColor: s.themePreview.primaryColor,
+          secondaryColor: s.themePreview.secondaryColor,
+          accentColor: s.themePreview.accentColor,
+          bgColor: s.themePreview.bgColor,
+          particleColor: s.themePreview.particleColor,
+          textColor: s.themePreview.textColor,
+          textGlow: s.themePreview.textGlow,
+          tunnelShape: 0,
+        },
+      }));
+    }
+
+    // Fallback: empty (hardcoded sessions registered in store cache by main.ts)
+    return [];
   }
 }
