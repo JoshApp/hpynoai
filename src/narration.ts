@@ -331,8 +331,12 @@ export class NarrationEngine {
       }
 
       audio.play().then(() => {
-        // Audio clock binding is now handled by the animate loop's
-        // edge detection (narration.isPlayingStage → timeline.bindAudio)
+        // Notify MediaController — audio is actually playing, bind as clock source
+        if (this._audioReadyHandler) {
+          // blockStart = timeline position where this block begins
+          // The MediaController will call timeline.bindAudio(audio, blockStart)
+          this._audioReadyHandler(audio, 0); // 0 = placeholder, MediaController provides actual blockStart
+        }
       }).catch(() => {
         log.warn('narration', `Stage audio play() rejected: ${stageName}`);
         done('play-rejected');
@@ -401,6 +405,8 @@ export class NarrationEngine {
       this.stageAudio.onended = null;
       this.stageAudio.onerror = null;
       this.stageAudio.pause();
+      // Force-kill: setting src to empty stops any pending playback/buffering
+      try { this.stageAudio.src = ''; this.stageAudio.load(); } catch { /* ok */ }
       this.stageAudio = null;
     }
     if (this.stageMediaSource) {
@@ -805,6 +811,15 @@ export class NarrationEngine {
   private busUnsubs: Array<() => void> = [];
   private bus: EventBus | null = null;
   private currentStageName = '';
+  private _audioReadyHandler: ((audio: HTMLAudioElement, blockStart: number) => void) | null = null;
+
+  /** Get current stage name (for dedup in MediaController) */
+  get stageName(): string { return this.currentStageName; }
+
+  /** Set callback for when stage audio.play() resolves — used by MediaController for audio binding */
+  setAudioReadyHandler(fn: ((audio: HTMLAudioElement, blockStart: number) => void) | null): void {
+    this._audioReadyHandler = fn;
+  }
 
   connectBus(bus: EventBus): void {
     for (const u of this.busUnsubs) u();

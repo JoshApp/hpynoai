@@ -83,6 +83,9 @@ export interface ScreenContext {
   // Interactions
   interactions: InteractionManager;
 
+  // Playback
+  mediaController: import('./media-controller').MediaController;
+
   // UI
   hud: HUD;
   playbackControls: PlaybackControls;

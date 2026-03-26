@@ -85,29 +85,37 @@ export class AudioCompositor {
     }
     log.info('audio-compositor', 'Master gain connected to output');
 
-    // Dry path (always works)
-    this.dryGain = new Tone.Gain(0.5);
+    // Dry path — higher initial gain for audibility
+    this.dryGain = new Tone.Gain(0.6);
     this.dryGain.connect(this.masterGain);
 
-    // Reverb send (optional — may fail on some browsers)
-    this.reverbSend = new Tone.Gain(0.5);
+    // Reverb send — start routed to dry (instant), connect reverb async (non-blocking)
+    this.reverbSend = new Tone.Gain(0.4);
+    this.reverbSend.connect(this.masterGain); // initially goes straight to master
+
+    // Generate reverb impulse in background — doesn't block audio start
     try {
       this.reverb = new Tone.Reverb({
         decay: this.currentPreset.reverb.decay,
         wet: 1,
         preDelay: 0.08,
       });
-      await this.reverb.ready;
-      this.reverbSend.connect(this.reverb);
-      this.reverb.connect(this.masterGain);
-      log.info('audio-compositor', 'Reverb initialized');
-    } catch (e) {
-      // Reverb failed — route reverb send directly to master (no reverb but still audible)
-      log.warn('audio-compositor', 'Reverb init failed, routing dry', e);
-      this.reverbSend.connect(this.masterGain);
+      this.reverb.ready.then(() => {
+        if (this.reverbSend && this.reverb && this.masterGain) {
+          // Reroute: reverbSend → reverb → masterGain (instead of reverbSend → masterGain)
+          this.reverbSend.disconnect();
+          this.reverbSend.connect(this.reverb);
+          this.reverb.connect(this.masterGain);
+          log.info('audio-compositor', 'Reverb connected (async)');
+        }
+      }).catch(() => {
+        log.warn('audio-compositor', 'Reverb generation failed');
+      });
+    } catch {
+      log.warn('audio-compositor', 'Reverb creation failed');
     }
 
-    log.info('audio-compositor', 'Init complete (layers connected on start)');
+    log.info('audio-compositor', 'Init complete (reverb loading async)');
   }
 
   /** Start all layers (call after init, on session start) */
@@ -119,13 +127,18 @@ export class AudioCompositor {
       this.currentPreset = mergePreset(this.currentPreset, preset);
     }
 
-    // Connect + apply preset + start all layers
+    // Start master at 0, fade in slowly (prevents click/pop on start)
+    if (this.masterGain) {
+      this.masterGain.gain.value = 0;
+    }
+
+    // Connect + start all layers with a 2s ramp (not instant)
     for (const layer of this.layers) {
       try {
         if (this.reverbSend && this.dryGain) {
           layer.connect(this.reverbSend, this.dryGain);
         }
-        layer.applyPreset(this.currentPreset, 0);
+        layer.applyPreset(this.currentPreset, 2); // 2s ramp, not 0 — prevents transient spikes
         layer.start();
         log.info('audio-compositor', `Layer started: ${layer.name}`);
       } catch (e) {
@@ -133,8 +146,7 @@ export class AudioCompositor {
       }
     }
 
-    // Fade in master
-    log.info('audio-compositor', `Start: masterGain=${!!this.masterGain}, _userVolume=${this._userVolume}, layers=${this.layers.length}`);
+    // Fade in master over 3s (on top of layer-level 2s ramp = smooth start)
     this.masterGain?.gain.rampTo(this._userVolume, 3);
 
     log.info('audio-compositor', `Started, ramping to ${this._userVolume}`);

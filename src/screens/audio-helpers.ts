@@ -55,8 +55,8 @@ export async function ensureAudioCompositor(
 
 /** Menu ambient preset — quiet, atmospheric */
 export const MENU_AUDIO_PRESET: Partial<AudioPreset> = {
-  binaural: { carrierFreq: 120, beatFreq: 10, volume: 0.15 },
-  drone: { rootNote: 36, harmonicity: 2, modIndex: 2, volume: 0.1 },
+  binaural: { carrierFreq: 120, beatFreq: 10, volume: 0.25 },
+  drone: { rootNote: 36, harmonicity: 2, modIndex: 2, volume: 0.2 },
   pad: { chord: [48, 52, 55, 60], filterMax: 800, warmth: 0.5, chorusRate: 0.2, volume: 0.12 },
   noise: { type: 'pink', filterFreq: 300, volume: 0.05 },
   spatial: { rate: 0.05, depth: 0.3 },

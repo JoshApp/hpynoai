@@ -76,16 +76,16 @@ export interface AudioPreset {
 // ── Default preset (sensible starting point) ──
 
 export const DEFAULT_AUDIO_PRESET: AudioPreset = {
-  binaural: { carrierFreq: 120, beatFreq: 10, volume: 0.5 },
-  drone: { rootNote: 36, harmonicity: 2, modIndex: 3, volume: 0.3 },
-  pad: { chord: [48, 52, 55, 60], filterMax: 1200, warmth: 0.7, chorusRate: 0.3, volume: 0.4 },
-  noise: { type: 'pink', filterFreq: 400, volume: 0.3 },
-  subPulse: { frequency: 6, depth: 0.3, volume: 0.2 },
-  breathNoise: { volume: 0.15 },
+  binaural: { carrierFreq: 120, beatFreq: 10, volume: 0.7 },
+  drone: { rootNote: 36, harmonicity: 2, modIndex: 3, volume: 0.5 },
+  pad: { chord: [48, 52, 55, 60], filterMax: 1200, warmth: 0.7, chorusRate: 0.3, volume: 0.6 },
+  noise: { type: 'pink', filterFreq: 400, volume: 0.4 },
+  subPulse: { frequency: 6, depth: 0.3, volume: 0.35 },
+  breathNoise: { volume: 0.25 },
   spatial: { rate: 0.08, depth: 0.4 },
-  melody: { rootNote: 48, volume: 0.3, tempo: 5 },
+  melody: { rootNote: 48, volume: 0.4, tempo: 5 },
   background: { url: null, volume: 0.3 },
-  reverb: { decay: 4, wet: 0.65 },
+  reverb: { decay: 4, wet: 0.55 },  // less reverb = more direct = louder perceived
   master: { volume: 0.5 },
 };
 

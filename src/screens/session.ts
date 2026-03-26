@@ -142,9 +142,11 @@ export class SessionScreen implements Screen {
 
     ctx.machine.transition('session');
     ctx.bus.emit('session:started', { session: this.session });
-    ctx.timeline.start();
+
+    // Start playback through MediaController (atomic, handles audio binding)
+    ctx.mediaController.play();
     if (this.startPosition > 0) {
-      ctx.timeline.seek(this.startPosition);
+      await ctx.mediaController.seek(this.startPosition);
       log.info('session', `Resumed at ${this.startPosition.toFixed(1)}s`);
     }
 
@@ -175,7 +177,7 @@ export class SessionScreen implements Screen {
     clearMediaSession();
     stopSilentAudioKeepAlive();
 
-    ctx.timeline.stop();
+    ctx.mediaController.stop();
     ctx.interactions.clear();
     ctx.textActor.setDirective({ type: 'text', directive: { mode: 'clear' } });
 
@@ -269,7 +271,9 @@ export class SessionScreen implements Screen {
   private sessionTick(): void {
     if (!this.ctx) return;
     const ctx = this.ctx;
-    const tlState = ctx.timeline.update();
+
+    // MediaController handles narration directives, audio binding, completion
+    const tlState = ctx.mediaController.tick();
     this.lastTick = tlState;
     if (!tlState) return;
 
@@ -284,14 +288,7 @@ export class SessionScreen implements Screen {
       actors: [],
     };
 
-    // Narration directive
-    if (tlState.blockJustChanged || tlState.seeked) {
-      if (tlState.wantsNarrationAudio && tlState.narrationStageName) {
-        config.actors.push({ type: 'narration', directive: { action: 'play-stage', stageName: tlState.narrationStageName, offset: tlState.narrationAudioOffset + tlState.blockElapsed } });
-      } else {
-        config.actors.push({ type: 'narration', directive: { action: 'stop' } });
-      }
-    }
+    // Narration directives handled by MediaController.tick() — NOT here
 
     // Breath directive
     if (tlState.breathDrive && tlState.breathValue !== null && tlState.breathStage) {
@@ -335,9 +332,9 @@ export class SessionScreen implements Screen {
       }
     }
 
-    // Interaction boundary
-    if (tlState.atBoundary && !ctx.timeline.paused) {
-      ctx.timeline.pause();
+    // Interaction boundary — pause via MediaController (atomic)
+    if (tlState.atBoundary && ctx.mediaController.isPlaying) {
+      ctx.mediaController.pause();
       ctx.audioClipActor.setDirective({ type: 'audio-clip', directive: { clip: 'gate_deeper' } });
     }
 
@@ -358,8 +355,8 @@ export class SessionScreen implements Screen {
     ctx.audioCompositor.update(inputs, 1 / 60);
     ctx.narration.update();
 
-    // Completion
-    if (tlState.complete && !this.completionHandled) {
+    // Completion (detected by MediaController)
+    if (ctx.mediaController.completionFired && !this.completionHandled) {
       if (!ctx.transition.isActive) {
         this.completionHandled = true;
         this.endExperience();

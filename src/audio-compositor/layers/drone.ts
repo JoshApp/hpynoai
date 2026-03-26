@@ -28,7 +28,7 @@ export class DroneLayer implements AudioLayer {
       envelope: { attack: 8, decay: 3, sustain: 1, release: 15 },
       modulationEnvelope: { attack: 6, decay: 2, sustain: 0.7, release: 10 },
     });
-    this.synth.volume.value = -6;
+    this.synth.volume.value = -3; // less internal attenuation for audibility
 
     this.gain = new Tone.Gain(0);
     this.synth.connect(this.gain);

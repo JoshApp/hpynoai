@@ -206,6 +206,7 @@ onTeardown(() => timebar.destroy());
 
 const playbackControls = new PlaybackControls(timeline, settings, audioCompositor);
 playbackControls.setNarration(narration);
+// MediaController set after creation (below)
 
 const interactions = new InteractionManager(breath, overlayScene, camera, canvas, text3d, narration);
 interactions.setMicSignals(() => mic.signals);
@@ -263,6 +264,14 @@ const input = new InputController(bus, canvas);
 onTeardown(() => input.dispose());
 
 // ══════════════════════════════════════════════════════════════════════
+// MEDIA CONTROLLER — single source of truth for playback state
+// ══════════════════════════════════════════════════════════════════════
+import { MediaController } from './media-controller';
+const mediaController = new MediaController({ timeline, narration, audioCompositor, audio, settings });
+playbackControls.setMediaController(mediaController);
+onTeardown(() => mediaController.dispose());
+
+// ══════════════════════════════════════════════════════════════════════
 // SCREEN MANAGER — the app's navigation system
 // ══════════════════════════════════════════════════════════════════════
 const screenCtx: ScreenContext = {
@@ -272,6 +281,7 @@ const screenCtx: ScreenContext = {
   textActor, audioClipActor, narrationActor, breathActor, presenceActor,
   audio, audioCompositor, narration, breath,
   presence, timeline, interactions,
+  mediaController,
   hud, playbackControls, timebar, devMode,
   screenManager: null!, // set by ScreenManager constructor
 };

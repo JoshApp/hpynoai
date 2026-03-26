@@ -34,11 +34,13 @@ export class NarrationActor implements Actor {
 
     switch (d.action) {
       case 'play-stage': {
-        // Only restart if stage changed OR this is a seek (offset differs significantly)
+        // Only restart if stage actually changed OR this is a real user seek
+        // (not just clock drift from tab-out). Use 3s tolerance to avoid
+        // restarting audio when wall clock drifts during background tab.
         const isNewStage = this.lastDirectiveKey !== `play:${d.stageName}`;
         const isSeek = !isNewStage && this.narration.isPlayingStage &&
           this.narration.stageAudioElement &&
-          Math.abs(this.narration.stageAudioElement.currentTime - d.offset) > 0.5;
+          Math.abs(this.narration.stageAudioElement.currentTime - d.offset) > 3;
 
         if (isNewStage || isSeek) {
           this.lastDirectiveKey = `play:${d.stageName}`;
@@ -77,24 +79,8 @@ export class NarrationActor implements Actor {
     this.lastDirectiveKey = '';
   }
 
-  update(inputs: WorldInputs, _dt: number): void {
-    // Narration line tracking
+  update(_inputs: WorldInputs, _dt: number): void {
+    // Line tracking only — audio binding is now handled by MediaController callbacks
     this.narration.update();
-
-    // Audio clock binding — when narration starts playing, bind to timeline
-    if (!this._bound && this.narration.isPlayingStage && this.narration.stageAudioElement) {
-      const block = inputs.timeline?.block;
-      if (block) {
-        this.timeline.bindAudio(this.narration.stageAudioElement, block.start);
-        this._bound = true;
-      }
-    }
-
-    // Audio ended — unbind
-    if (this._wasPlaying && !this.narration.isPlayingStage) {
-      this.timeline.audioEnded();
-      this._bound = false;
-    }
-    this._wasPlaying = this.narration.isPlayingStage;
   }
 }

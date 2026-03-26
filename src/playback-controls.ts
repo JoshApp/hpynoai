@@ -17,6 +17,7 @@ import type { Timeline } from './timeline';
 import type { SettingsManager } from './settings';
 import type { AudioCompositor } from './audio-compositor';
 import type { NarrationEngine } from './narration';
+import type { MediaController } from './media-controller';
 
 export class PlaybackControls {
   private el: HTMLDivElement;
@@ -28,6 +29,7 @@ export class PlaybackControls {
   private settings: SettingsManager;
   private audioCompositor: AudioCompositor;
   private narration: NarrationEngine | null = null;
+  private media: MediaController | null = null;
   private dragging = false;
   private hideTimer: number | null = null;
   private _active = false;
@@ -245,23 +247,20 @@ export class PlaybackControls {
   }
 
   setNarration(n: NarrationEngine): void { this.narration = n; }
+  setMediaController(mc: MediaController): void { this.media = mc; }
   onExit(fn: () => void): void { this._onExit = fn; }
 
   togglePause(): void {
-    if (this.timeline.paused) {
-      this.timeline.resume();
-      if (this.narration?.stageAudioElement?.paused) {
-        this.narration.stageAudioElement.play().catch(() => {});
-      }
-      this.audioCompositor.setMasterVolume(
-        (this.settings.current as unknown as Record<string, number>).ambientVolume ?? 0.5,
-      );
+    if (this.media) {
+      // Atomic — MediaController handles correct ordering of timeline + audio + compositor
+      this.media.togglePause();
     } else {
-      this.timeline.pause();
-      if (this.narration?.stageAudioElement && !this.narration.stageAudioElement.paused) {
-        this.narration.stageAudioElement.pause();
+      // Fallback if MediaController not set
+      if (this.timeline.paused) {
+        this.timeline.resume();
+      } else {
+        this.timeline.pause();
       }
-      this.audioCompositor.setMasterVolume(0);
     }
     this.resetHideTimer();
   }
@@ -291,7 +290,8 @@ export class PlaybackControls {
 
     const pauseIcon = this.el.querySelector('.pb-icon-pause') as SVGElement;
     const playIcon = this.el.querySelector('.pb-icon-play') as SVGElement;
-    if (this.timeline.paused) {
+    const isPaused = this.media ? !this.media.isPlaying : this.timeline.paused;
+    if (isPaused) {
       pauseIcon.style.display = 'none';
       playIcon.style.display = '';
     } else {
@@ -316,15 +316,11 @@ export class PlaybackControls {
   private seekFromMouse(e: MouseEvent): void {
     const rect = this.progressBar.getBoundingClientRect();
     const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    this.timeline.seek(pct * this.timeline.totalDuration);
-    if (this.timeline.paused) {
-      this.timeline.resume();
-      this.audioCompositor.setMasterVolume(
-        (this.settings.current as unknown as Record<string, number>).ambientVolume ?? 0.5,
-      );
-      if (this.narration?.stageAudioElement?.paused) {
-        this.narration.stageAudioElement.play().catch(() => {});
-      }
+    const t = pct * this.timeline.totalDuration;
+    if (this.media) {
+      this.media.seek(t);
+    } else {
+      this.timeline.seek(t);
     }
     this.resetHideTimer();
   }
@@ -334,12 +330,11 @@ export class PlaybackControls {
     if (!touch) return;
     const rect = this.progressBar.getBoundingClientRect();
     const pct = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
-    this.timeline.seek(pct * this.timeline.totalDuration);
-    if (this.timeline.paused) {
-      this.timeline.resume();
-      this.audioCompositor.setMasterVolume(
-        (this.settings.current as unknown as Record<string, number>).ambientVolume ?? 0.5,
-      );
+    const t = pct * this.timeline.totalDuration;
+    if (this.media) {
+      this.media.seek(t);
+    } else {
+      this.timeline.seek(t);
     }
   }
 

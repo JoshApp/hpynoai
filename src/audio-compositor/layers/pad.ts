@@ -28,7 +28,7 @@ export class PadLayer implements AudioLayer {
       envelope: { attack: 4, decay: 2, sustain: 0.85, release: 8 },
       modulationEnvelope: { attack: 3, decay: 1, sustain: 0.6, release: 6 },
     });
-    this.synth.volume.value = -8;
+    this.synth.volume.value = -4; // less internal attenuation
 
     // Gentle lowpass — rolls off high harmonics for warmth
     this.filter = new Tone.Filter({ frequency: 500, type: 'lowpass', Q: 0.8, rolloff: -24 });
