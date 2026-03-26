@@ -42,7 +42,7 @@ export function buildStageAudioPreset(
       rootNote: rootNote - 12,
       harmonicity: 2,
       modIndex: 2 + i * 4,
-      volume: 0.4 + i * 0.2,
+      volume: 0.3 + i * 0.15,  // moderate — too much sub-bass distorts small speakers
     },
     noise: {
       type: i > 0.7 ? 'brown' : 'pink',
@@ -51,8 +51,8 @@ export function buildStageAudioPreset(
     },
     subPulse: {
       frequency: lerp(audioProfile.binauralRange[0], audioProfile.binauralRange[1], i),
-      depth: 0.2 + i * 0.3,
-      volume: 0.25 + i * 0.15,
+      depth: 0.15 + i * 0.2,
+      volume: 0.12 + i * 0.08,  // gentle — too much sub-bass distorts laptop speakers
     },
     breathNoise: {
       volume: 0.15 + i * 0.15,

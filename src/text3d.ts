@@ -347,7 +347,7 @@ export class Text3D {
       Math.max(0, Math.min(0.95, this.opacity * breathMod));
 
     // Scale with subtle punch
-    const baseScale = 0.32 * this._settings.scale;
+    const baseScale = 0.38 * this._settings.scale; // bigger for readability
     const punch = 1 + this.focusScalePunch * 0.05; // 5% max, not 8%
     const aspect = this.spriteAspects[0] ?? 1;
     sprite.scale.set(baseScale * aspect * punch, baseScale * punch, 1);
@@ -458,8 +458,8 @@ export class Text3D {
     const base = 0.3 * this._settings.scale;
     switch (style) {
       case 'cue': return base * 1.5;    // breathing labels: large and prominent
-      case 'prompt': return base * 1.1;  // gate prompts: slightly larger
-      default: return base;
+      case 'prompt': return base * 1.2;  // gate prompts: slightly larger
+      default: return base * 1.15;       // narration: bigger for readability
     }
   }
 
