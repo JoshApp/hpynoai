@@ -472,8 +472,8 @@ export class Text3D {
   }
 
   private positionLines(breathY = 0): void {
-    // Y position varies by style — cue text centered, narration slightly lower
-    const baseY = this.activeStyle === 'cue' ? -0.05 : -0.15;
+    // Y position — consistent across styles (cue and narration at same height)
+    const baseY = -0.15;
     const spacing = 0.12;
     const hasTwo = this.sprites.length === 2;
     const offset = hasTwo ? spacing / 2 : 0;
