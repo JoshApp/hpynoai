@@ -117,12 +117,17 @@ export class PlaybackControls {
         padding: 0 4px;
       }
       .pb-progress {
-        flex: 1; height: 3px; background: rgba(255, 255, 255, 0.12);
-        border-radius: 2px; cursor: pointer; position: relative;
-        padding: 10px 0; background-clip: content-box;
+        flex: 1; height: 24px; cursor: pointer; position: relative;
+        display: flex; align-items: center;
+      }
+      .pb-progress::before {
+        content: ''; position: absolute; left: 0; right: 0;
+        height: 3px; background: rgba(255, 255, 255, 0.12);
+        border-radius: 2px; top: 50%; transform: translateY(-50%);
       }
       .pb-progress-fill {
-        height: 100%; background: rgba(180, 140, 255, 0.5);
+        position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+        height: 3px; background: rgba(180, 140, 255, 0.5);
         border-radius: 2px; width: 0%; transition: width 0.1s linear;
         pointer-events: none;
       }
@@ -178,7 +183,7 @@ export class PlaybackControls {
       /* Landscape mobile: tighter */
       @media (max-height: 440px) {
         .playback-controls { padding-top: 12px; gap: 0; }
-        .pb-progress { padding: 6px 0; }
+        .pb-progress { height: 18px; }
       }
     `;
     document.head.appendChild(style);
