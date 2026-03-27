@@ -131,7 +131,9 @@ export class ScreenManager {
 
     const doSwap = () => {
       for (let i = this.stack.length - 1; i >= 0; i--) {
-        this.stack[i].exit();
+        try { this.stack[i].exit(); } catch (e) {
+          log.warn('screen', `${this.stack[i].name}.exit() threw during reset`, e);
+        }
       }
       this.stack = [screen];
       screen.enter(this.ctx, null);
@@ -159,9 +161,13 @@ export class ScreenManager {
     this.current?.tick?.(inputs, dt);
   }
 
-  /** Delegate render to current screen */
+  /** Delegate render to current screen (fault-tolerant) */
   render(time: number, dt: number): void {
-    this.current?.render?.(time, dt);
+    try {
+      this.current?.render?.(time, dt);
+    } catch (e) {
+      log.warn('screen', `${this.current?.name ?? '?'}.render() threw`, e);
+    }
   }
 
   /** Dispose all screens (HMR teardown) */

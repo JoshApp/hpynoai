@@ -132,6 +132,20 @@ const compositeCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 const overlayScene = new THREE.Scene();
 const transition = new TransitionManager();
 
+// ── WebGL context loss recovery ──
+let _contextLost = false;
+canvas.addEventListener('webglcontextlost', (e) => {
+  e.preventDefault(); // allow restoration
+  _contextLost = true;
+  log.warn('webgl', 'Context lost — rendering paused');
+});
+canvas.addEventListener('webglcontextrestored', () => {
+  _contextLost = false;
+  log.info('webgl', 'Context restored — rendering resumed');
+  // Re-trigger resize to rebuild render targets
+  handleResize();
+});
+
 // ══════════════════════════════════════════════════════════════════════
 // VISUAL COMPOSITOR + LAYERS
 // ══════════════════════════════════════════════════════════════════════
@@ -325,47 +339,54 @@ function renderLoop(): void {
   if (currentGeneration() !== moduleGen) return;
   requestAnimationFrame(renderLoop);
 
+  // Skip rendering if WebGL context is lost (will resume on restore)
+  if (_contextLost) return;
+
   const time = performance.now() / 1000;
   const rawDt = _lastRenderTime > 0 ? time - _lastRenderTime : 1 / 60;
   const dt = Math.min(rawDt, 0.1);
   _lastRenderTime = time;
   _renderTime += dt;
 
-  // Always update the compositor (drives PresenceActor + layer channels)
-  const inputs: WorldInputs = {
-    timeline: null,
-    audioBands: audio.analyzer?.update() ?? null,
-    voiceEnergy: narration.state.voiceEnergy,
-    breathPhase: breath.phase,
-    breathValue: breath.value,
-    breathStage: breath.stage,
-    micActive: false,
-    micBoost: 0,
-    interactionShader: interactions.shaderState,
-    renderTime: _renderTime,
-    dt,
-  };
-  compositor.update(inputs, dt);
+  try {
+    // Always update the compositor (drives PresenceActor + layer channels)
+    const inputs: WorldInputs = {
+      timeline: null,
+      audioBands: audio.analyzer?.update() ?? null,
+      voiceEnergy: narration.state.voiceEnergy,
+      breathPhase: breath.phase,
+      breathValue: breath.value,
+      breathStage: breath.stage,
+      micActive: false,
+      micBoost: 0,
+      interactionShader: interactions.shaderState,
+      renderTime: _renderTime,
+      dt,
+    };
+    compositor.update(inputs, dt);
 
-  // Transition manager — must run every frame for screen transitions to work
-  transition.update();
+    // Transition manager — must run every frame for screen transitions to work
+    transition.update();
 
-  // Screen-specific updates (text, interactions, audio, etc.)
-  screenManager.render(time, dt);
+    // Screen-specific updates (text, interactions, audio, etc.)
+    screenManager.render(time, dt);
 
-  // Always render the 3D world — screens configure it, we draw it
-  renderer.setRenderTarget(feedbackLayer.tunnelTarget);
-  renderer.render(scene, camera);
-  renderer.setRenderTarget(null);
-  feedbackLayer.render({
-    renderer, scene, overlayScene, camera,
-    compositeScene, compositeCamera,
-    time: _renderTime, dt,
-  });
-  renderer.render(compositeScene, compositeCamera);
-  renderer.autoClear = false;
-  renderer.render(overlayScene, camera);
-  renderer.autoClear = true;
+    // Always render the 3D world — screens configure it, we draw it
+    renderer.setRenderTarget(feedbackLayer.tunnelTarget);
+    renderer.render(scene, camera);
+    renderer.setRenderTarget(null);
+    feedbackLayer.render({
+      renderer, scene, overlayScene, camera,
+      compositeScene, compositeCamera,
+      time: _renderTime, dt,
+    });
+    renderer.render(compositeScene, compositeCamera);
+    renderer.autoClear = false;
+    renderer.render(overlayScene, camera);
+    renderer.autoClear = true;
+  } catch (e) {
+    log.warn('render', 'Frame error (non-fatal)', e);
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════════

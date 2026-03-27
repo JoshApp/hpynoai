@@ -81,42 +81,32 @@ export function getMenuWhisperPreset(): Partial<AudioPreset> {
 }
 
 /**
- * MENU_AUDIO_PRESET / MENU_WHISPER_PRESET — lazy-evaluated so mobile detection
- * runs at first access (after DOM is ready), not at import time.
+ * MENU_AUDIO_PRESET / MENU_WHISPER_PRESET — evaluated lazily on first access.
+ * Can't be static consts because mobile detection needs the DOM to be ready.
  */
 let _menuPresetCache: Partial<AudioPreset> | null = null;
 let _menuWhisperCache: Partial<AudioPreset> | null = null;
 
-// Use 'get' on a module-level object export so callers see the same name
-export const MENU_AUDIO_PRESET: Partial<AudioPreset> = new Proxy({} as Partial<AudioPreset>, {
-  get(_target, prop) {
-    if (!_menuPresetCache) _menuPresetCache = getMenuAudioPreset();
-    return (_menuPresetCache as Record<string | symbol, unknown>)[prop];
-  },
-  ownKeys() {
-    if (!_menuPresetCache) _menuPresetCache = getMenuAudioPreset();
-    return Reflect.ownKeys(_menuPresetCache!);
-  },
-  getOwnPropertyDescriptor(_target, prop) {
-    if (!_menuPresetCache) _menuPresetCache = getMenuAudioPreset();
-    return Object.getOwnPropertyDescriptor(_menuPresetCache!, prop);
-  },
-});
+/** @deprecated — use getMenuAudioPreset() for mobile-aware values */
+export const MENU_AUDIO_PRESET = {
+  get binaural() { return (_menuPresetCache ??= getMenuAudioPreset()).binaural; },
+  get drone() { return (_menuPresetCache ??= getMenuAudioPreset()).drone; },
+  get pad() { return (_menuPresetCache ??= getMenuAudioPreset()).pad; },
+  get noise() { return (_menuPresetCache ??= getMenuAudioPreset()).noise; },
+  get subPulse() { return (_menuPresetCache ??= getMenuAudioPreset()).subPulse; },
+  get spatial() { return (_menuPresetCache ??= getMenuAudioPreset()).spatial; },
+  get melody() { return (_menuPresetCache ??= getMenuAudioPreset()).melody; },
+  get reverb() { return (_menuPresetCache ??= getMenuAudioPreset()).reverb; },
+} as Partial<AudioPreset>;
 
-export const MENU_WHISPER_PRESET: Partial<AudioPreset> = new Proxy({} as Partial<AudioPreset>, {
-  get(_target, prop) {
-    if (!_menuWhisperCache) _menuWhisperCache = getMenuWhisperPreset();
-    return (_menuWhisperCache as Record<string | symbol, unknown>)[prop];
-  },
-  ownKeys() {
-    if (!_menuWhisperCache) _menuWhisperCache = getMenuWhisperPreset();
-    return Reflect.ownKeys(_menuWhisperCache!);
-  },
-  getOwnPropertyDescriptor(_target, prop) {
-    if (!_menuWhisperCache) _menuWhisperCache = getMenuWhisperPreset();
-    return Object.getOwnPropertyDescriptor(_menuWhisperCache!, prop);
-  },
-});
+/** @deprecated — use getMenuWhisperPreset() for mobile-aware values */
+export const MENU_WHISPER_PRESET = {
+  get binaural() { return (_menuWhisperCache ??= getMenuWhisperPreset()).binaural; },
+  get drone() { return (_menuWhisperCache ??= getMenuWhisperPreset()).drone; },
+  get pad() { return (_menuWhisperCache ??= getMenuWhisperPreset()).pad; },
+  get noise() { return (_menuWhisperCache ??= getMenuWhisperPreset()).noise; },
+  get subPulse() { return (_menuWhisperCache ??= getMenuWhisperPreset()).subPulse; },
+} as Partial<AudioPreset>;
 
 /**
  * Opening chime — ethereal rising tone on app start.
