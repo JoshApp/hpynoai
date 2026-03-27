@@ -134,20 +134,47 @@ export class MediaController {
       await this.audio.context?.resume();
     } catch { /* ok */ }
 
-    // 2. Resume audio element FIRST — must await so it's actually playing
-    if (this.narration.stageAudioElement?.paused) {
+    // 2. Resume narration audio element FIRST — must await so it's actually playing
+    let audioResumed = false;
+    const audioEl = this.narration.stageAudioElement;
+    if (audioEl?.paused) {
       try {
-        await this.narration.stageAudioElement.play();
+        await audioEl.play();
+        audioResumed = true;
+        log.info('media', `Narration audio resumed at ${audioEl.currentTime.toFixed(1)}s`);
       } catch {
-        // Play rejected (not buffered, etc.) — continue anyway
-        log.warn('media', 'Audio play() rejected on resume');
+        log.warn('media', 'Audio play() rejected on resume — will re-enter stage');
       }
+    } else if (audioEl && !audioEl.paused) {
+      // Already playing (shouldn't happen, but handle it)
+      audioResumed = true;
     }
 
     // 3. NOW resume timeline — readClock() will use the live audio element
     this.timeline.resume();
 
-    // 4. Restore ambient volume
+    // 4. Re-bind audio to timeline (ensures sync after pause gap)
+    if (audioResumed && audioEl && this._boundAudio === audioEl) {
+      const block = this.timeline.currentBlock;
+      if (block) {
+        this.timeline.bindAudio(audioEl, block.start);
+      }
+    }
+
+    // 5. If narration audio couldn't resume, re-enter the stage at current position
+    if (!audioResumed && this.narration.isPlayingStage) {
+      const block = this.timeline.currentBlock;
+      if (block) {
+        const offset = this.timeline.position - block.start;
+        const stageName = (block.data as { stageName?: string })?.stageName;
+        if (stageName) {
+          log.info('media', `Re-entering stage ${stageName} at offset ${offset.toFixed(1)}s`);
+          this.narration.enterStage(stageName, Math.max(0, offset));
+        }
+      }
+    }
+
+    // 6. Restore ambient volume
     this.audioCompositor.setMasterVolume(this.getAmbientVolume());
 
     this.setState('playing');
