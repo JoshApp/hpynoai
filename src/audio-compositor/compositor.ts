@@ -74,16 +74,24 @@ export class AudioCompositor {
     await Tone.start();
     log.info('audio-compositor', `Tone.js using shared context, state: ${rawCtx.state}`);
 
-    // Master gain → raw output
-    this.masterGain = new Tone.Gain(0);
-    // Bridge Tone.js to raw Web Audio — try Tone.connect, fall back to raw API
+    // Limiter → raw output (prevents clipping on all devices, especially mobile)
+    this.compressor = new Tone.Compressor({
+      threshold: -6,   // catch peaks above -6 dB
+      ratio: 12,       // hard limiting
+      attack: 0.003,   // fast attack to catch transients
+      release: 0.1,    // quick release to avoid pumping
+      knee: 3,
+    });
     try {
-      Tone.connect(this.masterGain, output);
+      Tone.connect(this.compressor, output);
     } catch {
-      // Fallback: access Tone's internal output node and connect directly
-      (this.masterGain as unknown as { output: AudioNode }).output.connect(output);
+      (this.compressor as unknown as { output: AudioNode }).output.connect(output);
     }
-    log.info('audio-compositor', 'Master gain connected to output');
+
+    // Master gain → limiter
+    this.masterGain = new Tone.Gain(0);
+    this.masterGain.connect(this.compressor);
+    log.info('audio-compositor', 'Master gain → limiter → output');
 
     // Dry path — higher initial gain for audibility
     this.dryGain = new Tone.Gain(0.6);

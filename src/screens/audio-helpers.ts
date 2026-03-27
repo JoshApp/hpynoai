@@ -12,6 +12,7 @@ import {
   BinauralLayer, DroneLayer, PadLayer, NoiseLayer,
   SubPulseLayer, BreathNoiseLayer, SpatialLayer,
 } from '../audio-compositor';
+import { isMobileSpeaker } from '../audio-presets';
 import { log } from '../logger';
 
 /**
@@ -54,22 +55,68 @@ export async function ensureAudioCompositor(
 }
 
 /** Menu ambient preset — quiet, atmospheric */
-export const MENU_AUDIO_PRESET: Partial<AudioPreset> = {
-  binaural: { carrierFreq: 120, beatFreq: 10, volume: 0.25 },
-  drone: { rootNote: 36, harmonicity: 2, modIndex: 2, volume: 0.2 },
-  pad: { chord: [48, 52, 55, 60], filterMax: 800, warmth: 0.5, chorusRate: 0.2, volume: 0.12 },
-  noise: { type: 'pink', filterFreq: 300, volume: 0.05 },
-  spatial: { rate: 0.05, depth: 0.3 },
-  melody: { rootNote: 48, volume: 0, tempo: 0 },
-};
+export function getMenuAudioPreset(): Partial<AudioPreset> {
+  const mobile = isMobileSpeaker();
+  return {
+    binaural: { carrierFreq: mobile ? 220 : 120, beatFreq: 10, volume: mobile ? 0.15 : 0.25 },
+    drone: { rootNote: mobile ? 48 : 36, harmonicity: 2, modIndex: 2, volume: mobile ? 0.12 : 0.2 },
+    pad: { chord: [48, 52, 55, 60], filterMax: 800, warmth: 0.5, chorusRate: 0.2, volume: mobile ? 0.08 : 0.12 },
+    noise: { type: 'pink', filterFreq: mobile ? 400 : 300, volume: mobile ? 0.02 : 0.05 },
+    subPulse: mobile ? { frequency: 6, depth: 0, volume: 0 } : undefined,
+    spatial: { rate: 0.05, depth: 0.3 },
+    melody: { rootNote: 48, volume: 0, tempo: 0 },
+  } as Partial<AudioPreset>;
+}
 
 /** Whisper preset — menu audio faded to near-silence */
-export const MENU_WHISPER_PRESET: Partial<AudioPreset> = {
-  pad: { chord: [48, 52, 55, 60], filterMax: 400, warmth: 0.5, chorusRate: 0.2, volume: 0.03 },
-  drone: { rootNote: 36, harmonicity: 2, modIndex: 1, volume: 0.02 },
-  noise: { type: 'pink', filterFreq: 200, volume: 0.01 },
-  binaural: { carrierFreq: 120, beatFreq: 10, volume: 0.03 },
-};
+export function getMenuWhisperPreset(): Partial<AudioPreset> {
+  const mobile = isMobileSpeaker();
+  return {
+    pad: { chord: [48, 52, 55, 60], filterMax: 400, warmth: 0.5, chorusRate: 0.2, volume: mobile ? 0.02 : 0.03 },
+    drone: { rootNote: mobile ? 48 : 36, harmonicity: 2, modIndex: 1, volume: mobile ? 0.01 : 0.02 },
+    noise: { type: 'pink', filterFreq: mobile ? 300 : 200, volume: 0.01 },
+    binaural: { carrierFreq: mobile ? 220 : 120, beatFreq: 10, volume: mobile ? 0.02 : 0.03 },
+    subPulse: mobile ? { frequency: 6, depth: 0, volume: 0 } : undefined,
+  } as Partial<AudioPreset>;
+}
+
+/**
+ * MENU_AUDIO_PRESET / MENU_WHISPER_PRESET — lazy-evaluated so mobile detection
+ * runs at first access (after DOM is ready), not at import time.
+ */
+let _menuPresetCache: Partial<AudioPreset> | null = null;
+let _menuWhisperCache: Partial<AudioPreset> | null = null;
+
+// Use 'get' on a module-level object export so callers see the same name
+export const MENU_AUDIO_PRESET: Partial<AudioPreset> = new Proxy({} as Partial<AudioPreset>, {
+  get(_target, prop) {
+    if (!_menuPresetCache) _menuPresetCache = getMenuAudioPreset();
+    return (_menuPresetCache as Record<string | symbol, unknown>)[prop];
+  },
+  ownKeys() {
+    if (!_menuPresetCache) _menuPresetCache = getMenuAudioPreset();
+    return Reflect.ownKeys(_menuPresetCache!);
+  },
+  getOwnPropertyDescriptor(_target, prop) {
+    if (!_menuPresetCache) _menuPresetCache = getMenuAudioPreset();
+    return Object.getOwnPropertyDescriptor(_menuPresetCache!, prop);
+  },
+});
+
+export const MENU_WHISPER_PRESET: Partial<AudioPreset> = new Proxy({} as Partial<AudioPreset>, {
+  get(_target, prop) {
+    if (!_menuWhisperCache) _menuWhisperCache = getMenuWhisperPreset();
+    return (_menuWhisperCache as Record<string | symbol, unknown>)[prop];
+  },
+  ownKeys() {
+    if (!_menuWhisperCache) _menuWhisperCache = getMenuWhisperPreset();
+    return Reflect.ownKeys(_menuWhisperCache!);
+  },
+  getOwnPropertyDescriptor(_target, prop) {
+    if (!_menuWhisperCache) _menuWhisperCache = getMenuWhisperPreset();
+    return Object.getOwnPropertyDescriptor(_menuWhisperCache!, prop);
+  },
+});
 
 /**
  * Opening chime — ethereal rising tone on app start.
@@ -88,13 +135,14 @@ export function playOpeningTone(audio: AudioEngine): void {
     if (audio.masterGainNode) Tone.connect(reverb, audio.masterGainNode);
     nodes.push(gain, reverb, filter);
 
-    // Phase 1: Sub hit
-    const sub = new Tone.Oscillator({ type: 'sine', frequency: 40 });
+    // Phase 1: Sub hit (raised on mobile to avoid speaker distortion)
+    const mobile = isMobileSpeaker();
+    const sub = new Tone.Oscillator({ type: 'sine', frequency: mobile ? 120 : 40 });
     const subGain = new Tone.Gain(0);
     sub.connect(subGain);
     subGain.connect(filter);
     subGain.gain.setValueAtTime(0, now);
-    subGain.gain.linearRampToValueAtTime(0.4, now + 0.05);
+    subGain.gain.linearRampToValueAtTime(mobile ? 0.2 : 0.4, now + 0.05);
     subGain.gain.exponentialRampToValueAtTime(0.001, now + 1.5);
     sub.start(now);
     sub.stop(now + 2);
