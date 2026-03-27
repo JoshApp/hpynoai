@@ -36,11 +36,13 @@ export class SessionScreen implements Screen {
   private lastStageIndex = -1;
   private completionHandled = false;
   private stopAutoSave: (() => void) | null = null;
-  private startPosition = 0; // for resume support
+  private startPosition = 0;
+  private startPaused = false;
 
-  constructor(session: SessionConfig, opts?: { resumePosition?: number }) {
+  constructor(session: SessionConfig, opts?: { resumePosition?: number; startPaused?: boolean }) {
     this.session = session;
     this.startPosition = opts?.resumePosition ?? 0;
+    this.startPaused = opts?.startPaused ?? false;
   }
 
   enter(ctx: ScreenContext, _from: string | null): void {
@@ -147,6 +149,10 @@ export class SessionScreen implements Screen {
     if (this.startPosition > 0) {
       await ctx.mediaController.seek(this.startPosition);
       log.info('session', `Resumed at ${this.startPosition.toFixed(1)}s`);
+    }
+    if (this.startPaused) {
+      await ctx.mediaController.pause();
+      log.info('session', 'Started paused (HMR restore)');
     }
 
     // Auto-save

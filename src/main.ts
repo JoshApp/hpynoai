@@ -398,16 +398,18 @@ async function boot(): Promise<void> {
   const { SessionScreen } = await import('./screens/session');
 
   if (isHMR && appState.phase === 'session') {
-    // HMR restore — restart session at saved position
+    // HMR restore — restart session at saved position, respecting pause state
     const savedId = hotState.activeSessionId;
     const session = savedId
       ? (sessionStore.getCached(savedId) ?? sessions.find(s => s.id === savedId) ?? null)
       : null;
     if (session) {
-      screenManager.enterImmediate(new SessionScreen(session));
-      if (hotState.timelinePosition > 0) {
-        timeline.seek(hotState.timelinePosition);
-      }
+      const resumePos = hotState.timelinePosition > 0 ? hotState.timelinePosition : undefined;
+      const wasPaused = hotState.isPaused;
+      screenManager.enterImmediate(new SessionScreen(session, {
+        resumePosition: resumePos,
+        startPaused: wasPaused,
+      }));
       renderLoop();
       return;
     }
@@ -438,6 +440,7 @@ if (import.meta.hot) {
   import.meta.hot.accept();
   import.meta.hot.dispose(() => {
     hotState.isRunning = screenManager.current?.name === 'session';
+    hotState.isPaused = mediaController.isPaused;
     hotState.activeSessionId = appState.sessionId ?? null;
     hotState.timelinePosition = timeline.started ? timeline.position : 0;
     hotState.spiralAngle = 0;

@@ -15,6 +15,7 @@ export interface HotState {
   // Position restoration
   timelinePosition: number;
   isRunning: boolean;
+  isPaused: boolean;
   activeSessionId: string | null;
 
   // Accumulated visual state (avoid jumps)
@@ -32,6 +33,7 @@ if (!g[KEY]) {
   g[KEY] = {
     timelinePosition: 0,
     isRunning: false,
+    isPaused: false,
     activeSessionId: null,
     spiralAngle: 0,
     renderTime: 0,
