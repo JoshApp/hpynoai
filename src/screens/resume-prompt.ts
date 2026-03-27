@@ -64,18 +64,13 @@ export class ResumePromptScreen implements Screen {
     }, 0, -0.05, -0.04);
     this.optionSprites.push(optContinue);
 
-    const optFresh = this.addSprite(ctx, '✦  start fresh', {
-      fontSize: 44, color: '#a090c0', glow: 'rgba(160,144,192,0.35)', height: 0.07,
-    }, 0, -0.16, -0.04);
-    this.optionSprites.push(optFresh);
-
     const optMenu = this.addSprite(ctx, '◁  back to menu', {
       fontSize: 38, color: '#8878a0', glow: 'rgba(136,120,160,0.25)', height: 0.055,
-    }, 0, -0.27, -0.04);
+    }, 0, -0.16, -0.04);
     this.optionSprites.push(optMenu);
 
     // Input — up/down to navigate, confirm to select
-    const maxIdx = 2;
+    const maxIdx = 1;
     this.unsubs.push(ctx.bus.on('input:left', () => { this.selectedIndex = Math.max(0, this.selectedIndex - 1); }));
     this.unsubs.push(ctx.bus.on('input:right', () => { this.selectedIndex = Math.min(maxIdx, this.selectedIndex + 1); }));
     this.unsubs.push(ctx.bus.on('input:confirm', () => this.confirm()));
@@ -160,15 +155,6 @@ export class ResumePromptScreen implements Screen {
       this.ctx.screenManager.replace(
         new SessionScreen(session, { resumePosition: this.saved.position }),
         { fadeOutMs: 1000, holdMs: 300, fadeInMs: 800 },
-      );
-    } else if (this.selectedIndex === 1 && session) {
-      // Start fresh — same session, from the beginning
-      clearProgress();
-      log.info('resume', `Starting fresh: ${session.name}`);
-      const { SessionScreen } = await import('./session');
-      this.ctx.screenManager.replace(
-        new SessionScreen(session),
-        { fadeOutMs: 800, holdMs: 200, fadeInMs: 600 },
       );
     } else {
       // Back to menu
