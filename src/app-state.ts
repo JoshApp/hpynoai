@@ -19,10 +19,6 @@ export interface AppState {
   sessionId: string | null;
   /** Current stage index within the active session */
   stageIndex: number;
-  /** Whether the selector cinematic has completed (orbs are showing) */
-  selectorReady: boolean;
-  /** Timestamp of last phase change (performance.now) */
-  lastTransition: number;
 }
 
 const KEY = '__HPYNO_APP_STATE__';
@@ -33,24 +29,13 @@ if (!g[KEY]) {
     phase: 'boot',
     sessionId: null,
     stageIndex: 0,
-    selectorReady: false,
-    lastTransition: 0,
   };
 }
 
+/** Read-only view of app state. Synced by StateMachine — do not write directly. */
 export const appState: AppState = g[KEY];
 
+/** @internal — called only by StateMachine.transition() */
 export function setPhase(phase: AppPhase): void {
   appState.phase = phase;
-  appState.lastTransition = performance.now();
-}
-
-export function setSessionInfo(sessionId: string, stageIndex: number): void {
-  appState.sessionId = sessionId;
-  appState.stageIndex = stageIndex;
-}
-
-export function clearSession(): void {
-  appState.sessionId = null;
-  appState.stageIndex = 0;
 }

@@ -14,7 +14,6 @@ import {
   resumeAudioFromGesture, ensureAudioCompositor,
   MENU_AUDIO_PRESET, MENU_WHISPER_PRESET, playOpeningTone,
 } from './audio-helpers';
-import { setPhase } from '../app-state';
 import { log } from '../logger';
 
 export class SessionSelectorScreen implements Screen {
@@ -47,7 +46,6 @@ export class SessionSelectorScreen implements Screen {
 
   enter(ctx: ScreenContext, from: string | null): void {
     this.ctx = ctx;
-    setPhase('selector');
     ctx.machine.transition('selector');
     ctx.hud.setMode('menu');
 

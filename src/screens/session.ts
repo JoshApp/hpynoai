@@ -9,12 +9,14 @@ import * as THREE from 'three';
 import type { Screen, ScreenContext } from '../screen';
 import type { SessionConfig } from '../session';
 import type { AudioPreset } from '../audio-compositor';
-import type { WorldInputs, Config } from '../compositor/types';
-import { buildStageAudioPreset, buildSessionAudioPreset } from '../audio-presets';
+import type { WorldInputs } from '../compositor/types';
+import { buildSessionAudioPreset } from '../audio-presets';
+import { deriveSessionFrame } from '../session-frame';
+import { buildWorldInputs } from '../world-inputs';
 import { resumeAudioFromGesture, ensureAudioCompositor } from './audio-helpers';
 import { hashSeed } from '../audio-compositor';
 import { startAutoSave, saveProgress, clearProgress } from '../session-persistence';
-import { setPhase, setSessionInfo, appState } from '../app-state';
+
 import { acquireWakeLock, releaseWakeLock, registerMediaSession, clearMediaSession, startSilentAudioKeepAlive, stopSilentAudioKeepAlive } from '../wakelock';
 import { log } from '../logger';
 
@@ -45,8 +47,6 @@ export class SessionScreen implements Screen {
     this.ctx = ctx;
     log.info('session', `Starting: ${this.session.name}`);
 
-    setPhase('session');
-    setSessionInfo(this.session.id, 0);
     ctx.machine.transition('transitioning', { sessionId: this.session.id });
     ctx.bus.emit('session:starting', { session: this.session });
 
@@ -141,7 +141,6 @@ export class SessionScreen implements Screen {
     ctx.devMode.rebuildStageButtons();
 
     ctx.machine.transition('session');
-    ctx.bus.emit('session:started', { session: this.session });
 
     // Start playback through MediaController (atomic, handles audio binding)
     ctx.mediaController.play();
@@ -216,7 +215,7 @@ export class SessionScreen implements Screen {
           type: 'presence',
           directive: { role: tlState.presenceMode === 'breathe' ? 'breathing-companion' : 'narrator' },
         });
-        setSessionInfo(this.session.id, tlState.block.stageIndex);
+        ctx.machine.setStageIndex(tlState.block.stageIndex);
       }
 
       // Text display
@@ -257,7 +256,7 @@ export class SessionScreen implements Screen {
 
     // Render passes handled by main renderLoop()
 
-    appState.stageIndex = ctx.timeline.currentIndex;
+    ctx.machine.setStageIndex(ctx.timeline.currentIndex);
     ctx.timebar.update();
     ctx.hud.update();
   }
@@ -272,94 +271,56 @@ export class SessionScreen implements Screen {
     if (!this.ctx) return;
     const ctx = this.ctx;
 
-    // MediaController handles narration directives, audio binding, completion
+    // 1. Get state (fresh tick or last known)
     const tlState = ctx.mediaController.tick();
     if (tlState) this.lastTick = tlState;
-
-    // Use current tick or fall back to last known state (keeps visuals alive while paused)
     const state = tlState ?? this.lastTick;
     if (!state) return;
 
-    // Build visual compositor config
-    const config: Config = {
-      preset: {
-        tunnel: { intensity: state.intensity, spiralSpeed: state.spiralSpeed, audioReactivity: 1 },
-        feedback: { strength: state.intensity },
-        camera: { sway: state.intensity },
-        fade: { opacity: ctx.transition.state.fadeAmount },
+    // 2. Derive frame (pure — no side effects)
+    const frame = deriveSessionFrame({
+      state,
+      isFreshTick: tlState !== null,
+      fadeAmount: ctx.transition.state.fadeAmount,
+      audioProfile: this.session.audio,
+      binauralVolume: ctx.settings.current.binauralVolume,
+      lastStageIndex: this.lastStageIndex,
+      narration: {
+        isPlayingStage: ctx.narration.isPlayingStage,
+        stageAudioElement: ctx.narration.stageAudioElement,
+        stageWordStream: ctx.narration.stageWordStream,
       },
-      actors: [],
-    };
+      isPlaying: ctx.mediaController.isPlaying,
+    });
+    this.lastStageIndex = frame.newStageIndex;
 
-    // Only process directives when we have a fresh tick (not paused/stale)
-    if (tlState) {
-      // Breath directive
-      if (tlState.breathDrive && tlState.breathValue !== null && tlState.breathStage) {
-        config.actors.push({ type: 'breath', directive: { action: 'drive', value: tlState.breathValue, stage: tlState.breathStage } });
-      } else if (tlState.blockJustChanged) {
-        config.actors.push({ type: 'breath', directive: { action: 'apply-stage', stage: tlState.block.stage } });
-      }
+    // 3. Apply directives (independent — each guarded, no cascading failures)
+    ctx.compositor.configure(frame.config);
 
-      // Audio clip
-      if (tlState.audioClip) {
-        config.actors.push({ type: 'audio-clip', directive: { clip: tlState.audioClip } });
-      } else {
-        config.actors.push({ type: 'audio-clip', directive: { clip: null } });
-      }
-
-      // Text — use full word stream for focus mode (handles sparse stages properly)
-      const wordStream = ctx.narration.stageWordStream;
-      if (wordStream && wordStream.words.length > 0 && ctx.narration.isPlayingStage) {
-        config.actors.push({ type: 'text', directive: {
-          mode: 'focus',
-          text: wordStream.text,
-          words: wordStream.words as Array<{ word: string; start: number; end: number }>,
-          audioRef: ctx.narration.stageAudioElement,
-          lineStart: 0,  // words have absolute timestamps
-        }});
-      } else if (tlState.text) {
-        if (tlState.textStyle === 'cue') config.actors.push({ type: 'text', directive: { mode: 'cue', text: tlState.text, depth: tlState.slotDepth ?? undefined } });
-        else if (tlState.textStyle === 'prompt') config.actors.push({ type: 'text', directive: { mode: 'prompt', text: tlState.text } });
-        else config.actors.push({ type: 'text', directive: { mode: 'narration-tts', text: tlState.text } });
-      } else {
-        config.actors.push({ type: 'text', directive: { mode: 'clear' } });
-      }
-
-      // Stage audio preset
-      if (tlState.block.stageIndex !== this.lastStageIndex || tlState.seeked) {
-        this.lastStageIndex = tlState.block.stageIndex;
-        const preset = buildStageAudioPreset(tlState.block.stage, this.session.audio, ctx.settings.current.binauralVolume);
-        ctx.audioCompositor.applyPreset(preset, 3);
-        if (tlState.block.stage.fractionationDip != null) {
-          ctx.audioCompositor.silenceDip(2, 6);
-        }
-      }
-
-      // Interaction boundary — pause via MediaController (atomic)
-      if (tlState.atBoundary && ctx.mediaController.isPlaying) {
-        ctx.mediaController.pause();
-        ctx.audioClipActor.setDirective({ type: 'audio-clip', directive: { clip: 'gate_deeper' } });
-      }
+    if (frame.audioPreset) {
+      ctx.audioCompositor.applyPreset(frame.audioPreset.preset, frame.audioPreset.rampTime);
+      if (frame.audioPreset.silenceDip) ctx.audioCompositor.silenceDip(2, 6);
     }
 
-    // World inputs — always update (keeps visuals alive during pause)
-    const audioBands = ctx.audio.analyzer?.update() ?? null;
-    const micSig = { active: false, volume: 0, isHumming: false, breathPhase: 0 }; // TODO: mic
-    const inputs: WorldInputs = {
-      timeline: state, audioBands,
-      voiceEnergy: ctx.narration.state.voiceEnergy,
-      breathPhase: ctx.breath.phase, breathValue: ctx.breath.value, breathStage: ctx.breath.stage,
-      micActive: micSig.active, micBoost: 0,
+    if (frame.pauseAtBoundary) {
+      ctx.mediaController.pause();
+      ctx.audioClipActor.setDirective({ type: 'audio-clip', directive: { clip: 'gate_deeper' } });
+    }
+
+    // 4. Always update subsystems (never skipped, keeps visuals/audio alive during pause)
+    ctx.narration.updateBreathDetection();
+    const inputs = buildWorldInputs({
+      timeline: state,
+      analyzer: ctx.audio.analyzer,
+      narration: ctx.narration, breath: ctx.breath,
       interactionShader: ctx.interactions.shaderState,
       renderTime: this.renderTime, dt: 1 / 60,
-    };
-
-    ctx.compositor.configure(config);
+    });
     ctx.compositor.update(inputs, 1 / 60);
     ctx.audioCompositor.update(inputs, 1 / 60);
     ctx.narration.update();
 
-    // Completion (detected by MediaController)
+    // 5. Completion check
     if (ctx.mediaController.completionFired && !this.completionHandled) {
       if (!ctx.transition.isActive) {
         this.completionHandled = true;
@@ -373,7 +334,6 @@ export class SessionScreen implements Screen {
     clearProgress(); // session completed — no resume needed
     const { SessionEndScreen } = await import('./session-end');
     this.ctx.machine.transition('ending');
-    this.ctx.bus.emit('session:ending', { fadeSec: 3 });
 
     // Build summary from session data
     const duration = this.ctx.timeline.position;
@@ -394,7 +354,6 @@ export class SessionScreen implements Screen {
     if (!this.ctx) return;
     const { SessionSelectorScreen } = await import('./session-selector');
     this.ctx.machine.transition('ending');
-    this.ctx.bus.emit('session:ending', { fadeSec: 1 });
     this.ctx.screenManager.reset(new SessionSelectorScreen({ skipIntro: true }), {
       fadeOutMs: 1200, holdMs: 300, fadeInMs: 1500,
     });

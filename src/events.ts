@@ -18,8 +18,6 @@ import type { HpynoSettings } from './settings';
 export interface HpynoEventMap {
   // Session lifecycle
   'session:starting': { session: SessionConfig };
-  'session:started': { session: SessionConfig };
-  'session:ending': { fadeSec?: number };
   'session:ended': {};
 
   // Settings

@@ -36,6 +36,7 @@ export class StateMachine {
   private _phase: Phase;
   private _epoch = 0;
   private _sessionId: string | null = null;
+  private _stageIndex = 0;
   private bus: EventBus | null = null;
 
   constructor(initialPhase: Phase = 'boot') {
@@ -57,6 +58,15 @@ export class StateMachine {
 
   get sessionId(): string | null {
     return this._sessionId;
+  }
+
+  get stageIndex(): number {
+    return this._stageIndex;
+  }
+
+  setStageIndex(index: number): void {
+    this._stageIndex = index;
+    appState.stageIndex = index;
   }
 
   /** Check if the current phase matches. */

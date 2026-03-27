@@ -24,7 +24,7 @@ import { runAutoCalibration } from './calibration-auto';
 import { BreathController } from './breath';
 import { Presence } from './presence';
 import { hotState, getPersistedRenderer, persistRenderer, onTeardown, runTeardown, nextGeneration, currentGeneration } from './hot-state';
-import { appState, setPhase } from './app-state';
+import { appState } from './app-state';
 import { EventBus } from './events';
 import { StateMachine } from './state-machine';
 // RenderPipeline removed — screens handle their own render passes
@@ -39,9 +39,9 @@ import { realtimeClock } from './clock';
 import {
   Compositor, TunnelLayer, FeedbackLayer, CameraLayer, ParticlesLayer, FadeLayer,
   TextActor, NarrationActor, BreathActor, AudioClipActor, PresenceActor,
-  type WorldInputs,
 } from './compositor';
 import { AudioCompositor } from './audio-compositor';
+import { buildWorldInputs } from './world-inputs';
 
 // Screen system
 import { ScreenManager } from './screen-manager';
@@ -350,19 +350,13 @@ function renderLoop(): void {
 
   try {
     // Always update the compositor (drives PresenceActor + layer channels)
-    const inputs: WorldInputs = {
+    const inputs = buildWorldInputs({
       timeline: null,
-      audioBands: audio.analyzer?.update() ?? null,
-      voiceEnergy: narration.state.voiceEnergy,
-      breathPhase: breath.phase,
-      breathValue: breath.value,
-      breathStage: breath.stage,
-      micActive: false,
-      micBoost: 0,
+      analyzer: audio.analyzer,
+      narration, breath,
       interactionShader: interactions.shaderState,
-      renderTime: _renderTime,
-      dt,
-    };
+      renderTime: _renderTime, dt,
+    });
     compositor.update(inputs, dt);
 
     // Transition manager — must run every frame for screen transitions to work
