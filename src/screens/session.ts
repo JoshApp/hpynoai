@@ -218,8 +218,20 @@ export class SessionScreen implements Screen {
         ctx.machine.setStageIndex(tlState.block.stageIndex);
       }
 
-      // Text display — handled by sessionTick() via compositor directives.
-      // Only handle slot depth override here (visual positioning).
+      // Text display — driven per-frame here (needs live audioRef sync).
+      // Non-audio text (cue/prompt/tts) handled by sessionTick() compositor directives.
+      const narLine = ctx.narration.displayLine;
+      if (narLine && ctx.narration.isPlayingStage) {
+        ctx.textActor.display.set(narLine.text, 'focus', {
+          words: narLine.words as Array<{ word: string; start: number; end: number }>,
+          audioRef: ctx.narration.stageAudioElement,
+          audioLineStart: narLine.startTime,
+        });
+      } else if (!ctx.narration.isPlayingStage && tlState.text) {
+        ctx.textActor.display.set(tlState.text, tlState.textStyle, { depth: tlState.slotDepth ?? undefined });
+      } else if (!narLine && !ctx.narration.isPlayingStage) {
+        ctx.textActor.display.set(null);
+      }
       if (tlState.slotDepth !== null) ctx.textActor.display.setSlotDepth(tlState.slotDepth);
     }
 
@@ -273,11 +285,7 @@ export class SessionScreen implements Screen {
       audioProfile: this.session.audio,
       binauralVolume: ctx.settings.current.binauralVolume,
       lastStageIndex: this.lastStageIndex,
-      narration: {
-        isPlayingStage: ctx.narration.isPlayingStage,
-        stageAudioElement: ctx.narration.stageAudioElement,
-        stageWordStream: ctx.narration.stageWordStream,
-      },
+      isNarrationPlaying: ctx.narration.isPlayingStage,
       isPlaying: ctx.mediaController.isPlaying,
     });
     this.lastStageIndex = frame.newStageIndex;
@@ -300,11 +308,11 @@ export class SessionScreen implements Screen {
     }
 
     // 4. Always update subsystems (never skipped, keeps visuals/audio alive during pause)
-    ctx.narration.updateBreathDetection();
     const inputs = buildWorldInputs({
       timeline: state,
       analyzer: ctx.audio.analyzer,
-      narration: ctx.narration, breath: ctx.breath,
+      voiceEnergy: ctx.narration.state.voiceEnergy,
+      breath: ctx.breath,
       interactionShader: ctx.interactions.shaderState,
       renderTime: this.renderTime, dt: 1 / 60,
     });

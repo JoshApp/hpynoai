@@ -353,7 +353,8 @@ function renderLoop(): void {
     const inputs = buildWorldInputs({
       timeline: null,
       analyzer: audio.analyzer,
-      narration, breath,
+      voiceEnergy: narration.state.voiceEnergy,
+      breath,
       interactionShader: interactions.shaderState,
       renderTime: _renderTime, dt,
     });

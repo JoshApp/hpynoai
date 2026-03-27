@@ -9,13 +9,12 @@ import type { WorldInputs } from './compositor/types';
 import type { TimelineState } from './timeline';
 import type { AudioAnalyzer } from './audio-analyzer';
 import type { BreathController } from './breath';
-import type { NarrationEngine } from './narration';
 import type { InteractionShaderState } from './interactions';
 
 export interface WorldInputSources {
   timeline: TimelineState | null;
   analyzer: AudioAnalyzer | null;
-  narration: NarrationEngine;
+  voiceEnergy: number;
   breath: BreathController;
   interactionShader: InteractionShaderState;
   renderTime: number;
@@ -26,8 +25,7 @@ export function buildWorldInputs(src: WorldInputSources): WorldInputs {
   return {
     timeline: src.timeline,
     audioBands: src.analyzer?.update() ?? null,
-    voiceEnergy: src.narration.state.voiceEnergy,
-    narrationBreath: src.narration.isNarrationBreath,
+    voiceEnergy: src.voiceEnergy,
     breathPhase: src.breath.phase,
     breathValue: src.breath.value,
     breathStage: src.breath.stage,

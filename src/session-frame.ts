@@ -9,8 +9,7 @@
 import type { TimelineState } from './timeline';
 import type { Config, ActorDirective, Preset } from './compositor/types';
 import type { AudioPreset } from './audio-compositor';
-import type { AudioProfile, SessionStage } from './session';
-import type { WordTimestamp } from './narration';
+import type { AudioProfile } from './session';
 import { buildStageAudioPreset } from './audio-presets';
 
 // ── Input (everything the derivation needs, no side effects) ──
@@ -28,12 +27,8 @@ export interface FrameInput {
   binauralVolume: number;
   /** Last stage index (to detect stage changes) */
   lastStageIndex: number;
-  /** Narration pull-model state */
-  narration: {
-    isPlayingStage: boolean;
-    stageAudioElement: HTMLAudioElement | null;
-    stageWordStream: Readonly<{ words: WordTimestamp[]; text: string }> | null;
-  };
+  /** Whether narration stage audio is currently playing */
+  isNarrationPlaying: boolean;
   /** Whether media controller is currently playing */
   isPlaying: boolean;
 }
@@ -90,13 +85,9 @@ export function deriveSessionFrame(input: FrameInput): SessionFrame {
     // Audio clip
     actors.push({ type: 'audio-clip', directive: { clip: state.audioClip ?? null } });
 
-    // Text
-    const textDirective = deriveTextDirective(state, input.narration);
-    actors.push(textDirective);
-    // Flag TTS text for the caller to speak (side effect, can't do here)
-    if (textDirective.type === 'text' && 'mode' in textDirective.directive
-        && textDirective.directive.mode === 'narration-tts') {
-      speakText = (textDirective.directive as { text: string }).text;
+    // TTS speak (for non-audio narration segments)
+    if (state.text && state.textStyle === 'narration' && !input.isNarrationPlaying) {
+      speakText = state.text;
     }
 
     // Stage audio preset (on stage change or seek)
@@ -124,25 +115,3 @@ export function deriveSessionFrame(input: FrameInput): SessionFrame {
   };
 }
 
-/** Derive the text actor directive from timeline + narration state */
-function deriveTextDirective(
-  state: TimelineState,
-  narration: FrameInput['narration'],
-): ActorDirective {
-  const wordStream = narration.stageWordStream;
-  if (wordStream && wordStream.words.length > 0 && narration.isPlayingStage) {
-    return { type: 'text', directive: {
-      mode: 'focus',
-      text: wordStream.text,
-      words: wordStream.words as Array<{ word: string; start: number; end: number }>,
-      audioRef: narration.stageAudioElement,
-      lineStart: 0,
-    }};
-  }
-  if (state.text) {
-    if (state.textStyle === 'cue') return { type: 'text', directive: { mode: 'cue', text: state.text, depth: state.slotDepth ?? undefined } };
-    if (state.textStyle === 'prompt') return { type: 'text', directive: { mode: 'prompt', text: state.text } };
-    return { type: 'text', directive: { mode: 'narration-tts', text: state.text } };
-  }
-  return { type: 'text', directive: { mode: 'clear' } };
-}
