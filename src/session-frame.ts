@@ -53,6 +53,8 @@ export interface SessionFrame {
   pauseAtBoundary: boolean;
   /** Updated last stage index (caller should persist this) */
   newStageIndex: number;
+  /** Text to speak via TTS (side effect — only set for narration-tts style) */
+  speakText: string | null;
 }
 
 /**
@@ -74,6 +76,7 @@ export function deriveSessionFrame(input: FrameInput): SessionFrame {
   let audioPreset: SessionFrame['audioPreset'] = null;
   let pauseAtBoundary = false;
   let newStageIndex = lastStageIndex;
+  let speakText: string | null = null;
 
   // Only build directives from fresh ticks (not stale/paused state)
   if (isFreshTick) {
@@ -88,7 +91,13 @@ export function deriveSessionFrame(input: FrameInput): SessionFrame {
     actors.push({ type: 'audio-clip', directive: { clip: state.audioClip ?? null } });
 
     // Text
-    actors.push(deriveTextDirective(state, input.narration));
+    const textDirective = deriveTextDirective(state, input.narration);
+    actors.push(textDirective);
+    // Flag TTS text for the caller to speak (side effect, can't do here)
+    if (textDirective.type === 'text' && 'mode' in textDirective.directive
+        && textDirective.directive.mode === 'narration-tts') {
+      speakText = (textDirective.directive as { text: string }).text;
+    }
 
     // Stage audio preset (on stage change or seek)
     if (state.block.stageIndex !== lastStageIndex || state.seeked) {
@@ -111,6 +120,7 @@ export function deriveSessionFrame(input: FrameInput): SessionFrame {
     audioPreset,
     pauseAtBoundary,
     newStageIndex,
+    speakText,
   };
 }
 

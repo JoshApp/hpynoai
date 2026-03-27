@@ -218,20 +218,8 @@ export class SessionScreen implements Screen {
         ctx.machine.setStageIndex(tlState.block.stageIndex);
       }
 
-      // Text display
-      const narLine = ctx.narration.displayLine;
-      if (narLine && ctx.narration.isPlayingStage) {
-        ctx.textActor.display.set(narLine.text, 'focus', {
-          words: narLine.words as Array<{ word: string; start: number; end: number }>,
-          audioRef: ctx.narration.stageAudioElement,
-          audioLineStart: narLine.startTime,
-        });
-      } else if (tlState.text) {
-        ctx.textActor.display.set(tlState.text, tlState.textStyle, { depth: tlState.slotDepth ?? undefined });
-        if (tlState.textStyle === 'narration') ctx.narration.speakText(tlState.text);
-      } else if (!narLine) {
-        ctx.textActor.display.set(null);
-      }
+      // Text display — handled by sessionTick() via compositor directives.
+      // Only handle slot depth override here (visual positioning).
       if (tlState.slotDepth !== null) ctx.textActor.display.setSlotDepth(tlState.slotDepth);
     }
 
@@ -300,6 +288,10 @@ export class SessionScreen implements Screen {
     if (frame.audioPreset) {
       ctx.audioCompositor.applyPreset(frame.audioPreset.preset, frame.audioPreset.rampTime);
       if (frame.audioPreset.silenceDip) ctx.audioCompositor.silenceDip(2, 6);
+    }
+
+    if (frame.speakText) {
+      ctx.narration.speakText(frame.speakText);
     }
 
     if (frame.pauseAtBoundary) {
