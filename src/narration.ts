@@ -297,14 +297,19 @@ export class NarrationEngine {
         if (resolved) return;
         resolved = true;
         if (this.stageTimeoutId) {
-          clearTimeout(this.stageTimeoutId);
+          clearInterval(this.stageTimeoutId as unknown as number);
           this.stageTimeoutId = null;
         }
         log.info('narration', `playStage done: ${stageName} (${reason})`);
-        this.stagePlaybackActive = false;
-        this._isSpeaking = false;
-        this.stageAudio = null;
-        if (this.onStageEnded) this.onStageEnded();
+        // Only update state if this audio is still the current one.
+        // If stopStagePlayback() was called and a new stage started,
+        // this.stageAudio will be a different element — don't touch state.
+        if (this.stageAudio === audio) {
+          this.stagePlaybackActive = false;
+          this._isSpeaking = false;
+          this.stageAudio = null;
+          if (this.onStageEnded) this.onStageEnded();
+        }
         resolve();
       };
 
@@ -345,11 +350,10 @@ export class NarrationEngine {
       }
 
       audio.play().then(() => {
-        // Notify MediaController — audio is actually playing, bind as clock source
-        if (this._audioReadyHandler) {
-          // blockStart = timeline position where this block begins
-          // The MediaController will call timeline.bindAudio(audio, blockStart)
-          this._audioReadyHandler(audio, 0); // 0 = placeholder, MediaController provides actual blockStart
+        // Only bind if this audio is still the current stage audio
+        // (a seek/stop may have replaced it while play() was resolving)
+        if (this.stageAudio === audio && this._audioReadyHandler) {
+          this._audioReadyHandler(audio, 0);
         }
       }).catch(() => {
         log.warn('narration', `Stage audio play() rejected: ${stageName}`);
