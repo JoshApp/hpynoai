@@ -121,42 +121,19 @@ export class MediaController {
     this.audioCompositor.setMasterVolume(0);
   }
 
-  /**
-   * Resume everything atomically.
-   * Order: resume AudioContext, AWAIT audio.play(), THEN timeline.resume().
-   * This ensures readClock() reads from live audio on the first frame.
-   *
-   * IMPORTANT: Never call narration.enterStage() here — that creates a new
-   * audio element and causes duplicate playback. If play() fails, the timeline
-   * will fall back to wall-clock mode and the next block transition will
-   * re-enter the stage naturally.
-   */
+  /** Resume: AudioContext → audio element → timeline → volume. */
   async resume(): Promise<void> {
     if (!this.guard('paused')) return;
 
-    // 1. Ensure AudioContext is running (mobile might have suspended it)
-    try {
-      await this.audio.context?.resume();
-    } catch { /* ok */ }
+    try { await this.audio.context?.resume(); } catch { /* ok */ }
 
-    // 2. Resume audio element FIRST — must await so it's actually playing
-    const audioEl = this.narration.stageAudioElement;
-    if (audioEl?.paused) {
-      try {
-        await audioEl.play();
-      } catch {
-        // Play rejected — timeline will use wall-clock fallback.
-        // Do NOT re-enter stage (causes duplicate audio).
-        log.warn('media', 'Audio play() rejected on resume');
-      }
+    if (this.narration.stageAudioElement?.paused) {
+      try { await this.narration.stageAudioElement.play(); }
+      catch { log.warn('media', 'Audio play() rejected on resume'); }
     }
 
-    // 3. NOW resume timeline — readClock() will use the live audio element
     this.timeline.resume();
-
-    // 4. Restore ambient volume
     this.audioCompositor.setMasterVolume(this.getAmbientVolume());
-
     this.setState('playing');
   }
 

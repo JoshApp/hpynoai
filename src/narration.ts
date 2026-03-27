@@ -297,7 +297,7 @@ export class NarrationEngine {
         if (resolved) return;
         resolved = true;
         if (this.stageTimeoutId) {
-          clearInterval(this.stageTimeoutId as unknown as number);
+          clearTimeout(this.stageTimeoutId);
           this.stageTimeoutId = null;
         }
         log.info('narration', `playStage done: ${stageName} (${reason})`);
@@ -319,30 +319,16 @@ export class NarrationEngine {
         done('error');
       };
 
-      // Safety timeout — if onended never fires (browser bug, tab suspend),
-      // force completion so the session doesn't get stuck.
-      // Uses a polling check instead of fixed timeout to account for pause time.
-      const maxDuration = (stage.duration ?? 60) + 10;
-      const startedAt = performance.now();
-      this.stageTimeoutId = setInterval(() => {
-        if (resolved) {
-          clearInterval(this.stageTimeoutId!);
-          this.stageTimeoutId = null;
-          return;
-        }
-        // Only count time when audio is actually playing (not paused)
-        if (!audio.paused && audio.currentTime >= maxDuration) {
-          log.warn('narration', `Stage audio exceeded max duration ${maxDuration}s: ${stageName}`);
+      // Safety timeout — generous buffer so pausing doesn't trigger it.
+      // stopStagePlayback() clears this if called before it fires.
+      const timeoutSec = (stage.duration ?? 60) * 3 + 30;
+      this.stageTimeoutId = setTimeout(() => {
+        if (!resolved) {
+          log.warn('narration', `Stage audio timed out after ${timeoutSec}s: ${stageName}`);
           audio.pause();
           done('timeout');
         }
-        // Hard safety: if wall-clock time exceeds 3x expected (covers long pauses)
-        if ((performance.now() - startedAt) > maxDuration * 3 * 1000) {
-          log.warn('narration', `Stage audio hard timeout: ${stageName}`);
-          audio.pause();
-          done('timeout');
-        }
-      }, 5000) as unknown as ReturnType<typeof setTimeout>;
+      }, timeoutSec * 1000);
 
       // Seek to offset if resuming mid-block (e.g. timeline scrub)
       if (offset > 0) {
@@ -416,8 +402,7 @@ export class NarrationEngine {
   /** Stop continuous stage playback */
   stopStagePlayback(): void {
     if (this.stageTimeoutId) {
-      clearInterval(this.stageTimeoutId as unknown as number);
-      clearTimeout(this.stageTimeoutId); // clear both in case it's either type
+      clearTimeout(this.stageTimeoutId);
       this.stageTimeoutId = null;
     }
     if (this.stageAudio) {
