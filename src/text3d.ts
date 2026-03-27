@@ -408,32 +408,33 @@ export class Text3D {
     // Dark backdrop for readability against bright tunnel
     ctx.shadowColor = 'transparent';
     ctx.shadowBlur = 0;
-    ctx.globalAlpha = 0.25;
+    ctx.globalAlpha = 0.4;
     ctx.fillStyle = 'rgba(0, 0, 0, 1)';
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-    ctx.shadowBlur = 30;
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+    ctx.shadowBlur = 40;
     ctx.fillText(text, cx, cy);
     ctx.fillText(text, cx, cy); // double pass for stronger backdrop
+    ctx.fillText(text, cx, cy); // triple pass — ensures contrast on bright tunnels
 
     // Strong dark outline
     ctx.shadowColor = 'transparent';
     ctx.shadowBlur = 0;
-    ctx.globalAlpha = 0.7;
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
-    ctx.lineWidth = 5;
+    ctx.globalAlpha = 0.85;
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.9)';
+    ctx.lineWidth = 7;
     ctx.lineJoin = 'round';
     ctx.strokeText(text, cx, cy);
 
     // Main text with glow
     ctx.shadowColor = this.glowColor;
-    ctx.shadowBlur = 25;
-    ctx.globalAlpha = 0.95;
+    ctx.shadowBlur = 30;
+    ctx.globalAlpha = 1.0;
     ctx.fillStyle = this.textColor;
     ctx.fillText(text, cx, cy);
 
     // Extra glow pass
-    ctx.globalAlpha = 0.35;
-    ctx.shadowBlur = 40;
+    ctx.globalAlpha = 0.45;
+    ctx.shadowBlur = 45;
     ctx.fillText(text, cx, cy);
 
     ctx.globalAlpha = 1;

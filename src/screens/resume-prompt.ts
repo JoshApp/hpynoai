@@ -23,13 +23,12 @@ export class ResumePromptScreen implements Screen {
   private unsubs: Array<() => void> = [];
   private sprites: THREE.Sprite[] = [];
   private timeoutTimer: number | null = null;
-  private selectedIndex = 0; // 0 = continue, 1 = start fresh
+  private selectedIndex = 0; // 0 = continue, 1 = start fresh, 2 = back to menu
   private navigating = false;
   private startTime = 0;
 
   // Option sprites for highlighting
-  private continueSprite: THREE.Sprite | null = null;
-  private freshSprite: THREE.Sprite | null = null;
+  private optionSprites: THREE.Sprite[] = [];
 
   constructor(saved: SavedSession) {
     this.saved = saved;
@@ -52,33 +51,40 @@ export class ResumePromptScreen implements Screen {
 
     // Title — session info
     this.addSprite(ctx, `${icon} ${sessionName}`, {
-      fontSize: 64, color: '#d4b8ff', glow: 'rgba(200,160,255,0.5)', height: 0.12,
-    }, 0, 0.2, -0.1);
+      fontSize: 64, color: '#e0c8ff', glow: 'rgba(220,180,255,0.6)', height: 0.12,
+    }, 0, 0.25, -0.1);
 
     this.addSprite(ctx, `paused at ${timeStr}`, {
-      fontSize: 36, color: '#a090c0', glow: 'rgba(160,144,192,0.3)', height: 0.05,
-    }, 0, 0.05, -0.05);
+      fontSize: 38, color: '#b0a0d0', glow: 'rgba(176,160,208,0.35)', height: 0.055,
+    }, 0, 0.1, -0.05);
 
     // Options
-    this.continueSprite = this.addSprite(ctx, '▶  continue', {
-      fontSize: 42, color: '#c8b8ff', glow: 'rgba(200,184,255,0.5)', height: 0.065,
-    }, 0, -0.12, -0.04);
+    const optContinue = this.addSprite(ctx, '▶  continue', {
+      fontSize: 44, color: '#c8b8ff', glow: 'rgba(200,184,255,0.5)', height: 0.07,
+    }, 0, -0.05, -0.04);
+    this.optionSprites.push(optContinue);
 
-    this.freshSprite = this.addSprite(ctx, '✦  start fresh', {
-      fontSize: 42, color: '#a090c0', glow: 'rgba(160,144,192,0.3)', height: 0.065,
-    }, 0, -0.22, -0.04);
+    const optFresh = this.addSprite(ctx, '✦  start fresh', {
+      fontSize: 44, color: '#a090c0', glow: 'rgba(160,144,192,0.35)', height: 0.07,
+    }, 0, -0.16, -0.04);
+    this.optionSprites.push(optFresh);
 
-    // Input
-    this.unsubs.push(ctx.bus.on('input:left', () => { this.selectedIndex = 0; }));
-    this.unsubs.push(ctx.bus.on('input:right', () => { this.selectedIndex = 1; }));
+    const optMenu = this.addSprite(ctx, '◁  back to menu', {
+      fontSize: 38, color: '#8878a0', glow: 'rgba(136,120,160,0.25)', height: 0.055,
+    }, 0, -0.27, -0.04);
+    this.optionSprites.push(optMenu);
+
+    // Input — up/down to navigate, confirm to select
+    const maxIdx = 2;
+    this.unsubs.push(ctx.bus.on('input:left', () => { this.selectedIndex = Math.max(0, this.selectedIndex - 1); }));
+    this.unsubs.push(ctx.bus.on('input:right', () => { this.selectedIndex = Math.min(maxIdx, this.selectedIndex + 1); }));
     this.unsubs.push(ctx.bus.on('input:confirm', () => this.confirm()));
     this.unsubs.push(ctx.bus.on('input:tap', () => this.confirm()));
-    this.unsubs.push(ctx.bus.on('input:back', () => { this.selectedIndex = 1; this.confirm(); }));
+    this.unsubs.push(ctx.bus.on('input:back', () => { this.selectedIndex = maxIdx; this.confirm(); }));
 
-    // Also navigate with up/down
     const onKey = (e: KeyboardEvent) => {
-      if (e.code === 'ArrowUp' || e.code === 'KeyW') { this.selectedIndex = 0; e.preventDefault(); }
-      if (e.code === 'ArrowDown' || e.code === 'KeyS') { this.selectedIndex = 1; e.preventDefault(); }
+      if (e.code === 'ArrowUp' || e.code === 'KeyW') { this.selectedIndex = Math.max(0, this.selectedIndex - 1); e.preventDefault(); }
+      if (e.code === 'ArrowDown' || e.code === 'KeyS') { this.selectedIndex = Math.min(maxIdx, this.selectedIndex + 1); e.preventDefault(); }
     };
     document.addEventListener('keydown', onKey);
     this.unsubs.push(() => document.removeEventListener('keydown', onKey));
@@ -104,8 +110,7 @@ export class ResumePromptScreen implements Screen {
       this.ctx.textActor.setDirective({ type: 'text', directive: { mode: 'clear' } });
     }
     this.sprites = [];
-    this.continueSprite = null;
-    this.freshSprite = null;
+    this.optionSprites = [];
     this.ctx = null;
   }
 
@@ -117,24 +122,17 @@ export class ResumePromptScreen implements Screen {
     // Fade in all sprites
     for (let i = 0; i < this.sprites.length; i++) {
       const mat = this.sprites[i].material as THREE.SpriteMaterial;
-      const fadeStart = i * 0.3;
-      const t = Math.max(0, Math.min(1, (elapsed - fadeStart) / 1.0));
+      const fadeStart = i * 0.25;
+      const t = Math.max(0, Math.min(1, (elapsed - fadeStart) / 0.8));
       const baseOpacity = t * t * (3 - 2 * t) * 0.9;
 
-      // Highlight selected option
-      if (this.sprites[i] === this.continueSprite) {
-        const selected = this.selectedIndex === 0;
-        const pulse = selected ? 0.85 + Math.sin(time * 3) * 0.15 : 0.35;
+      // Is this an option sprite?
+      const optIdx = this.optionSprites.indexOf(this.sprites[i]);
+      if (optIdx >= 0) {
+        const selected = this.selectedIndex === optIdx;
+        const pulse = selected ? 0.85 + Math.sin(time * 3) * 0.15 : 0.3;
         mat.opacity = baseOpacity * pulse;
-        // Scale selected larger
-        const scale = selected ? 0.075 : 0.06;
-        const aspect = this.sprites[i].userData.aspect ?? 4;
-        this.sprites[i].scale.set(scale * aspect, scale, 1);
-      } else if (this.sprites[i] === this.freshSprite) {
-        const selected = this.selectedIndex === 1;
-        const pulse = selected ? 0.85 + Math.sin(time * 3) * 0.15 : 0.35;
-        mat.opacity = baseOpacity * pulse;
-        const scale = selected ? 0.075 : 0.06;
+        const scale = selected ? 0.075 : 0.055;
         const aspect = this.sprites[i].userData.aspect ?? 4;
         this.sprites[i].scale.set(scale * aspect, scale, 1);
       } else {
@@ -163,10 +161,19 @@ export class ResumePromptScreen implements Screen {
         new SessionScreen(session, { resumePosition: this.saved.position }),
         { fadeOutMs: 1000, holdMs: 300, fadeInMs: 800 },
       );
-    } else {
-      // Start fresh
+    } else if (this.selectedIndex === 1 && session) {
+      // Start fresh — same session, from the beginning
       clearProgress();
-      log.info('resume', 'Starting fresh');
+      log.info('resume', `Starting fresh: ${session.name}`);
+      const { SessionScreen } = await import('./session');
+      this.ctx.screenManager.replace(
+        new SessionScreen(session),
+        { fadeOutMs: 800, holdMs: 200, fadeInMs: 600 },
+      );
+    } else {
+      // Back to menu
+      clearProgress();
+      log.info('resume', 'Back to menu');
       const { SessionSelectorScreen } = await import('./session-selector');
       this.ctx.screenManager.replace(
         new SessionSelectorScreen(),
