@@ -274,75 +274,79 @@ export class SessionScreen implements Screen {
 
     // MediaController handles narration directives, audio binding, completion
     const tlState = ctx.mediaController.tick();
-    this.lastTick = tlState;
-    if (!tlState) return;
+    if (tlState) this.lastTick = tlState;
+
+    // Use current tick or fall back to last known state (keeps visuals alive while paused)
+    const state = tlState ?? this.lastTick;
+    if (!state) return;
 
     // Build visual compositor config
     const config: Config = {
       preset: {
-        tunnel: { intensity: tlState.intensity, spiralSpeed: tlState.spiralSpeed, audioReactivity: 1 },
-        feedback: { strength: tlState.intensity },
-        camera: { sway: tlState.intensity },
+        tunnel: { intensity: state.intensity, spiralSpeed: state.spiralSpeed, audioReactivity: 1 },
+        feedback: { strength: state.intensity },
+        camera: { sway: state.intensity },
         fade: { opacity: ctx.transition.state.fadeAmount },
       },
       actors: [],
     };
 
-    // Narration directives handled by MediaController.tick() — NOT here
+    // Only process directives when we have a fresh tick (not paused/stale)
+    if (tlState) {
+      // Breath directive
+      if (tlState.breathDrive && tlState.breathValue !== null && tlState.breathStage) {
+        config.actors.push({ type: 'breath', directive: { action: 'drive', value: tlState.breathValue, stage: tlState.breathStage } });
+      } else if (tlState.blockJustChanged) {
+        config.actors.push({ type: 'breath', directive: { action: 'apply-stage', stage: tlState.block.stage } });
+      }
 
-    // Breath directive
-    if (tlState.breathDrive && tlState.breathValue !== null && tlState.breathStage) {
-      config.actors.push({ type: 'breath', directive: { action: 'drive', value: tlState.breathValue, stage: tlState.breathStage } });
-    } else if (tlState.blockJustChanged) {
-      config.actors.push({ type: 'breath', directive: { action: 'apply-stage', stage: tlState.block.stage } });
-    }
+      // Audio clip
+      if (tlState.audioClip) {
+        config.actors.push({ type: 'audio-clip', directive: { clip: tlState.audioClip } });
+      } else {
+        config.actors.push({ type: 'audio-clip', directive: { clip: null } });
+      }
 
-    // Audio clip
-    if (tlState.audioClip) {
-      config.actors.push({ type: 'audio-clip', directive: { clip: tlState.audioClip } });
-    } else {
-      config.actors.push({ type: 'audio-clip', directive: { clip: null } });
-    }
+      // Text — use full word stream for focus mode (handles sparse stages properly)
+      const wordStream = ctx.narration.stageWordStream;
+      if (wordStream && wordStream.words.length > 0 && ctx.narration.isPlayingStage) {
+        config.actors.push({ type: 'text', directive: {
+          mode: 'focus',
+          text: wordStream.text,
+          words: wordStream.words as Array<{ word: string; start: number; end: number }>,
+          audioRef: ctx.narration.stageAudioElement,
+          lineStart: 0,  // words have absolute timestamps
+        }});
+      } else if (tlState.text) {
+        if (tlState.textStyle === 'cue') config.actors.push({ type: 'text', directive: { mode: 'cue', text: tlState.text, depth: tlState.slotDepth ?? undefined } });
+        else if (tlState.textStyle === 'prompt') config.actors.push({ type: 'text', directive: { mode: 'prompt', text: tlState.text } });
+        else config.actors.push({ type: 'text', directive: { mode: 'narration-tts', text: tlState.text } });
+      } else {
+        config.actors.push({ type: 'text', directive: { mode: 'clear' } });
+      }
 
-    // Text — use full word stream for focus mode (handles sparse stages properly)
-    const wordStream = ctx.narration.stageWordStream;
-    if (wordStream && wordStream.words.length > 0 && ctx.narration.isPlayingStage) {
-      config.actors.push({ type: 'text', directive: {
-        mode: 'focus',
-        text: wordStream.text,
-        words: wordStream.words as Array<{ word: string; start: number; end: number }>,
-        audioRef: ctx.narration.stageAudioElement,
-        lineStart: 0,  // words have absolute timestamps
-      }});
-    } else if (tlState.text) {
-      if (tlState.textStyle === 'cue') config.actors.push({ type: 'text', directive: { mode: 'cue', text: tlState.text, depth: tlState.slotDepth ?? undefined } });
-      else if (tlState.textStyle === 'prompt') config.actors.push({ type: 'text', directive: { mode: 'prompt', text: tlState.text } });
-      else config.actors.push({ type: 'text', directive: { mode: 'narration-tts', text: tlState.text } });
-    } else {
-      config.actors.push({ type: 'text', directive: { mode: 'clear' } });
-    }
+      // Stage audio preset
+      if (tlState.block.stageIndex !== this.lastStageIndex || tlState.seeked) {
+        this.lastStageIndex = tlState.block.stageIndex;
+        const preset = buildStageAudioPreset(tlState.block.stage, this.session.audio, ctx.settings.current.binauralVolume);
+        ctx.audioCompositor.applyPreset(preset, 3);
+        if (tlState.block.stage.fractionationDip != null) {
+          ctx.audioCompositor.silenceDip(2, 6);
+        }
+      }
 
-    // Stage audio preset
-    if (tlState.block.stageIndex !== this.lastStageIndex || tlState.seeked) {
-      this.lastStageIndex = tlState.block.stageIndex;
-      const preset = buildStageAudioPreset(tlState.block.stage, this.session.audio, ctx.settings.current.binauralVolume);
-      ctx.audioCompositor.applyPreset(preset, 3);
-      if (tlState.block.stage.fractionationDip != null) {
-        ctx.audioCompositor.silenceDip(2, 6);
+      // Interaction boundary — pause via MediaController (atomic)
+      if (tlState.atBoundary && ctx.mediaController.isPlaying) {
+        ctx.mediaController.pause();
+        ctx.audioClipActor.setDirective({ type: 'audio-clip', directive: { clip: 'gate_deeper' } });
       }
     }
 
-    // Interaction boundary — pause via MediaController (atomic)
-    if (tlState.atBoundary && ctx.mediaController.isPlaying) {
-      ctx.mediaController.pause();
-      ctx.audioClipActor.setDirective({ type: 'audio-clip', directive: { clip: 'gate_deeper' } });
-    }
-
-    // World inputs
+    // World inputs — always update (keeps visuals alive during pause)
     const audioBands = ctx.audio.analyzer?.update() ?? null;
     const micSig = { active: false, volume: 0, isHumming: false, breathPhase: 0 }; // TODO: mic
     const inputs: WorldInputs = {
-      timeline: tlState, audioBands,
+      timeline: state, audioBands,
       voiceEnergy: ctx.narration.state.voiceEnergy,
       breathPhase: ctx.breath.phase, breathValue: ctx.breath.value, breathStage: ctx.breath.stage,
       micActive: micSig.active, micBoost: 0,
