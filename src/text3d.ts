@@ -405,32 +405,29 @@ export class Text3D {
     const cx = canvas.width / 2;
     const cy = canvas.height / 2;
 
-    // Dark backdrop — NormalBlending means this actually renders as dark
-    ctx.globalAlpha = 0.6;
-    ctx.fillStyle = '#000';
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
-    ctx.shadowBlur = 35;
+    // Soft dark halo behind text (shadow only, no fill on the text shape itself)
+    ctx.globalAlpha = 0.0;
+    ctx.fillStyle = 'rgba(0,0,0,0)';
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+    ctx.shadowBlur = 40;
+    // Draw invisible text — only the shadow renders (creates halo without muddying center)
+    ctx.fillText(text, cx, cy);
     ctx.fillText(text, cx, cy);
 
-    // Dark outline for crisp edges
+    // Crisp dark outline
     ctx.shadowColor = 'transparent';
     ctx.shadowBlur = 0;
-    ctx.globalAlpha = 0.9;
+    ctx.globalAlpha = 1.0;
     ctx.strokeStyle = '#000';
-    ctx.lineWidth = 6;
+    ctx.lineWidth = 5;
     ctx.lineJoin = 'round';
     ctx.strokeText(text, cx, cy);
 
-    // Main text
-    ctx.shadowColor = this.glowColor;
-    ctx.shadowBlur = 20;
+    // Main text — fully opaque, clean color
     ctx.globalAlpha = 1.0;
     ctx.fillStyle = this.textColor;
-    ctx.fillText(text, cx, cy);
-
-    // Subtle glow halo
-    ctx.globalAlpha = 0.3;
-    ctx.shadowBlur = 35;
+    ctx.shadowColor = this.glowColor;
+    ctx.shadowBlur = 15;
     ctx.fillText(text, cx, cy);
 
     ctx.globalAlpha = 1;
