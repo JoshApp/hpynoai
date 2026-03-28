@@ -69,23 +69,33 @@ export class SessionScreen implements Screen {
       if (ctx.screenManager.isTransitioning) return;
       this.returnToMenu();
     }));
-    this.unsubs.push(ctx.bus.on('input:confirm', () => {
-      if (!ctx.timeline.started) return;
 
+    // Pause/resume on confirm (space/enter/tap)
+    const handleToggle = () => {
+      if (!ctx.timeline.started) return;
       if (ctx.timeline.paused) {
-        // If paused at a gate boundary → confirm the gate
         const tlState = ctx.timeline.update();
         if (tlState?.atBoundary) {
           ctx.audioClipActor.setDirective({ type: 'audio-clip', directive: { clip: 'gate_yes' } });
           ctx.audioCompositor.silenceDip(1.5, 5);
         }
-        // Resume (whether gate or user-paused)
         ctx.playbackControls.togglePause();
       } else {
-        // Playing → pause (like YouTube space bar)
         ctx.playbackControls.togglePause();
       }
-    }));
+    };
+    this.unsubs.push(ctx.bus.on('input:confirm', handleToggle));
+
+    // Prevent UI buttons from stealing keyboard focus — keeps Space/Enter
+    // working for pause/resume even after clicking settings/fullscreen.
+    const blurButtons = () => {
+      if (document.activeElement instanceof HTMLButtonElement) {
+        document.activeElement.blur();
+      }
+    };
+    // Blur after any click so Space always goes to our handler
+    document.addEventListener('click', blurButtons);
+    this.unsubs.push(() => document.removeEventListener('click', blurButtons));
 
     // Wakelock (sync, from user gesture context)
     resumeAudioFromGesture(ctx.audio);
