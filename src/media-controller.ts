@@ -287,29 +287,21 @@ export class MediaController {
   }
 
   private async reconcileAfterTab(): Promise<void> {
-    // Resume AudioContext if suspended
-    try {
-      await this.audio.context?.resume();
-    } catch { /* ok */ }
+    try { await this.audio.context?.resume(); } catch { /* ok */ }
 
-    if (this._boundAudio && this.narration.stageAudioElement) {
-      // Audio element is the authority — its currentTime may have frozen
-      const audioTime = this.narration.stageAudioElement.currentTime;
-      const block = this.timeline.currentBlock;
-      if (block) {
-        // Re-anchor timeline to audio position
-        const truePosition = block.start + audioTime;
-        // Don't use seek() (too heavy) — just reset the wall clock
-        this.timeline.seek(truePosition);
-        this.timeline.bindAudio(this.narration.stageAudioElement, block.start);
-      }
+    // The browser may have killed the audio element while tabbed out
+    // (safety timeout, garbage collection, etc.). Use seek() to cleanly
+    // re-enter the stage — it stops old audio, rebuilds narration state,
+    // and re-binds the timeline. Simple and correct.
+    const pos = this.timeline.position;
+    const wasPaused = !this._wasPlayingBeforeTab;
 
-      // Resume audio if browser suspended it
-      if (this.narration.stageAudioElement.paused && this._wasPlayingBeforeTab) {
-        try {
-          await this.narration.stageAudioElement.play();
-        } catch { /* ok */ }
-      }
+    // Force state to allow seek
+    this.setState('playing');
+    await this.seek(pos);
+
+    if (wasPaused) {
+      await this.pause();
     }
 
     this._wasPlayingBeforeTab = false;
