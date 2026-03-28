@@ -132,7 +132,7 @@ export class Text3D {
         transparent: true,
         opacity: 0,
         depthTest: false,
-        blending: THREE.AdditiveBlending,
+        blending: THREE.NormalBlending,
       });
       const sprite = new THREE.Sprite(material);
       sprite.scale.set(scale * aspect, scale, 1);
@@ -405,36 +405,32 @@ export class Text3D {
     const cx = canvas.width / 2;
     const cy = canvas.height / 2;
 
-    // Dark backdrop for readability against bright tunnel
-    ctx.shadowColor = 'transparent';
-    ctx.shadowBlur = 0;
-    ctx.globalAlpha = 0.4;
-    ctx.fillStyle = 'rgba(0, 0, 0, 1)';
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
-    ctx.shadowBlur = 40;
+    // Dark backdrop — NormalBlending means this actually renders as dark
+    ctx.globalAlpha = 0.6;
+    ctx.fillStyle = '#000';
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
+    ctx.shadowBlur = 35;
     ctx.fillText(text, cx, cy);
-    ctx.fillText(text, cx, cy); // double pass for stronger backdrop
-    ctx.fillText(text, cx, cy); // triple pass — ensures contrast on bright tunnels
 
-    // Strong dark outline
+    // Dark outline for crisp edges
     ctx.shadowColor = 'transparent';
     ctx.shadowBlur = 0;
-    ctx.globalAlpha = 0.85;
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.9)';
-    ctx.lineWidth = 7;
+    ctx.globalAlpha = 0.9;
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 6;
     ctx.lineJoin = 'round';
     ctx.strokeText(text, cx, cy);
 
-    // Main text with glow
+    // Main text
     ctx.shadowColor = this.glowColor;
-    ctx.shadowBlur = 30;
+    ctx.shadowBlur = 20;
     ctx.globalAlpha = 1.0;
     ctx.fillStyle = this.textColor;
     ctx.fillText(text, cx, cy);
 
-    // Extra glow pass
-    ctx.globalAlpha = 0.45;
-    ctx.shadowBlur = 45;
+    // Subtle glow halo
+    ctx.globalAlpha = 0.3;
+    ctx.shadowBlur = 35;
     ctx.fillText(text, cx, cy);
 
     ctx.globalAlpha = 1;
