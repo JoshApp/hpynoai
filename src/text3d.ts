@@ -229,7 +229,7 @@ export class Text3D {
       transparent: true,
       opacity: 0,
       depthTest: false,
-      blending: THREE.AdditiveBlending,
+      blending: THREE.NormalBlending,
     });
     const sprite = new THREE.Sprite(material);
     const scale = 0.3 * this._settings.scale;
