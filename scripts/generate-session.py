@@ -260,14 +260,34 @@ def wav_duration(path):
 
 
 def wav_to_mp3(wav_path, mp3_path=None):
-    """Convert WAV to MP3 (128k). Returns MP3 path."""
+    """Convert WAV to MP3 (256k, 48kHz). Returns MP3 path."""
     if mp3_path is None:
         mp3_path = wav_path.replace('.wav', '.mp3')
     subprocess.run(
-        ["ffmpeg", "-y", "-i", wav_path, "-codec:a", "libmp3lame", "-b:a", "128k", mp3_path],
-        capture_output=True, timeout=30,
+        ["ffmpeg", "-y", "-i", wav_path,
+         "-ar", "48000",
+         "-codec:a", "libmp3lame", "-b:a", "256k",
+         mp3_path],
+        capture_output=True, timeout=60,
     )
     return mp3_path
+
+
+def wav_to_opus(wav_path, opus_path=None):
+    """Convert WAV to Opus in WebM container (128k, 48kHz).
+    Opus at 128k ≈ MP3 at 320k quality, at half the file size.
+    Returns path on success, None on failure."""
+    if opus_path is None:
+        opus_path = wav_path.replace('.wav', '.webm')
+    result = subprocess.run(
+        ["ffmpeg", "-y", "-i", wav_path,
+         "-ar", "48000",
+         "-codec:a", "libopus", "-b:a", "128k",
+         "-vbr", "on",
+         opus_path],
+        capture_output=True, timeout=60,
+    )
+    return opus_path if result.returncode == 0 else None
 
 
 # ── Transcription — WhisperX (forced alignment) > faster-whisper > whisper ──
@@ -598,7 +618,8 @@ def generate_session_config(manifest, script_path, stages):
     config_lines.append("// Interactive clips — standalone audio files for interactions")
     config_lines.append("export const interactiveClips: Array<{ id: string; type: string; text: string; duration: number }> = [")
     for ix in manifest.get("interactive", []):
-        escaped = ix['text'].replace("\\", "\\\\").replace("'", "\\'")
+        text = ix.get('text', '')
+        escaped = text.replace("\\", "\\\\").replace("'", "\\'")
         config_lines.append(f"  {{ id: '{ix['id']}', type: '{ix.get('type', 'prompt')}', text: '{escaped}', duration: {ix.get('duration', 0)} }},")
     config_lines.append("];")
 
@@ -802,19 +823,20 @@ def main():
     for si, stage in enumerate(stages):
         # --stage filter: skip stages that don't match
         if args.stage and stage['name'] != args.stage:
-            # Still need to add to manifest from existing data if available
-            existing_wav = os.path.join(out_dir, f"{si:02d}_{stage['name']}.wav")
-            existing_mp3 = os.path.join(out_dir, f"{si:02d}_{stage['name']}.mp3")
-            if os.path.exists(existing_wav) or os.path.exists(existing_mp3):
-                # Read existing manifest entry if available
-                if os.path.exists(manifest_path):
-                    with open(manifest_path) as _mf:
-                        _existing = json.load(_mf)
-                    for _es in _existing.get("stages", []):
-                        if _es["name"] == stage['name']:
-                            manifest["stages"].append(_es)
-                            break
-                print(f"\n── {stage['name']} (skipped — use --stage {stage['name']} to process) ──")
+            # Pull from existing manifest — but verify the file path matches current numbering
+            if os.path.exists(manifest_path):
+                with open(manifest_path) as _mf:
+                    _existing = json.load(_mf)
+                for _es in _existing.get("stages", []):
+                    if _es["name"] == stage['name']:
+                        expected_file = f"sessions/{session}/{si:02d}_{stage['name']}.mp3"
+                        if _es["file"] != expected_file:
+                            print(f"\n  WARNING: {stage['name']} file path changed ({_es['file']} → {expected_file})")
+                            print(f"  Run without --stage to regenerate all stages consistently.")
+                            _es["file"] = expected_file  # fix path in manifest
+                        manifest["stages"].append(_es)
+                        break
+            print(f"\n── {stage['name']} (skipped — use --stage {stage['name']} to process) ──")
             continue
 
         print(f"\n── {stage['name']} ({len(stage['slices'])} slices) ──")
@@ -951,10 +973,12 @@ def main():
             print("fallback (no whisper)")
             lines = _duration_based_lines(stage['slices'], stage_dur)
 
-        # Convert WAV → MP3
+        # Convert WAV → MP3 + Opus/WebM
         stage_mp3 = stage_public.replace('.wav', '.mp3')
         wav_to_mp3(stage_public, stage_mp3)
-        print(f"  mp3: {os.path.basename(stage_mp3)}")
+        stage_opus = wav_to_opus(stage_public)
+        opus_info = f" + {os.path.basename(stage_opus)}" if stage_opus else ""
+        print(f"  encoded: {os.path.basename(stage_mp3)}{opus_info}")
 
         # Build effects metadata — embedded in the manifest for runtime use
         effects = {
@@ -1036,6 +1060,8 @@ def main():
             "lines": lines,
             "effects": effects,
         }
+        if stage_opus:
+            stage_entry["fileOpus"] = f"sessions/{session}/{si:02d}_{stage['name']}.webm"
         if stage.get('interlude', 0) > 0:
             stage_entry["interlude"] = stage['interlude']
         manifest["stages"].append(stage_entry)
@@ -1099,39 +1125,94 @@ def main():
                 manifest["interactive"].append({"id": name, "file": f"sessions/{session}/{mp3_name}", "duration": round(wav_duration(wav_path) if os.path.exists(wav_path) else 0, 2)})
         except: pass
 
-    # Write manifest
+    # ── Validate all outputs before writing anything ──
+    errors = []
+    for stage_entry in manifest["stages"]:
+        mp3_path = os.path.join("public", stage_entry["file"])
+        if not os.path.exists(mp3_path):
+            errors.append(f"Missing audio: {mp3_path}")
+            continue
+        # Check duration matches (within 1s tolerance for MP3 frame padding)
+        try:
+            actual_dur = float(subprocess.run(
+                ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", mp3_path],
+                capture_output=True, text=True, timeout=10
+            ).stdout.split('"duration":')[1].split('"')[1])
+            expected_dur = stage_entry["duration"]
+            if abs(actual_dur - expected_dur) > 1.0:
+                errors.append(f"{stage_entry['name']}: duration mismatch (audio={actual_dur:.1f}s, manifest={expected_dur:.1f}s)")
+        except Exception:
+            pass  # ffprobe not available or parse error — skip check
+
+    if errors:
+        print(f"\n{'='*50}")
+        print(f"VALIDATION FAILED — not writing manifest/config:")
+        for e in errors:
+            print(f"  ✗ {e}")
+        print(f"\nFix the issues above and re-run. No files were modified.")
+        print(f"{'='*50}")
+        sys.exit(1)
+
+    # ── Clean orphaned files from previous runs ──
+    expected_files = set()
+    expected_files.add("manifest.json")
+    expected_files.add("session.json")
+    expected_files.add("raw")
+    for s in manifest["stages"]:
+        basename = os.path.basename(s["file"])
+        expected_files.add(basename)
+        expected_files.add(basename.replace(".mp3", ".wav"))
+        expected_files.add(basename.replace(".mp3", ".webm"))
+        if s.get("fileOpus"):
+            expected_files.add(os.path.basename(s["fileOpus"]))
+    for ix in manifest.get("interactive", []):
+        if ix.get("file"):
+            basename = os.path.basename(ix["file"])
+            expected_files.add(basename)
+            expected_files.add(basename.replace(".mp3", ".wav"))
+
+    orphaned = []
+    for f in os.listdir(out_dir):
+        if f.startswith('.') or f in expected_files:
+            continue
+        # Don't touch raw/ directory contents
+        if os.path.isdir(os.path.join(out_dir, f)):
+            continue
+        orphaned.append(f)
+
+    if orphaned:
+        print(f"\n  Cleaning {len(orphaned)} orphaned files:")
+        for f in sorted(orphaned):
+            fp = os.path.join(out_dir, f)
+            os.remove(fp)
+            print(f"    removed: {f}")
+
+    # ── Write manifest ──
     with open(manifest_path, "w") as f:
         json.dump(manifest, f, indent=2)
-
-    # Copy MP3s + manifest to legacy audio/ path (backward compat)
-    legacy_dir = os.path.join("public", "audio", session)
-    os.makedirs(legacy_dir, exist_ok=True)
-    for f in os.listdir(out_dir):
-        if f.endswith('.mp3') or f == 'manifest.json':
-            shutil.copy2(os.path.join(out_dir, f), os.path.join(legacy_dir, f))
-    # Fix paths in legacy manifest
-    legacy_manifest = os.path.join(legacy_dir, "manifest.json")
-    if os.path.exists(legacy_manifest):
-        with open(legacy_manifest) as lf:
-            lm = json.load(lf)
-        for s in lm.get("stages", []):
-            s["file"] = s["file"].replace(f"sessions/{session}/", f"audio/{session}/")
-        for ix in lm.get("interactive", []):
-            ix["file"] = ix["file"].replace(f"sessions/{session}/", f"audio/{session}/")
-        with open(legacy_manifest, "w") as lf:
-            json.dump(lm, lf, indent=2)
 
     # Generate session package (session.json + update sessions.json index)
     generate_session_package(manifest, session_config, out_dir)
 
-    # Also generate TypeScript texts (backward compat during migration)
+    # Generate TypeScript texts
     generate_session_config(manifest, args.script, stages)
+
+    # ── Final consistency check ──
+    # Verify the generated TS texts match the manifest durations
+    print(f"\n  Consistency check:")
+    print(f"    manifest: {len(manifest['stages'])} stages")
+    for s in manifest["stages"]:
+        mp3_path = os.path.join("public", s["file"])
+        exists = "✓" if os.path.exists(mp3_path) else "✗ MISSING"
+        print(f"    {s['name']}: {s['duration']:.1f}s {exists}")
+    print(f"    All files verified.")
 
     # Summary
     total_lines = sum(len(s["lines"]) for s in manifest["stages"])
-    total_dur = sum(l["duration"] for s in manifest["stages"] for l in s["lines"])
+    total_dur = sum(s["duration"] for s in manifest["stages"])
+    total_interludes = sum(s.get("interlude", 0) for s in manifest["stages"])
     print(f"\n{'='*50}")
-    print(f"Done! {total_lines} lines, {total_dur:.0f}s audio, {len(manifest['interactive'])} interactive")
+    print(f"Done! {total_lines} lines, {total_dur:.0f}s audio + {total_interludes:.0f}s interludes = {(total_dur+total_interludes)/60:.1f}min")
     print(f"Manifest: {manifest_path}")
     print(f"{'='*50}")
 

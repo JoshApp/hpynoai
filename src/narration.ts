@@ -64,7 +64,8 @@ export interface AudioManifest {
   session: string;
   stages: Array<{
     name: string;
-    file?: string;       // full stage audio (continuous, no cuts)
+    file?: string;       // full stage audio MP3 (continuous, no cuts)
+    fileOpus?: string;   // Opus/WebM alternative (smaller, higher quality)
     duration?: number;
     lines: Array<{
       file?: string;     // per-line audio (legacy sliced mode)
@@ -75,6 +76,19 @@ export interface AudioManifest {
       words?: WordTimestamp[];
     }>;
   }>;
+}
+
+/** Detect Opus/WebM support — cached after first check */
+let _canPlayOpus: boolean | null = null;
+function canPlayOpus(): boolean {
+  if (_canPlayOpus !== null) return _canPlayOpus;
+  try {
+    const a = document.createElement('audio');
+    _canPlayOpus = !!(a.canPlayType('audio/webm; codecs=opus').replace('no', ''));
+  } catch {
+    _canPlayOpus = false;
+  }
+  return _canPlayOpus;
 }
 
 import type { EventBus } from './events';
@@ -118,6 +132,7 @@ export class NarrationEngine {
   private _audioCtx: AudioContext | null = null;
   private _panner: PannerNode | null = null;
   private _outputNode: GainNode | null = null;
+
 
   constructor(config?: Partial<NarrationConfig>) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -254,8 +269,9 @@ export class NarrationEngine {
     this.stageCurrentLine = -1;
     this.stagePlaybackActive = true;
 
-    // Play the full stage audio
-    const audio = new Audio(stage.file);
+    // Prefer Opus/WebM (smaller + higher quality) with MP3 fallback
+    const audioUrl = (stage.fileOpus && canPlayOpus()) ? stage.fileOpus : stage.file;
+    const audio = new Audio(audioUrl);
     audio.crossOrigin = 'anonymous';
     this.stageAudio = audio;
     this.stageMediaSource = null;

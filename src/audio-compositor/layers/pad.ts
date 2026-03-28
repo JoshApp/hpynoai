@@ -1,5 +1,8 @@
 /**
- * PadLayer — FM synth chord bed with breath-modulated filter + chorus.
+ * PadLayer — FM synth chord bed with breath-modulated filter, chorus, and stereo widener.
+ *
+ * Stereo widening: Haas effect (8ms delay on right channel) + L/R panning.
+ * Narration stays centered; pads fill the stereo field around it.
  */
 
 import * as Tone from 'tone';
@@ -14,6 +17,13 @@ export class PadLayer implements AudioLayer {
   private filter: Tone.Filter;
   private chorus: Tone.Chorus;
   private gain: Tone.Gain;
+
+  // Stereo widener: split → pan L/R with delay offset → merge
+  private splitterL: Tone.Panner;
+  private splitterR: Tone.Panner;
+  private delayR: Tone.Delay;
+  private widenerGain: Tone.Gain;
+
   private currentChord: string[] = [];
   private filterMax = 1200;
   private warmth = 0.7;
@@ -28,17 +38,35 @@ export class PadLayer implements AudioLayer {
       envelope: { attack: 4, decay: 2, sustain: 0.85, release: 8 },
       modulationEnvelope: { attack: 3, decay: 1, sustain: 0.6, release: 6 },
     });
-    this.synth.volume.value = -4; // less internal attenuation
+    this.synth.volume.value = -4;
 
     // Gentle lowpass — rolls off high harmonics for warmth
     this.filter = new Tone.Filter({ frequency: 500, type: 'lowpass', Q: 0.8, rolloff: -24 });
-    // Slow chorus — adds stereo width and subtle detuning
+    // Slow chorus — adds detuning for movement
     this.chorus = new Tone.Chorus({ frequency: 0.15, delayTime: 4, depth: 0.5, wet: 0.35 }).start();
-    this.gain = new Tone.Gain(0);
+
+    // Stereo widener: Haas effect — 8ms delay on right channel creates wide stereo image
+    // without changing the tonal character. Pushes the pad to the edges of the stereo field
+    // while narration stays dead center.
+    this.splitterL = new Tone.Panner(-0.7);
+    this.splitterR = new Tone.Panner(0.7);
+    this.delayR = new Tone.Delay(0.008); // 8ms Haas delay
+    this.widenerGain = new Tone.Gain(0);
 
     this.synth.connect(this.filter);
     this.filter.connect(this.chorus);
-    this.chorus.connect(this.gain);
+
+    // Split chorus output to L and R paths
+    this.chorus.connect(this.splitterL);
+    this.chorus.connect(this.delayR);
+    this.delayR.connect(this.splitterR);
+
+    // Merge both paths
+    this.splitterL.connect(this.widenerGain);
+    this.splitterR.connect(this.widenerGain);
+
+    this.gain = new Tone.Gain(0);
+    this.widenerGain.connect(this.gain);
   }
 
   connect(wet: Tone.ToneAudioNode, dry: Tone.ToneAudioNode): void {
@@ -53,6 +81,7 @@ export class PadLayer implements AudioLayer {
 
     this.filter.Q.rampTo(1 + p.pad.warmth * 2, t);
     this.chorus.frequency.value = p.pad.chorusRate;
+    this.widenerGain.gain.rampTo(1, t);
     this.gain.gain.rampTo(p.pad.volume, t);
 
     const newChord = p.pad.chord.map(midiToNote);
@@ -88,6 +117,10 @@ export class PadLayer implements AudioLayer {
     this.synth.dispose();
     this.filter.dispose();
     this.chorus.dispose();
+    this.splitterL.dispose();
+    this.splitterR.dispose();
+    this.delayR.dispose();
+    this.widenerGain.dispose();
     this.gain.dispose();
   }
 }

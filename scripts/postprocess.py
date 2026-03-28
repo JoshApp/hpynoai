@@ -518,22 +518,42 @@ def _boost_words(y, sr, words, word_indices, db):
     return y
 
 
+def _load_ir(path, sr, fallback_len):
+    """Load a real impulse response WAV file. Falls back to synthetic if not found."""
+    try:
+        ir_data, ir_sr = sf.read(path)
+        if ir_sr != sr:
+            ir_data = librosa.resample(ir_data, orig_sr=ir_sr, target_sr=sr)
+        # Normalize IR
+        ir_data = ir_data / np.max(np.abs(ir_data)) * 0.25
+        return ir_data
+    except Exception:
+        pass
+    # Fallback: synthetic IR
+    rng = np.random.RandomState(42)
+    ir = rng.randn(fallback_len) * np.exp(-np.linspace(0, 6, fallback_len))
+    return ir / np.max(np.abs(ir)) * 0.25
+
+
+# Path to real IR files (relative to project root)
+_IR_DIR = os.path.join(os.path.dirname(__file__), '..', 'public', 'audio', 'ir')
+IR_CHAPEL = os.path.join(_IR_DIR, 'chapel.wav')
+IR_CATHEDRAL = os.path.join(_IR_DIR, 'cathedral.wav')
+IR_DOME = os.path.join(_IR_DIR, 'dome.wav')
+
+
 def _add_reverb_tails(y, sr, words, opts):
     """Add reverb that blooms naturally at the end of each phrase.
 
     Triggers at phrase boundaries (not between every word).
-    Uses a deterministic IR built from decaying sine components for
-    consistent, warm character across runs.
+    Uses a real recorded impulse response (chapel IR) for natural character.
+    Falls back to synthetic IR if the file is not found.
     """
     wet = opts["reverb_wet"]
     decay_time = opts["reverb_decay"]
 
-    # ── Deterministic impulse response (seeded noise × exponential decay) ──
-    # Fixed seed = same reverb character every run
-    ir_len = int(decay_time * sr)  # ~1.5s IR
-    rng = np.random.RandomState(42)
-    ir = rng.randn(ir_len) * np.exp(-np.linspace(0, 6, ir_len))  # moderate decay
-    ir = ir / np.max(np.abs(ir)) * 0.25
+    # Load real IR (chapel for tails — warm, intimate)
+    ir = _load_ir(IR_CHAPEL, sr, int(decay_time * sr))
 
     # Convolve full signal with reverb
     reverbed = fftconvolve(y, ir)[:len(y)]
@@ -668,14 +688,14 @@ def _master(y, sr):
 
 def _add_full_reverb(y, sr, opts):
     """Apply reverb to the entire signal — voice sounds like it's in a large space.
-    Unlike tail reverb, this affects speech directly (cathedral/void effect)."""
+    Unlike tail reverb, this affects speech directly (cathedral/void effect).
+    Uses the cathedral IR for a spacious, real character."""
     wet = opts["reverb_full"]
 
-    # Short IR (0.8s) with fast decay — spacious but not echoey
-    ir_len = int(0.8 * sr)
-    rng = np.random.RandomState(77)
-    ir = rng.randn(ir_len) * np.exp(-np.linspace(0, 8, ir_len))  # fast decay
-    ir = ir / np.max(np.abs(ir)) * 0.15
+    # Load real IR (cathedral for full reverb — spacious)
+    ir = _load_ir(IR_CATHEDRAL, sr, int(0.8 * sr))
+    # Scale down for full reverb (applied to entire signal, not just tails)
+    ir = ir * 0.6
 
     reverbed = fftconvolve(y, ir)[:len(y)]
 

@@ -5,9 +5,9 @@
  * Replaces both AudioEngine (binaural/drone) and AmbientEngine (pad/noise/melody).
  *
  * Signal chain:
- *   layers → reverbSend → Tone.Reverb → masterGain
+ *   layers → reverbSend → Tone.Convolver (real IR) → masterGain
  *   layers → dryGain → masterGain
- *   masterGain → Tone.Compressor → output (analyzer → destination)
+ *   masterGain → duck filter → Tone.Compressor → output (analyzer → destination)
  */
 
 import * as Tone from 'tone';
@@ -23,11 +23,22 @@ export class AudioCompositor {
   private _stopTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Master bus nodes
-  private reverb: Tone.Reverb | null = null;
+  private convolver: Tone.Convolver | null = null;
   private reverbSend: Tone.Gain | null = null;
   private dryGain: Tone.Gain | null = null;
   private masterGain: Tone.Gain | null = null;
   private compressor: Tone.Compressor | null = null;
+
+  // Frequency-aware ducking: scoop voice-range mids instead of ducking everything
+  private _duckFilter: BiquadFilterNode | null = null;
+
+  // Convolution reverb IR URLs (real recorded spaces from EchoThief)
+  static readonly IR_URLS = {
+    chapel: 'audio/ir/chapel.wav',      // warm intimate (1.9s, default)
+    cathedral: 'audio/ir/cathedral.wav', // spacious (2.9s, deep stages)
+    dome: 'audio/ir/dome.wav',           // ethereal (3.0s, deepest stages)
+  };
+  private _currentIR: string = 'chapel';
 
   // Output destination (connects to existing analyzer → speakers)
   private output: GainNode | null = null;
@@ -97,7 +108,28 @@ export class AudioCompositor {
       this.compressor = null;
     }
 
-    // Master gain → limiter (or directly to output if limiter failed)
+    // Voice-ducking EQ: peaking filter at 800Hz (voice fundamental range).
+    // When voice is active, gain goes negative to scoop out voice frequencies
+    // while leaving bass and highs untouched — keeps the bass bed warm during narration.
+    try {
+      const rawCtx2 = output.context as AudioContext;
+      this._duckFilter = rawCtx2.createBiquadFilter();
+      this._duckFilter.type = 'peaking';
+      this._duckFilter.frequency.value = 800;
+      this._duckFilter.Q.value = 0.5;  // wide band (covers ~200-4000Hz)
+      this._duckFilter.gain.value = 0;  // no ducking by default
+      if (outputNode instanceof GainNode) {
+        this._duckFilter.connect(outputNode);
+      } else {
+        Tone.connect(this._duckFilter, outputNode);
+      }
+      outputNode = this._duckFilter as unknown as Tone.ToneAudioNode;
+      log.info('audio-compositor', 'Voice-ducking EQ active');
+    } catch (e) {
+      log.warn('audio-compositor', 'Duck filter failed', e);
+    }
+
+    // Master gain → duck filter → limiter → output
     this.masterGain = new Tone.Gain(0);
     if (outputNode instanceof GainNode) {
       try { Tone.connect(this.masterGain, outputNode); } catch {
@@ -112,33 +144,69 @@ export class AudioCompositor {
     this.dryGain = new Tone.Gain(0.6);
     this.dryGain.connect(this.masterGain);
 
-    // Reverb send — start routed to dry (instant), connect reverb async (non-blocking)
+    // Reverb send — start routed to dry (instant), connect convolver async
     this.reverbSend = new Tone.Gain(0.4);
-    this.reverbSend.connect(this.masterGain); // initially goes straight to master
+    this.reverbSend.connect(this.masterGain); // pass-through until IR loads
 
-    // Generate reverb impulse in background — doesn't block audio start
+    // Load real convolution reverb IR (recorded space) — non-blocking
+    this._loadConvolver('chapel');
+
+    log.info('audio-compositor', 'Init complete (convolver loading async)');
+  }
+
+  /** Load a convolution reverb IR by name, rerouting the reverb send */
+  private async _loadConvolver(name: keyof typeof AudioCompositor.IR_URLS): Promise<void> {
+    if (this._currentIR === name && this.convolver) return;
+    const url = AudioCompositor.IR_URLS[name];
+    if (!url) return;
+
     try {
-      this.reverb = new Tone.Reverb({
-        decay: this.currentPreset.reverb.decay,
-        wet: 1,
-        preDelay: 0.08,
-      });
-      this.reverb.ready.then(() => {
-        if (this.reverbSend && this.reverb && this.masterGain) {
-          // Reroute: reverbSend → reverb → masterGain (instead of reverbSend → masterGain)
-          this.reverbSend.disconnect();
-          this.reverbSend.connect(this.reverb);
-          this.reverb.connect(this.masterGain);
-          log.info('audio-compositor', 'Reverb connected (async)');
-        }
-      }).catch(() => {
-        log.warn('audio-compositor', 'Reverb generation failed');
-      });
-    } catch {
-      log.warn('audio-compositor', 'Reverb creation failed');
-    }
+      const newConvolver = new Tone.Convolver(url);
 
-    log.info('audio-compositor', 'Init complete (reverb loading async)');
+      // Wait for IR to load
+      await new Promise<void>((resolve, reject) => {
+        const check = setInterval(() => {
+          try {
+            if ((newConvolver as unknown as { _buffer: unknown })._buffer ||
+                (newConvolver.buffer && newConvolver.buffer.length > 0)) {
+              clearInterval(check);
+              resolve();
+            }
+          } catch { /* buffer not ready yet */ }
+        }, 100);
+        setTimeout(() => { clearInterval(check); reject(new Error('IR load timeout')); }, 10000);
+      });
+
+      // Disconnect old convolver
+      if (this.convolver && this.reverbSend) {
+        try { this.reverbSend.disconnect(this.convolver); } catch { /* ok */ }
+        this.convolver.dispose();
+      }
+
+      // Reroute: reverbSend → convolver → masterGain
+      if (this.reverbSend && this.masterGain) {
+        try { this.reverbSend.disconnect(); } catch { /* ok */ }
+        this.reverbSend.connect(newConvolver);
+        newConvolver.connect(this.masterGain);
+      }
+
+      this.convolver = newConvolver;
+      this._currentIR = name;
+      log.info('audio-compositor', `Convolver loaded: ${name} (${url})`);
+    } catch (e) {
+      log.warn('audio-compositor', `Convolver load failed: ${name}`, e);
+      // Fallback: reverbSend stays connected to masterGain (dry pass-through)
+      if (this.reverbSend && this.masterGain) {
+        try { this.reverbSend.connect(this.masterGain); } catch { /* ok */ }
+      }
+    }
+  }
+
+  /** Pick the best IR for the current reverb decay setting */
+  private _pickIR(decay: number): keyof typeof AudioCompositor.IR_URLS {
+    if (decay >= 5) return 'dome';       // ethereal, long tail
+    if (decay >= 4) return 'cathedral';  // spacious
+    return 'chapel';                     // warm, intimate (default)
   }
 
   /** Start all layers (call after init, on session start) */
@@ -179,11 +247,15 @@ export class AudioCompositor {
   applyPreset(partial: Partial<AudioPreset>, rampTime = 3): void {
     this.currentPreset = mergePreset(this.currentPreset, partial);
 
-    // Reverb
+    // Reverb wet/dry mix
     if (this.reverbSend) this.reverbSend.gain.rampTo(this.currentPreset.reverb.wet, rampTime);
     if (this.dryGain) this.dryGain.gain.rampTo(1 - this.currentPreset.reverb.wet, rampTime);
 
-    // Master volume controlled by setMasterVolume (settings slider) — not by presets
+    // Switch IR if reverb character changed (chapel → cathedral → dome by depth)
+    const targetIR = this._pickIR(this.currentPreset.reverb.decay);
+    if (targetIR !== this._currentIR) {
+      this._loadConvolver(targetIR);
+    }
 
     // All layers
     for (const layer of this.layers) {
@@ -199,18 +271,27 @@ export class AudioCompositor {
     this._userVolume = v;
   }
 
-  /** Update each frame — breath modulation, voice ducking */
+  /** Update each frame — breath modulation, frequency-aware voice ducking */
   update(inputs: WorldInputs, dt: number): void {
     if (!this.isPlaying) return;
 
-    // Voice ducking
+    // Frequency-aware voice ducking:
+    // Gentle overall volume reduction + mid-frequency scoop during narration.
+    // Bass and highs stay full → warm, immersive sound while voice plays.
     const voiceActive = inputs.voiceEnergy > 0.05;
-    const duckTarget = voiceActive ? 0.45 : 1;
+    const duckTarget = voiceActive ? 0.55 : 1;  // less overall duck (was 0.45)
     this._duckLevel += (duckTarget - this._duckLevel) * (voiceActive ? 0.08 : 0.03);
 
-    // Master gain = user volume × duck level (simple, no preset override)
     if (this.masterGain) {
       this.masterGain.gain.rampTo(this._userVolume * this._duckLevel, 0.15);
+    }
+
+    // Frequency-selective ducking: pull down voice-range mids
+    if (this._duckFilter) {
+      const duckGainDb = voiceActive ? -6 : 0;
+      const currentGain = this._duckFilter.gain.value;
+      const targetGain = currentGain + (duckGainDb - currentGain) * (voiceActive ? 0.06 : 0.02);
+      this._duckFilter.gain.value = targetGain;
     }
 
     for (const layer of this.layers) {
@@ -267,26 +348,28 @@ export class AudioCompositor {
     // Dispose bus nodes after fade
     if (this._stopTimer) clearTimeout(this._stopTimer);
     const busNodes = {
-      reverb: this.reverb, reverbSend: this.reverbSend,
+      convolver: this.convolver, reverbSend: this.reverbSend,
       dryGain: this.dryGain, compressor: this.compressor,
-      masterGain: this.masterGain,
+      masterGain: this.masterGain, duckFilter: this._duckFilter,
     };
-    this.reverb = null;
+    this.convolver = null;
     this.reverbSend = null;
     this.dryGain = null;
     this.compressor = null;
     this.masterGain = null;
+    this._duckFilter = null;
 
     this._stopTimer = setTimeout(() => {
       this._stopTimer = null;
       for (const layer of layersToDispose) {
         try { layer.dispose(); } catch { /* ok */ }
       }
-      busNodes.reverb?.dispose();
+      busNodes.convolver?.dispose();
       busNodes.reverbSend?.dispose();
       busNodes.dryGain?.dispose();
       busNodes.compressor?.dispose();
       busNodes.masterGain?.dispose();
+      try { busNodes.duckFilter?.disconnect(); } catch { /* ok */ }
     }, 5000);
 
     log.info('audio-compositor', 'Stopped');
