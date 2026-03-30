@@ -415,6 +415,20 @@ export class NarrationEngine {
     this.onStageEnded = handler;
   }
 
+  /**
+   * Seek within the currently playing stage audio without stopping/restarting.
+   * Much faster than enterStage() for scrubbing within the same stage.
+   * Returns true if the seek was handled, false if a full restart is needed.
+   */
+  seekStageAudio(offset: number): boolean {
+    if (!this.stagePlaybackActive || !this.stageAudio) return false;
+
+    this.stageAudio.currentTime = offset;
+    this.stageCurrentLine = -1;  // force displayLine re-derive
+    this._displayLine = null;
+    return true;
+  }
+
   /** Stop continuous stage playback */
   stopStagePlayback(): void {
     if (this.stageTimeoutId) {

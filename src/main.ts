@@ -363,6 +363,12 @@ function renderLoop(): void {
     // Transition manager — must run every frame for screen transitions to work
     transition.update();
 
+    // Drive fade layer directly from transition state so it works across
+    // all screens (individual screens don't need to push fadeAmount)
+    if (transition.state.active || transition.state.fadeAmount > 0) {
+      compositor.configure({ preset: { fade: { opacity: transition.state.fadeAmount } }, actors: [] });
+    }
+
     // Screen-specific updates (text, interactions, audio, etc.)
     screenManager.render(time, dt);
 

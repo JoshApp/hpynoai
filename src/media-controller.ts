@@ -149,6 +149,9 @@ export class MediaController {
   /**
    * Seek to absolute time. Handles audio element lifecycle atomically.
    * Rapid seeks are cancelled via epoch counter.
+   *
+   * Fast path: when scrubbing within the same stage, reuses the existing
+   * audio element instead of stopping/restarting (avoids play() rejections).
    */
   async seek(t: number): Promise<void> {
     if (!this.guard('playing', 'paused', 'seeking')) return;
@@ -157,27 +160,39 @@ export class MediaController {
 
     this.setState('seeking');
 
-    // 1. Stop old narration audio cleanly
-    this.narration.stopStagePlayback();
-    this._boundAudio = null;
-
-    // 2. Seek timeline (clears audio binding, resets wall clock)
+    // Peek at what the new position wants (without destroying current state yet)
+    const prevStage = this.narration.stageName;
     this.timeline.seek(t);
-
-    // 3. Determine what the new block wants
     const tlState = this.timeline.update();
     if (!tlState || epoch !== this.seekEpoch) return; // cancelled
 
-    // 4. If new block has narration audio, start it at the right offset
-    if (tlState.wantsNarrationAudio && tlState.narrationStageName) {
+    // Fast path: staying in the same stage with active audio — just seek the element
+    if (tlState.wantsNarrationAudio &&
+        tlState.narrationStageName === prevStage &&
+        this.narration.isPlayingStage) {
       const offset = tlState.narrationAudioOffset + tlState.blockElapsed;
-      this.narration.enterStage(tlState.narrationStageName, offset);
-      // Audio binding happens via onAudioReady callback — no polling needed
+      this.narration.seekStageAudio(offset);
+
+      // Re-bind timeline to the existing audio element at the new block start
+      const audioEl = this.narration.stageAudioElement;
+      if (audioEl) {
+        const block = this.timeline.currentBlock;
+        this.timeline.bindAudio(audioEl, block?.start ?? 0);
+      }
+    } else {
+      // Different stage or no active audio — full stop/restart
+      this.narration.stopStagePlayback();
+      this._boundAudio = null;
+
+      if (tlState.wantsNarrationAudio && tlState.narrationStageName) {
+        const offset = tlState.narrationAudioOffset + tlState.blockElapsed;
+        this.narration.enterStage(tlState.narrationStageName, offset);
+      }
     }
 
     if (epoch !== this.seekEpoch) return; // cancelled by a newer seek
 
-    // 5. Restore state
+    // Restore state
     if (wasPaused) {
       this.timeline.pause();
       if (this.narration.stageAudioElement && !this.narration.stageAudioElement.paused) {
