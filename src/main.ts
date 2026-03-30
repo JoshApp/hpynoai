@@ -366,7 +366,7 @@ function renderLoop(): void {
     // Drive fade layer directly from transition state so it works across
     // all screens (individual screens don't need to push fadeAmount)
     if (transition.state.active || transition.state.fadeAmount > 0) {
-      compositor.configure({ preset: { fade: { opacity: transition.state.fadeAmount } }, actors: [] });
+      fadeLayer.applyPreset({ fade: { opacity: transition.state.fadeAmount } }, 999);
     }
 
     // Screen-specific updates (text, interactions, audio, etc.)
