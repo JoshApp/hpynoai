@@ -132,3 +132,44 @@ class FadeTests(unittest.TestCase):
         dsp.fade_span(y, 0.0, 1.0, -12.0)
         self.assertAlmostEqual(float(y[0]), 1.0, places=3)
         self.assertAlmostEqual(float(y[-1]), 10 ** (-12 / 20), places=2)
+
+
+class WarpTests(unittest.TestCase):
+    def test_warp_to_maps_knots(self):
+        import numpy as np
+        from hpyno_pipeline import dsp
+        src = np.arange(SR * 2, dtype=np.float32) / SR        # value == source time
+        out = dsp.warp_to(src, [0.0, 1.0, 2.0], [0.0, 0.5, 2.0], 2.0)
+        self.assertAlmostEqual(float(out[int(0.5 * SR)]), 1.0, places=2)   # dst 0.5 → src 1.0
+        self.assertAlmostEqual(float(out[int(1.25 * SR)]), 1.5, places=2)  # dst 1.25 → src 1.5
+
+    def test_echo_reserves_silence(self):
+        src = "[SESSION: t]\n[VOICE: v]\n[STAGE: a]\n[FX: echo=-9]\npulls you [ECHO a little deeper] a little closer.\n"
+        s = parse_script(src)
+        with tempfile.TemporaryDirectory() as td:
+            prov = make_provider('mock', Path(td))
+            r = render_stage(s, s.stages[0], prov, 4000, None, log=lambda m: None)
+            w = r.lines[0].words
+            gap_after_echo = w[5].start - w[4].end       # 'deeper' → 'a'
+            self.assertGreater(gap_after_echo, 1.0)
+
+
+class WhisperizeTests(unittest.TestCase):
+    def test_whisperize_keeps_length_and_envelope(self):
+        import numpy as np
+        from hpyno_pipeline import dsp
+        t = np.arange(SR * 2) / SR
+        x = (np.sin(2 * np.pi * 180 * t) * (t < 1.0)).astype(np.float32)   # tone for 1 s, silence for 1 s
+        y = dsp.whisperize(x)
+        self.assertEqual(y.size, x.size)
+        self.assertGreater(np.sqrt(np.mean(y[:SR] ** 2)), 5 * np.sqrt(np.mean(y[SR + 2048:] ** 2)))
+
+
+class CmdHoldTests(unittest.TestCase):
+    def test_line_ending_command_holds(self):
+        src = "[SESSION: t]\n[VOICE: v]\n[STAGE: a]\n[FX: cmd_hold=1.5 pause=1.0]\nnow [CMD let go].\n\nyou are perfect.\n"
+        s = parse_script(src)
+        with tempfile.TemporaryDirectory() as td:
+            prov = make_provider('mock', Path(td))
+            r = render_stage(s, s.stages[0], prov, 4000, None, log=lambda m: None)
+            self.assertGreater(r.lines[1].start - r.lines[0].end, 1.4)

@@ -102,7 +102,7 @@ def cmd_render(args) -> int:
         if args.stage and st.name != args.stage: continue
         print(f'stage {st.name}')
         try:
-            r = render_stage(s, st, provider, MAX_CHARS.get(s.stage_model(st), 4000), ir, seed_base=s.seed + i * 100, overrides=overrides)
+            r = render_stage(s, st, provider, MAX_CHARS.get(s.stage_model(st), 4000), ir, seed_base=s.seed + i * 100, overrides=overrides, takes=getattr(args, 'takes', 1))
         except NotCached as e:
             print(f'  not cached — run `render` first: {e}'); return 2
         results.append(r); billed += r.billed_chars; hits += r.cache_hits; reqs += r.requests
@@ -230,6 +230,7 @@ def main(argv=None) -> int:
     a.set_defaults(fn=lambda args: cmd_render(argparse.Namespace(**{**vars(args), 'provider': 'cache-only'})))
     a = sub.add_parser('render'); a.add_argument('script'); a.add_argument('--provider', default='elevenlabs', choices=['elevenlabs', 'mock', 'cache-only'])
     a.add_argument('--stage'); a.add_argument('--no-bed', action='store_true'); a.add_argument('--out', help='write package under this dir instead of public/sessions')
+    a.add_argument('--takes', type=int, default=1, help='render N seeds per segment and keep the best (costs N×)')
     a.set_defaults(fn=cmd_render)
     a = sub.add_parser('audition'); a.add_argument('--voice'); a.add_argument('--text'); a.add_argument('--models', default='eleven_v3,eleven_multilingual_v2')
     a.add_argument('--script', help='render a whole stage of this script instead of --text'); a.add_argument('--stage')

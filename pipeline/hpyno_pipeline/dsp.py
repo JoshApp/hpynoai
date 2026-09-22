@@ -177,20 +177,90 @@ def soften_resume(audio: np.ndarray, at: int, ms: float = 0.2) -> None:
     audio[at:at + n] = (lp * (1 - blend) + seg * blend) * ramp
 
 
-def echoes(phrase: np.ndarray, first_db: float, gap: float, repeats: int = 3) -> list[tuple[np.ndarray, float, float]]:
-    """(audio, offset_from_phrase_END_seconds, pan) for decaying repeats; each darker, quieter,
-    further out. Repeats are spaced by `gap` *after the previous one ends*, so they never pile
-    up on the original or on each other."""
+def warp_to(src: np.ndarray, src_knots: list[float], dst_knots: list[float], dst_len: float) -> np.ndarray:
+    """Piecewise-linear time warp: output time t maps to source time interp(t, dst_knots, src_knots).
+    Resampling (no pitch preservation) — right for whispers/noise-like material."""
+    n = int(dst_len * SR)
+    if n <= 0 or src.size == 0: return np.zeros(0, dtype=np.float32)
+    t = np.arange(n) / SR
+    st = np.interp(t, dst_knots, src_knots)
+    idx = st * SR
+    return np.interp(idx, np.arange(src.size), src, left=0, right=0).astype(np.float32)
+
+
+def whisperize(audio: np.ndarray, smooth_hz: float = 320.0) -> np.ndarray:
+    """Turn spoken audio into a whisper of the same words: keep the frame-by-frame spectral
+    envelope (smoothed across frequency to erase the harmonic ridges), replace the phase with
+    noise, and band-limit to the whisper range. Perfectly time-aligned with the input."""
+    from scipy.signal import stft, istft
+    from scipy.ndimage import uniform_filter1d
+    if audio.size < 2048: return np.zeros_like(audio)
+    nper = 512; hop = 128
+    f, t, Z = stft(audio, fs=SR, nperseg=nper, noverlap=nper - hop, padded=True)
+    mag = np.abs(Z)
+    bins = max(3, int(smooth_hz / (SR / nper)))
+    env = uniform_filter1d(mag, size=bins, axis=0, mode='nearest')
+    env = uniform_filter1d(env, size=3, axis=1, mode='nearest')   # soften consonant bursts over time
+    rng = np.random.default_rng(3)
+    phase = rng.uniform(0, 2 * np.pi, size=env.shape)
+    _, y = istft(env * np.exp(1j * phase), fs=SR, nperseg=nper, noverlap=nper - hop)
+    y = np.asarray(y, dtype=np.float32)[:audio.size]
+    if y.size < audio.size: y = np.pad(y, (0, audio.size - y.size))
+    y = sosfilt(butter(2, [150, 2600], btype='band', fs=SR, output='sos'), y).astype(np.float32)
+    # match the loudness of the source so the level knob means what it says
+    src_rms = np.sqrt(np.mean(audio ** 2)) + 1e-9; out_rms = np.sqrt(np.mean(y ** 2)) + 1e-9
+    return (y * (src_rms / out_rms)).astype(np.float32)
+
+
+def energy_bounds(audio: np.ndarray, start: float, end: float, rel: float = 0.1) -> tuple[float, float]:
+    """Tighten [start,end] to the energetic core inside it (drops neighbouring-word spill)."""
+    a, b = max(0, int(start * SR)), min(audio.size, int(end * SR))
+    if b - a < int(0.03 * SR): return start, end
+    env = np.abs(audio[a:b]); w = max(1, int(0.008 * SR))
+    env = np.convolve(env, np.ones(w) / w, mode='same')
+    thr = env.max() * rel
+    idx = np.where(env > thr)[0]
+    if idx.size == 0: return start, end
+    return (a + idx[0]) / SR - 0.012, (a + idx[-1]) / SR + 0.03
+
+
+ECHO_REPEATS = 6
+ECHO_FEEDBACK_DB = -4.2
+ECHO_DECEL = 1.12   # each repeat's delay grows by this factor (sinking feel)
+
+def echo_tail_length(word_len: float, delay: float, repeats: int = ECHO_REPEATS) -> float:
+    """Seconds the echo tail extends beyond the word's END."""
+    return sum(delay * ECHO_DECEL ** k for k in range(repeats)) + 0.2
+
+
+def word_onset(audio: np.ndarray, prev_end: float, start: float) -> float:
+    """Start of a word = the energy minimum between the previous word's end and this word's
+    nominal start (plus a little), so a slice can't catch the tail of the word before."""
+    a = max(0, int((prev_end - 0.03) * SR)); b = min(audio.size, int((start + 0.09) * SR))
+    if b - a < int(0.02 * SR): return start
+    env = np.abs(audio[a:b]); w = max(1, int(0.006 * SR))
+    env = np.convolve(env, np.ones(w) / w, mode='same')
+    return (a + int(np.argmin(env))) / SR
+
+
+def echoes(word: np.ndarray, first_db: float, delay: float, repeats: int = ECHO_REPEATS) -> list[tuple[np.ndarray, float, float]]:
+    """Feedback-delay echo of one word: (audio, offset_from_word_START_seconds, pan). Repeats are
+    `delay` apart so they OVERLAP and decay into each other (a real echo, not a re-read); each
+    pass through the 'feedback loop' is darker, quieter, a touch lower, and ping-pongs wider."""
     out = []
-    plen = phrase.size / SR
+    y = word.astype(np.float32).copy()
+    fin = min(y.size // 4, int(0.015 * SR))
+    if fin > 0: y[:fin] *= np.linspace(0, 1, fin)
+    t = 0.0
     for k in range(repeats):
-        g = db(first_db - 5 * k)
-        y = lowpass(phrase, 5200 / (k + 1)) * g
-        fade = min(y.size // 2, int(0.12 * SR)); fin = min(y.size // 2, int(0.02 * SR))
-        if fade > 0: y[-fade:] *= np.linspace(1, 0, fade)
-        if fin > 0: y[:fin] *= np.linspace(0, 1, fin)
-        start_after_end = gap + k * (plen + gap)
-        out.append((y, start_after_end, (0.35 + 0.2 * k) * (1 if k % 2 == 0 else -1)))
+        y = lowpass(y, 3400 - 250 * k) * db(ECHO_FEEDBACK_DB)
+        if k in (1, 3, 5): y = stretch(y, 1.0, -0.35)       # subtle drop every other pass
+        rep = y * db(first_db)
+        # the tail of each repeat fades a little more each pass so the whole thing dissolves
+        fade = min(rep.size // 2, int((0.08 + 0.05 * k) * SR))
+        if fade > 0: rep[-fade:] *= np.linspace(1, 0, fade) ** 0.7
+        t += delay * ECHO_DECEL ** k
+        out.append((rep, t, (0.3 + 0.12 * k) * (1 if k % 2 == 0 else -1)))
     return out
 
 
@@ -239,6 +309,45 @@ def _measure_loudness(path: Path) -> dict | None:
     p = subprocess.run(['ffmpeg', '-hide_banner', '-i', str(path), '-af', 'loudnorm=I=-18:TP=-1.5:LRA=13:print_format=json', '-f', 'null', '-'], capture_output=True, text=True)
     m = re.search(r'\{[^{}]*"input_i"[^{}]*\}', p.stderr, re.S)
     return json.loads(m.group(0)) if m else None
+
+
+def move_region(stereo: np.ndarray, mono: np.ndarray, start: float, end: float, path: str, amount: float = 1.0) -> None:
+    """In place: re-spatialise [start,end) of `stereo` from `mono` along a head-relative path using
+    interaural level + time differences and head-shadow filtering. Azimuth 0 = front, +90 = right."""
+    a, b = max(0, int(start * SR)), min(stereo.shape[0], int(end * SR), mono.size)
+    n = b - a
+    if n < int(0.2 * SR) or amount <= 0: return
+    u = np.linspace(0, 1, n)
+    if path == 'circle': az = 360 * u
+    elif path == 'left': az = -70 * np.sin(np.pi * u)          # out to the left and back
+    elif path == 'right': az = 70 * np.sin(np.pi * u)
+    elif path == 'behind': az = 180 * np.sin(np.pi * u)         # around to behind and back
+    else: az = np.zeros(n)                                       # 'close': no pan (proximity handled elsewhere)
+    az = np.deg2rad(az * amount)
+    src = mono[a:b].astype(np.float32)
+    # ILD: constant power pan on sin(az); head shadow on the far ear scales with |sin(az)|
+    pan = np.sin(az)
+    gl = np.cos((pan + 1) * np.pi / 4); gr = np.sin((pan + 1) * np.pi / 4)
+    # ITD: up to 0.65 ms delay on the far ear
+    itd = 0.00065 * pan * SR                                     # samples, +ve = right ear leads
+    idx = np.arange(n, dtype=np.float64)
+    left = np.interp(idx - np.maximum(itd, 0), idx, src, left=0, right=0)
+    right = np.interp(idx + np.minimum(itd, 0), idx, src, left=0, right=0)
+    # head shadow: mix in a lowpassed copy on the far side; behind: darker + a touch quieter
+    dark = lowpass(src, 2200)
+    shadow_l = np.clip(pan, 0, 1); shadow_r = np.clip(-pan, 0, 1)
+    behind = np.clip(-np.cos(az), 0, 1)
+    left = (left * (1 - 0.6 * shadow_l) + dark * 0.6 * shadow_l) * gl
+    right = (right * (1 - 0.6 * shadow_r) + dark * 0.6 * shadow_r) * gr
+    bk = 1 - 0.25 * behind
+    left = left * bk + dark * 0.25 * behind * gl * 0.7
+    right = right * bk + dark * 0.25 * behind * gr * 0.7
+    # blend edges so the move fades in/out of the plain stereo
+    edge = min(n // 4, int(0.25 * SR))
+    w = np.ones(n, dtype=np.float32)
+    if edge > 0: w[:edge] = np.linspace(0, 1, edge); w[-edge:] = np.linspace(1, 0, edge)
+    stereo[a:b, 0] = stereo[a:b, 0] * (1 - w) + left * w
+    stereo[a:b, 1] = stereo[a:b, 1] * (1 - w) + right * w
 
 
 def ffmpeg_polish(stereo: np.ndarray, reverb: float, ir: Path | None, target_lufs: float = -18.0,

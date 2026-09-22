@@ -22,6 +22,24 @@ from .script import (Session, Stage, TextItem, SilenceItem, BreakItem, GateItem,
                      TriggerItem, SplitItem, Line, VoiceSettings)
 
 GAP = 0.35            # natural gap between stitched requests
+BREATH_PROMPTS = {'in': '[inhales] mm.', 'out': '[exhales slowly] hm.'}
+
+
+def _breath_clip(provider, session: Session, model: str, kind: str, cache: dict) -> Optional[np.ndarray]:
+    """A breath sound isolated from a tag render (audio before the filler word). Cached per session."""
+    if kind in cache: return cache[kind]
+    from .align import words_from_chars
+    req = RenderRequest(text=BREATH_PROMPTS[kind], voice=session.voice, model=model, settings=VoiceSettings(stability=0.5), seed=5)
+    try:
+        r = provider.render(req)
+    except Exception:
+        cache[kind] = None; return None
+    words = words_from_chars(r.chars, r.starts, r.ends)
+    cut = words[0].start if words else r.audio.size / SR
+    pre = r.audio[:int(cut * SR)]
+    clip, _ = dsp.trim_edges(pre, thresh_db=-60, keep=0.05, fade=0.03)
+    cache[kind] = clip if clip.size > SR // 20 else None
+    return cache[kind]
 V3_MODELS = ('eleven_v3', 'eleven_v3_conversational')
 
 
@@ -114,8 +132,34 @@ def build_segments(session: Session, st: Stage, max_chars: int) -> list[tuple[Se
     return plan
 
 
+def _score_take(r) -> float:
+    """Lower is better: noise floor (dB) + penalty for erratic word gaps."""
+    a = r.audio
+    if a.size < SR: return 1e9
+    win = int(0.05 * SR)
+    rms = np.sqrt(np.convolve(a.astype(np.float64) ** 2, np.ones(win) / win, mode='same') + 1e-12)
+    floor_db = 20 * np.log10(np.quantile(rms, 0.05) + 1e-9)
+    words = [(s, e) for s, e in zip(r.starts, r.ends)]
+    gaps = np.diff([s for s, _ in words]) if len(words) > 3 else np.array([0.0])
+    erratic = float(np.std(gaps)) if gaps.size else 0.0
+    return floor_db + erratic * 20
+
+
+def _render_best(provider, req: RenderRequest, takes: int, log: Callable[[str], None]):
+    """Render `takes` seeds and keep the best-scoring one (all takes are cached)."""
+    if takes <= 1: return provider.render(req)
+    best = None; best_score = None
+    for k in range(takes):
+        rk = RenderRequest(**{**req.__dict__, 'seed': req.seed + 7919 * k})
+        r = provider.render(rk); sc = _score_take(r)
+        log(f'    take {k + 1}/{takes} seed {rk.seed}: score {sc:.1f}{" (cache)" if r.cached else ""}')
+        if best_score is None or sc < best_score: best, best_score = r, sc
+    return best
+
+
 def render_stage(session: Session, st: Stage, provider: Cached | CacheOnly, max_chars: int, ir: Optional[Path],
-                 log: Callable[[str], None] = print, seed_base: int = 0, overrides: Optional[dict] = None) -> StageResult:
+                 log: Callable[[str], None] = print, seed_base: int = 0, overrides: Optional[dict] = None,
+                 takes: int = 1) -> StageResult:
     ov_cues = (overrides or {}).get('cues', {})
     ov_sil = (overrides or {}).get('silences', {})
     counters: dict[str, int] = {}
@@ -144,6 +188,8 @@ def render_stage(session: Session, st: Stage, provider: Cached | CacheOnly, max_
 
     audio = np.zeros(0, dtype=np.float32)
     side_layers: list[tuple[np.ndarray, float, float, float]] = []   # (mono, at, gain_db, pan) mixed after stereo
+    moves: list[tuple[float, float, str]] = []                        # (start, end, path) stage-relative
+    breath_cache: dict = {}
     lines: list[LineTiming] = []
     cues: list[dict] = []
     billed = 0; hits = 0; reqs = 0
@@ -173,7 +219,7 @@ def render_stage(session: Session, st: Stage, provider: Cached | CacheOnly, max_
                             previous_text=prev_text if stitch else '', next_text=nxt if stitch else '',
                             previous_request_ids=tuple(prev_ids[-3:]) if stitch else (),
                             seed=seed_base + seg_index)
-        r = provider.render(req)
+        r = _render_best(provider, req, takes, log)
         reqs += 1; billed += r.billed_chars; hits += 1 if r.cached else 0
         log(f'  [{st.name}] seg {seg_index + 1}/{len(segments)} {len(seg.text)} chars {"(cache)" if r.cached else "(rendered)"}')
         seg_audio, trimmed = dsp.trim_edges(r.audio)
@@ -202,6 +248,38 @@ def render_stage(session: Session, st: Stage, provider: Cached | CacheOnly, max_
                     if abs(extra) > 0.01:
                         mid = a_w.end + gap / 2
                         edits.append((mid, mid, dsp.silence(extra)) if extra > 0 else (mid + extra / 2, mid - extra / 2, dsp.silence(0)))
+        # a command that ends a line lands: hold before the next line starts
+        if fx.cmd_hold > 0:
+            wcount = 0
+            for ln in seg.lines:
+                n = len(ln.words)
+                for sp in ln.spans:
+                    if sp.kind == 'cmd' and sp.word_end >= n and wcount + n < len(seg_words):
+                        last = seg_words[wcount + n - 1]; nxt = seg_words[wcount + n]
+                        want = fx.cmd_hold * max(1.0, fx.pause)
+                        have = nxt.start - last.end
+                        if want - have > 0.05:
+                            at = last.end + min(0.15, have / 2)
+                            edits.append((at, at, dsp.silence(want - have)))
+                wcount += n
+        # echoes need room: reserve silence after each echoed phrase so repeats never land on speech
+        wcount = 0
+        for ln in seg.lines:
+            n = len(ln.words)
+            for sp in ln.spans:
+                if sp.kind != 'echo': continue
+                sw = seg_words[wcount + sp.word_start: wcount + sp.word_end]
+                if not sw: continue
+                plen = sw[-1].end - sw[0].start
+                delay = fx.echo_gap if fx.echo_gap > 0 else max(0.5, min(0.8, st.breath[0] / 6))
+                need = dsp.echo_tail_length(plen, delay) + 0.35
+                nxt = seg_words[wcount + sp.word_end] if wcount + sp.word_end < len(seg_words) else None
+                have = (nxt.start - sw[-1].end) if nxt else 0.0
+                extra = need - have
+                if extra > 0.05:
+                    at = sw[-1].end + min(0.12, have / 2)
+                    edits.append((at, at, dsp.silence(extra)))
+            wcount += n
         if fx.cmd_stretch != 1.0:
             wcount = 0
             for ln in seg.lines:
@@ -219,6 +297,11 @@ def render_stage(session: Session, st: Stage, provider: Cached | CacheOnly, max_
             seg_words = [WordTime(w.word, remap(w.start), remap(w.end)) for w in seg_words]
             seg_dur = seg_audio.size / SR
 
+        # ── whisper sublayer: the spoken segment itself, whisperized (same words, same timing) ──
+        if fx.whisper < 0:
+            wsp = dsp.whisperize(seg_audio)
+            side_layers.append((wsp, base + fx.whisper_lag, fx.whisper, 0.0))
+
         wi = 0
         for ln in seg.lines:
             n = len(ln.words)
@@ -226,6 +309,23 @@ def render_stage(session: Session, st: Stage, provider: Cached | CacheOnly, max_
             if not wts: continue
             words = [WordTime(w.word, base + w.start, base + w.end) for w in wts]
             lines.append(LineTiming(ln.text, words[0].start, words[-1].end, words))
+            if ln.move: moves.append((words[0].start - 0.1, words[-1].end + 0.3, ln.move))
+            if fx.breath < 0 and ln.breaths and _is_v3(model):
+                for kind, widx in ln.breaths:
+                    clip = _breath_clip(provider, session, model, kind, breath_cache)
+                    if clip is None: continue
+                    if kind == 'in':
+                        at_word = words[min(widx, len(words) - 1)]
+                        at = at_word.start - clip.size / SR - 0.06
+                    else:
+                        at_word = words[max(0, min(widx, len(words)) - 1)]
+                        at = at_word.end + 0.08
+                    # into the spoken track itself (segment-relative) so it gets every layer the voice gets
+                    c = clip.copy()
+                    fi, fo = min(c.size // 3, int(0.06 * SR)), min(c.size // 3, int(0.14 * SR))
+                    if fi > 0: c[:fi] *= np.linspace(0, 1, fi)
+                    if fo > 0: c[-fo:] *= np.linspace(1, 0, fo)
+                    seg_audio = dsp.mix_at(seg_audio, c, max(0.0, at - base), fx.breath)
             for sp in ln.spans:
                 span_words = words[sp.word_start:sp.word_end]
                 if not span_words: continue
@@ -245,11 +345,14 @@ def render_stage(session: Session, st: Stage, provider: Cached | CacheOnly, max_
                 elif sp.kind == 'fade':
                     dsp.fade_span(seg_audio, s, e, fx.fade_db)
                 elif sp.kind == 'echo':
-                    a0, a1 = int(s * SR), int(e * SR)
+                    prev_end = (words[sp.word_start - 1].end - base) if sp.word_start > 0 else max(0.0, s - 0.3)
+                    es = dsp.word_onset(seg_audio, prev_end, s)
+                    _, ee = dsp.energy_bounds(seg_audio, es, e)
+                    a0, a1 = max(0, int(es * SR)), min(seg_audio.size, int(ee * SR))
                     phrase = seg_audio[a0:a1].copy()
-                    gap = fx.echo_gap if fx.echo_gap > 0 else max(0.35, st.breath[0] / 4)
-                    for y, off, pan in dsp.echoes(phrase, fx.echo_db, gap):
-                        side_layers.append((y, base + e + off, 0.0, pan))
+                    delay = fx.echo_gap if fx.echo_gap > 0 else max(0.5, min(0.8, st.breath[0] / 6))
+                    for y, off, pan in dsp.echoes(phrase, fx.echo_db, delay):
+                        side_layers.append((y, base + es + off, 0.0, pan))
         if audio.size > 0: dsp.soften_resume(seg_audio, 0, 0.12)
         audio = np.concatenate([audio, seg_audio])
         if seg.gate is not None:
@@ -270,6 +373,7 @@ def render_stage(session: Session, st: Stage, provider: Cached | CacheOnly, max_
         lines = [LineTiming(l.text, l.start * k, l.end * k, [WordTime(w.word, w.start * k, w.end * k) for w in l.words]) for l in lines]
         for c in cues: c['t'] = round(c['t'] * k, 3)
         side_layers = [(dsp.stretch(y, fx.stretch, fx.pitch), at * k, g, pan) for (y, at, g, pan) in side_layers]
+        moves = [(a * k, b * k, pth) for (a, b, pth) in moves]
 
     # phrase-end reverb send: the last 0.45 s of every line, faded in
     send = None
@@ -284,6 +388,8 @@ def render_stage(session: Session, st: Stage, provider: Cached | CacheOnly, max_
     # polish
     mono = dsp.proximity(audio, fx.proximity)
     stereo = dsp.to_stereo(mono, fx.drift)
+    for a, b, pth in moves:
+        dsp.move_region(stereo, mono, a, b, pth, fx.move)
     for y, at, g, pan in side_layers:
         stereo = dsp.mix_stereo_at(stereo, y, at, g, pan)
     # reverb space opens with depth: chapel → dome → cathedral

@@ -48,8 +48,8 @@ it is safe... to want this.
 let yourself... be curious...
 let yourself... feel.
 
-every breath... pulls you... [ECHO a little deeper]...
-a little closer.
+every breath... pulls you... a little [ECHO deeper]...
+a little [ECHO closer].
 
 you don't have to do anything...
 just watch... just feel.
@@ -60,7 +60,7 @@ just watch... just feel.
 [DEPTH: 0.5 ramp=12]
 [BREATH: 4/2/3/0]
 [ANCHOR: pendulum]
-[FX: proximity=0.5 reverb=0.09 drift=0.2 pause=1.8 cmd_stretch=1.15 tails=0.28 stretch=1.06]
+[FX: proximity=0.5 reverb=0.09 drift=0.2 pause=1.8 cmd_stretch=1.15 tails=0.28 stretch=1.06 whisper=-22]
 good... you said yes...
 [whispers] that pleases me.
 
@@ -69,7 +69,7 @@ feel the warmth... spreading.
 
 it feels good... to let go...
 to stop thinking...
-to just... [CMD obey].
+[INHALE] to just... [CMD obey].
 
 every breath... makes you more receptive...
 more open... [DOUBLE more mine].
@@ -83,6 +83,7 @@ when you... [CMD surrender].
 that's it... just like that...
 [whispers] so good.
 
+[MOVE: circle]
 feel my voice... inside you...
 warm... commanding...
 impossible to ignore.
@@ -96,7 +97,7 @@ melting... [ECHO dissolving]... into warmth.
 [DEPTH: 0.75 ramp=12]
 [BREATH: 4/3/3/0]
 [ANCHOR: breathe]
-[FX: proximity=0.55 reverb=0.13 drift=0.25 stretch=1.1 pause=2.1 cmd_stretch=1.18 tails=0.22]
+[FX: proximity=0.55 reverb=0.13 drift=0.25 stretch=1.1 pause=2.1 cmd_stretch=1.18 tails=0.3 level=-1.5 whisper=-20]
 [softly] that's it. feel yourself sinking.
 
 you belong... to this feeling now...
@@ -111,8 +112,9 @@ you need... how this feels.
 so easy to obey... so natural...
 like you were made... for this.
 
+[MOVE: behind]
 trust this feeling... trust my voice...
-[CMD let everything else fade].
+[INHALE] [CMD let everything else fade].
 
 your mind... is soft and open...
 perfectly receptive... [DOUBLE perfectly mine].
@@ -124,17 +126,18 @@ you were made for this...
 for surrender... for obedience... for pleasure.
 
 let the waves... wash over you...
-[CMD deeper]... [ECHO and deeper]... [FADE and deeper.]
+[CMD deeper]... and [ECHO deeper]... [FADE and deeper.]
 
-[whispers] good... such a good subject...
+[whispers] good... such a good subject... [EXHALE]
 I'm so pleased... with you.
 [INTERLUDE 4]
 
 [STAGE: ecstasy]
+# per-stage voice settings are supported, e.g. [SETTINGS: stability=0.6 style=0.1] (re-renders this stage)
 [DEPTH: 1.0 ramp=15]
 [BREATH: 4/4/4/0]
 [ANCHOR: speak]
-[FX: proximity=0.6 reverb=0.2 drift=0.3 stretch=1.13 pitch=-0.5 pause=2.4 cmd_stretch=1.2 tails=0.35 level=-3]
+[FX: proximity=0.6 reverb=0.2 drift=0.3 stretch=1.13 pitch=-0.5 pause=2.4 cmd_stretch=1.2 tails=0.35 level=-3 whisper=-18]
 you belong... to this moment... completely...
 body... and mind.
 
@@ -150,6 +153,7 @@ deeper... and deeper...
 good... so good...
 you're exactly where you need to be.
 
+[MOVE: left]
 let it consume you...
 every thought... every sensation... [DOUBLE mine].
 
@@ -163,8 +167,8 @@ completely surrendered... completely lost.
 give in... completely...
 there is nothing... but this feeling.
 
-[whispers] [ECHO let go]... [CMD now]... completely...
-[exhales] feel... everything.
+[INHALE] [whispers] [ECHO let go]... [CMD now]... completely...
+[exhales] feel... everything. [EXHALE]
 [TRIGGER: drop]
 [INTERLUDE 6]
 
@@ -188,6 +192,7 @@ how easy it was... how good it felt.
 gentle now... soft...
 you are safe.
 
+[MOVE: right]
 you can come back... whenever you want...
 [whispers] [FADE I'll be here.]
 [INTERLUDE 4]

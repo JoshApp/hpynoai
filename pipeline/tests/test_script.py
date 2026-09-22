@@ -45,3 +45,14 @@ class ParseTests(unittest.TestCase):
         with self.assertRaises(ScriptError): parse_script("[STAGE: a]\nhi\n")
 
 if __name__ == '__main__': unittest.main()
+
+
+class BreathMoveTests(unittest.TestCase):
+    def test_breaths_and_move(self):
+        s = parse_script("[SESSION: t]\n[STAGE: a]\n[MOVE: circle]\n[INHALE] to just... [CMD obey]. [EXHALE]\n\nplain line.\n")
+        items = [i for i in s.stages[0].items if isinstance(i, TextItem)]
+        l0 = items[0].line
+        self.assertEqual(l0.text, 'to just... obey.')
+        self.assertEqual(l0.breaths, [('in', 0), ('out', 3)])
+        self.assertEqual(l0.move, 'circle')
+        self.assertIsNone(items[1].line.move)

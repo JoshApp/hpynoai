@@ -26,8 +26,10 @@ Body markers (anywhere in a stage):
   [INTERLUDE 6]         silence
   [CMD phrase]          phrase spoken inline, volume-emphasised, emits a 'snap' trigger at the word
   [DOUBLE phrase]       phrase spoken inline plus a whispered double mixed underneath
-  [ECHO phrase]         phrase spoken inline, then three decaying echoes trailing off to the sides
+  [ECHO word]           mark the exact word(s) to echo; two warped, decaying repeats follow into reserved silence
   [FADE phrase]         phrase sinks in volume as it goes (drifting away)
+  [INHALE] / [EXHALE]   inline: a soft breath placed just before / after this point in the line
+  [MOVE: circle|left|right|behind|close]   the NEXT line's voice travels around the head
   [TRIGGER: drop|bloom|snap]  visual trigger cue at this point
   [SPLIT]               force a new render request here
 """
@@ -68,16 +70,21 @@ class Fx:
     double_db: float = -12.0   # level of whispered doubles
     cmd_db: float = 2.5        # emphasis on command words
     echo_db: float = -9.0      # first echo level; each repeat falls 5 dB further
-    echo_gap: float = 0.0      # seconds between echoes; 0 = half the stage's inhale time
+    echo_gap: float = 0.0      # echo delay time; 0 = auto from the stage's breath (0.32–0.5 s)
     stretch: float = 1.0       # time-stretch factor for the whole stage (1.06 = 6% slower)
     pitch: float = 0.0         # semitones (negative = lower)
     pause: float = 1.0         # scale natural gaps between phrases (1.6 = 60% longer pauses)
     pause_min: float = 0.3     # only gaps at least this long count as pauses
     cmd_stretch: float = 1.0   # slow command words by this factor (1.15 = 15% slower)
+    cmd_hold: float = 1.0      # seconds of settle after a command that ENDS a line (× pause scale)
     tails: float = 0.0         # reverb tail sent from phrase ends (0..1)
     denoise: float = 6.0       # spectral denoise strength in dB (0 = off)
     bright: float = 0.4        # air shelf + exciter amount (0 = none, 1 = full)
     level: float = 0.0         # stage level offset in dB after normalisation (deep stages quieter by design)
+    whisper: float = 0.0       # whisper sublayer level in dB under the voice (0 = off, e.g. -15); synthesized from her own voice
+    whisper_lag: float = 0.12  # seconds the sublayer trails the voice
+    breath: float = -10.0      # breath sound level in dB (0 = off)
+    move: float = 1.0          # voice movement amount 0..1
     fade_db: float = -9.0      # how far a [FADE] phrase sinks by its end
 
     def merged(self, kv: dict[str, str]) -> 'Fx':
@@ -95,10 +102,15 @@ class Fx:
             elif k == 'pause': out.pause = float(v)
             elif k == 'pause_min': out.pause_min = float(v)
             elif k == 'cmd_stretch': out.cmd_stretch = float(v)
+            elif k == 'cmd_hold': out.cmd_hold = float(v)
             elif k == 'tails': out.tails = float(v)
             elif k == 'denoise': out.denoise = float(v)
             elif k == 'bright': out.bright = float(v)
             elif k == 'level': out.level = float(v)
+            elif k == 'whisper': out.whisper = float(v)
+            elif k == 'whisper_lag': out.whisper_lag = float(v)
+            elif k == 'breath': out.breath = float(v)
+            elif k == 'move': out.move = float(v)
             elif k == 'fade': out.fade_db = float(v)
         return out
 
@@ -110,6 +122,10 @@ FX_FIELDS: list[tuple[str, str, float, float, float, str]] = [
     ('denoise', 'denoise', 0, 24, 1, 'denoise (dB)'),
     ('bright', 'bright', 0, 1, 0.05, 'brightness (air + exciter)'),
     ('level', 'level', -9, 3, 0.5, 'stage level (dB)'),
+    ('whisper', 'whisper', -30, 0, 1, 'whisper sublayer (dB, 0=off)'),
+    ('whisper_lag', 'whisper_lag', 0, 0.5, 0.01, 'whisper lag (s)'),
+    ('breath', 'breath', -30, 0, 1, 'breath sounds (dB, 0=off)'),
+    ('move', 'move', 0, 1, 0.05, 'voice movement amount'),
     ('fade', 'fade_db', -24, 0, 1, 'fade phrase depth (dB)'),
     ('proximity', 'proximity', 0, 1, 0.05, 'proximity (close mic)'),
     ('drift', 'drift', 0, 1, 0.05, 'stereo drift'),
@@ -117,9 +133,10 @@ FX_FIELDS: list[tuple[str, str, float, float, float, str]] = [
     ('pause_min', 'pause_min', 0.1, 1, 0.05, 'min gap counted as pause (s)'),
     ('cmd', 'cmd_db', 0, 6, 0.5, 'command boost (dB)'),
     ('cmd_stretch', 'cmd_stretch', 1, 1.5, 0.01, 'command stretch'),
+    ('cmd_hold', 'cmd_hold', 0, 4, 0.1, 'hold after line-ending command (s)'),
     ('double', 'double_db', -24, 0, 1, 'whisper double (dB)'),
     ('echo', 'echo_db', -24, 0, 1, 'echo level (dB)'),
-    ('echo_gap', 'echo_gap', 0, 3, 0.05, 'echo gap (s, 0=auto)'),
+    ('echo_gap', 'echo_gap', 0, 1.5, 0.02, 'echo delay (s, 0=auto)'),
     ('stretch', 'stretch', 0.9, 1.2, 0.01, 'stage time-stretch'),
     ('pitch', 'pitch', -3, 3, 0.25, 'pitch (semitones)'),
 ]
@@ -139,6 +156,8 @@ class Line:
     """One display line: the text ElevenLabs will read, with marked spans."""
     text: str
     spans: list[Span] = field(default_factory=list)
+    breaths: list[tuple[str, int]] = field(default_factory=list)   # ('in'|'out', word index)
+    move: Optional[str] = None                                     # movement path for this line
 
     @property
     def words(self) -> list[str]:
@@ -240,9 +259,21 @@ def parse_vec(v: str) -> list[float]:
     return [float(x) for x in v.split(',')]
 
 
+BREATH_RE = re.compile(r'\[(INHALE|EXHALE)\]')
+
+
 def _build_line(raw_lines: list[str]) -> Line:
-    """Join raw text lines into one Line, extracting [CMD ..] and [DOUBLE ..] spans."""
+    """Join raw text lines into one Line, extracting [CMD ..]/[DOUBLE ..]/[ECHO ..]/[FADE ..] spans
+    and [INHALE]/[EXHALE] breath points."""
     joined = ' '.join(l.strip() for l in raw_lines if l.strip())
+    # breath points: word index at which they occur (counting words of the tag-free text)
+    breaths: list[tuple[str, int]] = []
+    def _count(prefix: str) -> int:
+        clean = BREATH_RE.sub(' ', INLINE_MARKER_RE.sub(lambda m: m.group(2).strip(), prefix))
+        return len(words_of(clean))
+    for bm in BREATH_RE.finditer(joined):
+        breaths.append(('in' if bm.group(1) == 'INHALE' else 'out', _count(joined[:bm.start()])))
+    joined = BREATH_RE.sub(' ', joined)
     spans: list[Span] = []
     out_words: list[str] = []
     pos = 0
@@ -259,7 +290,7 @@ def _build_line(raw_lines: list[str]) -> Line:
     # the pipeline markers from the joined string and keep everything else.
     text = INLINE_MARKER_RE.sub(lambda m: m.group(2).strip(), joined)
     text = re.sub(r'\s+', ' ', text).strip()
-    return Line(text=text, spans=spans)
+    return Line(text=text, spans=spans, breaths=breaths)
 
 
 def parse_script(src: str) -> Session:
@@ -267,11 +298,14 @@ def parse_script(src: str) -> Session:
     header: dict[str, str] = {}
     stage: Optional[Stage] = None
     pending: list[str] = []
+    pending_move: Optional[str] = None
 
     def flush() -> None:
-        nonlocal pending
+        nonlocal pending, pending_move
         if pending and stage is not None:
-            stage.items.append(TextItem(_build_line(pending)))
+            line = _build_line(pending)
+            if pending_move: line.move = pending_move; pending_move = None
+            stage.items.append(TextItem(line))
         pending = []
 
     for lineno, raw in enumerate(src.splitlines(), 1):
@@ -281,7 +315,7 @@ def parse_script(src: str) -> Session:
         if line.lstrip().startswith('#'):
             continue
         m = MARKER_RE.match(line.strip())
-        if m and m.group(1) in ('CMD', 'DOUBLE', 'ECHO', 'FADE'):
+        if m and m.group(1) in ('CMD', 'DOUBLE', 'ECHO', 'FADE', 'INHALE', 'EXHALE'):
             m = None  # inline span at the start of a text line, not a block marker
         if not m:
             if stage is None:
@@ -343,6 +377,10 @@ def parse_script(src: str) -> Session:
             stage.items.append(TriggerItem(rest))
         elif name == 'SPLIT':
             flush(); stage.items.append(SplitItem())
+        elif name == 'MOVE':
+            flush()
+            if rest not in ('circle', 'left', 'right', 'behind', 'close'): raise ScriptError(f'bad move path {rest}', lineno)
+            pending_move = rest
         else:
             raise ScriptError(f'unknown marker [{name}]', lineno)
 
