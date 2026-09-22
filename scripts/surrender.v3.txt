@@ -1,0 +1,193 @@
+# Surrender — script v3 (ElevenLabs)
+# Lowercase [tags] are ElevenLabs v3 delivery tags. UPPERCASE markers are pipeline.
+# Keep the register: slow, deliberate, soft dominance. Pauses come from "..." and [PAUSE].
+
+[SESSION: surrender]
+[TITLE: Surrender]
+[SUBTITLE: An intimate descent into letting go.]
+[DESCRIPTION: Soft dominance and permissive suggestion. You are invited, never pushed. Two moments ask for your yes.]
+[TAGS: submission, devotion, trance]
+[INTENSITY: 3]
+[RATING: adult]
+[VOICE: PB6BdkFkZLbI39GHdnbQ]
+[MODEL: eleven_v3]
+[SETTINGS: stability=0.45 similarity=0.8 style=0.2 speed=0.9]
+[FX: proximity=0.4 reverb=0.06 drift=0.15 double=-13 cmd=2.5 echo=-9 pause=1.4 cmd_stretch=1.12 tails=0.22]
+[THEME: shape=0.25 c1=0.48,0.08,0.20 c2=0.36,0.06,0.24 c3=0.76,0.34,0.42 c4=0.03,0.012,0.03 wisp=0.98,0.5,0.6]
+[BED: carrier=110 beat=7-3 drone=55 gain=-4 wind=0.3 duck=0.35 pad=0.16]
+[GATE-WINDOW: 7]
+[SEED: 42]
+
+[STAGE: settling]
+[DEPTH: 0.15 ramp=0]
+[BREATH: 4/0/4/0]
+[ANCHOR: settle]
+[FX: proximity=0.3 reverb=0.04 pause=1.2 tails=0.15]
+[softly] let's breathe together.
+
+breathe in... when the light comes closer.
+and breathe out... as it drifts away.
+just follow it... there's nothing else to do.
+[BREATH-SYNC 24]
+good. keep breathing... just like that.
+
+[STAGE: invitation]
+[DEPTH: 0.3 ramp=12]
+[BREATH: 4/1/3/0]
+[ANCHOR: breathe]
+[FX: pause=1.5 tails=0.22 stretch=1.03]
+you chose to be here...
+something about this... draws you in.
+
+notice the warmth... beginning...
+low in your body... spreading.
+
+you already know... what you want...
+it is safe... to want this.
+
+let yourself... be curious...
+let yourself... feel.
+
+every breath... pulls you... [ECHO a little deeper]...
+a little closer.
+
+you don't have to do anything...
+just watch... just feel.
+[PAUSE 2]
+[GATE: do you want to go deeper?]
+
+[STAGE: surrender]
+[DEPTH: 0.5 ramp=12]
+[BREATH: 4/2/3/0]
+[ANCHOR: pendulum]
+[FX: proximity=0.5 reverb=0.09 drift=0.2 pause=1.8 cmd_stretch=1.15 tails=0.28 stretch=1.06]
+good... you said yes...
+[whispers] that pleases me.
+
+your body knows... what to do...
+feel the warmth... spreading.
+
+it feels good... to let go...
+to stop thinking...
+to just... [CMD obey].
+
+every breath... makes you more receptive...
+more open... [DOUBLE more mine].
+
+you don't need to resist...
+you don't want... to resist.
+
+the pleasure builds... when you stop trying...
+when you... [CMD surrender].
+
+that's it... just like that...
+[whispers] so good.
+
+feel my voice... inside you...
+warm... commanding...
+impossible to ignore.
+
+your thoughts... are slowing down...
+melting... [ECHO dissolving]... into warmth.
+[PAUSE 2]
+[GATE: do you want to surrender completely?]
+
+[STAGE: devotion]
+[DEPTH: 0.75 ramp=12]
+[BREATH: 4/3/3/0]
+[ANCHOR: breathe]
+[FX: proximity=0.55 reverb=0.13 drift=0.25 stretch=1.1 pause=2.1 cmd_stretch=1.18 tails=0.22]
+[softly] that's it. feel yourself sinking.
+
+you belong... to this feeling now...
+let it... take you.
+
+deeper...
+the pleasure grows... with every breath... you take.
+
+you love... how this feels...
+you need... how this feels.
+
+so easy to obey... so natural...
+like you were made... for this.
+
+trust this feeling... trust my voice...
+[CMD let everything else fade].
+
+your mind... is soft and open...
+perfectly receptive... [DOUBLE perfectly mine].
+
+feel the heat... building... pulsing...
+spreading through every part of you.
+
+you were made for this...
+for surrender... for obedience... for pleasure.
+
+let the waves... wash over you...
+[CMD deeper]... [ECHO and deeper]... [FADE and deeper.]
+
+[whispers] good... such a good subject...
+I'm so pleased... with you.
+[INTERLUDE 4]
+
+[STAGE: ecstasy]
+[DEPTH: 1.0 ramp=15]
+[BREATH: 4/4/4/0]
+[ANCHOR: speak]
+[FX: proximity=0.6 reverb=0.2 drift=0.3 stretch=1.13 pitch=-0.5 pause=2.4 cmd_stretch=1.2 tails=0.35 level=-3]
+you belong... to this moment... completely...
+body... and mind.
+
+pure surrender... pure pleasure...
+there is nothing else.
+
+feel it building... higher... hotter...
+you can't stop it now.
+
+deeper... and deeper...
+[FADE wave after wave... of bliss.]
+
+good... so good...
+you're exactly where you need to be.
+
+let it consume you...
+every thought... every sensation... [DOUBLE mine].
+
+the pleasure is overwhelming now...
+[CMD let it crash over you].
+[TRIGGER: bloom]
+
+you are perfect... like this...
+completely surrendered... completely lost.
+
+give in... completely...
+there is nothing... but this feeling.
+
+[whispers] [ECHO let go]... [CMD now]... completely...
+[exhales] feel... everything.
+[TRIGGER: drop]
+[INTERLUDE 6]
+
+[STAGE: afterglow]
+[DEPTH: 0.35 ramp=20]
+[BREATH: 4/0/4/0]
+[ANCHOR: settle]
+[FX: proximity=0.3 reverb=0.06 drift=0.1 pause=1.4 tails=0.25 stretch=1.02 level=-1]
+slowly now... gently...
+returning... to yourself.
+
+carrying this warmth... with you...
+this feeling... of surrender.
+
+you did so well...
+I'm very pleased... with you.
+
+remember this feeling...
+how easy it was... how good it felt.
+
+gentle now... soft...
+you are safe.
+
+you can come back... whenever you want...
+[whispers] [FADE I'll be here.]
+[INTERLUDE 4]
