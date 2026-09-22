@@ -1,0 +1,12 @@
+export { Engine, type FrameMode, type InputSource } from './engine';
+export { World } from './world/world';
+export { Wisp, type WispMode } from './world/wisp';
+export { BreathClock, type BreathPattern } from './world/breath';
+export { PropertyChannel, Vec3Channel } from './world/channel';
+export { velvet, velvetTunnel, wispColors, idlePreset, sessionPreset } from './world/palette';
+export { mergePreset, blendPresets } from './world/compositor';
+export type { Preset, WorldInputs, AudioBands, BreathStage, BreathInputs, Vec3, TunnelColors } from './world/types';
+export { QualityManager, type QualityLevel, type QualityProfile } from './render/quality';
+export { AudioGraph } from './audio/graph';
+export { AudioAnalyzer } from './audio/analyzer';
+export { SpriteText, type SpriteTextOptions } from './text/sprite-text';

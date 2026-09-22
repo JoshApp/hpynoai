@@ -1,11 +1,6 @@
 /// <reference types="vite/client" />
+/// <reference types="svelte" />
 
-declare module '*.vert' {
-  const value: string;
-  export default value;
-}
-
-declare module '*.frag' {
-  const value: string;
-  export default value;
-}
+declare module '*.vert' { const src: string; export default src; }
+declare module '*.frag' { const src: string; export default src; }
+declare module '*.glsl' { const src: string; export default src; }

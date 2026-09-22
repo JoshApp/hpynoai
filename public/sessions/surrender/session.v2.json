@@ -1,0 +1,2850 @@
+{
+ "schema": 2,
+ "id": "surrender",
+ "title": "Surrender",
+ "subtitle": "An intimate descent into letting go.",
+ "description": "Soft dominance and permissive suggestion. You are invited, never pushed. Two moments ask for your yes.",
+ "durationSec": 692.1,
+ "rating": "adult",
+ "tags": [
+  "submission",
+  "devotion",
+  "trance"
+ ],
+ "intensity": 3,
+ "theme": {
+  "colors": {
+   "c1": [
+    0.48,
+    0.08,
+    0.2
+   ],
+   "c2": [
+    0.36,
+    0.06,
+    0.24
+   ],
+   "c3": [
+    0.76,
+    0.34,
+    0.42
+   ],
+   "c4": [
+    0.03,
+    0.012,
+    0.03
+   ]
+  },
+  "wisp": [
+   0.98,
+   0.5,
+   0.6
+  ],
+  "shape": 0.25
+ },
+ "audio": {
+  "stages": [
+   {
+    "name": "settling",
+    "file": "00_settling.webm",
+    "fileMp3": "00_settling.mp3",
+    "duration": 53.39
+   },
+   {
+    "name": "invitation",
+    "file": "01_invitation.webm",
+    "fileMp3": "01_invitation.mp3",
+    "duration": 83.558
+   },
+   {
+    "name": "surrender",
+    "file": "02_surrender.webm",
+    "fileMp3": "02_surrender.mp3",
+    "duration": 118.171
+   },
+   {
+    "name": "devotion",
+    "file": "03_devotion.webm",
+    "fileMp3": "03_devotion.mp3",
+    "duration": 178.188
+   },
+   {
+    "name": "ecstasy",
+    "file": "04_ecstasy.webm",
+    "fileMp3": "04_ecstasy.mp3",
+    "duration": 194.218
+   },
+   {
+    "name": "afterglow",
+    "file": "05_afterglow.webm",
+    "fileMp3": "05_afterglow.mp3",
+    "duration": 64.574
+   }
+  ],
+  "bed": {
+   "file": "bed.webm",
+   "fileMp3": "bed.mp3",
+   "loop": true,
+   "gainDb": -4.0
+  }
+ },
+ "cues": [
+  {
+   "t": 0.0,
+   "type": "intensity",
+   "value": 0.15,
+   "ramp": 0.0,
+   "id": "settling:intensity:0"
+  },
+  {
+   "t": 0.0,
+   "type": "pattern",
+   "pattern": {
+    "inhale": 4.0,
+    "holdIn": 0.0,
+    "exhale": 4.0,
+    "holdOut": 0.0
+   },
+   "id": "settling:pattern:0"
+  },
+  {
+   "t": 0.0,
+   "type": "anchor",
+   "mode": "settle",
+   "id": "settling:anchor:0"
+  },
+  {
+   "t": 24.268,
+   "type": "breath",
+   "dur": 23.0,
+   "pattern": {
+    "inhale": 4.0,
+    "holdIn": 0.0,
+    "exhale": 4.0,
+    "holdOut": 0.0
+   },
+   "guided": true,
+   "id": "settling:breath:0"
+  },
+  {
+   "t": 53.39,
+   "type": "intensity",
+   "value": 0.3,
+   "ramp": 12.0,
+   "id": "invitation:intensity:0"
+  },
+  {
+   "t": 53.39,
+   "type": "pattern",
+   "pattern": {
+    "inhale": 4.0,
+    "holdIn": 1.0,
+    "exhale": 3.0,
+    "holdOut": 0.0
+   },
+   "id": "invitation:pattern:0"
+  },
+  {
+   "t": 53.39,
+   "type": "anchor",
+   "mode": "breathe",
+   "id": "invitation:anchor:0"
+  },
+  {
+   "t": 129.996,
+   "type": "gate",
+   "window": 6.4,
+   "prompt": "do you want to go deeper?",
+   "id": "invitation:gate:0"
+  },
+  {
+   "t": 136.949,
+   "type": "intensity",
+   "value": 0.5,
+   "ramp": 12.0,
+   "id": "surrender:intensity:0"
+  },
+  {
+   "t": 136.949,
+   "type": "pattern",
+   "pattern": {
+    "inhale": 4.0,
+    "holdIn": 2.0,
+    "exhale": 3.0,
+    "holdOut": 0.0
+   },
+   "id": "surrender:pattern:0"
+  },
+  {
+   "t": 136.949,
+   "type": "anchor",
+   "mode": "pendulum",
+   "id": "surrender:anchor:0"
+  },
+  {
+   "t": 170.642,
+   "type": "trigger",
+   "kind": "snap",
+   "id": "surrender:trigger:0"
+  },
+  {
+   "t": 203.546,
+   "type": "trigger",
+   "kind": "snap",
+   "id": "surrender:trigger:1"
+  },
+  {
+   "t": 247.965,
+   "type": "gate",
+   "window": 6.4,
+   "prompt": "do you want to surrender completely?",
+   "id": "surrender:gate:0"
+  },
+  {
+   "t": 255.119,
+   "type": "intensity",
+   "value": 0.75,
+   "ramp": 12.0,
+   "id": "devotion:intensity:0"
+  },
+  {
+   "t": 255.119,
+   "type": "pattern",
+   "pattern": {
+    "inhale": 4.0,
+    "holdIn": 3.0,
+    "exhale": 3.0,
+    "holdOut": 0.0
+   },
+   "id": "devotion:pattern:0"
+  },
+  {
+   "t": 255.119,
+   "type": "anchor",
+   "mode": "breathe",
+   "id": "devotion:anchor:0"
+  },
+  {
+   "t": 337.676,
+   "type": "trigger",
+   "kind": "snap",
+   "id": "devotion:trigger:0"
+  },
+  {
+   "t": 407.063,
+   "type": "trigger",
+   "kind": "snap",
+   "id": "devotion:trigger:1"
+  },
+  {
+   "t": 433.307,
+   "type": "intensity",
+   "value": 1.0,
+   "ramp": 15.0,
+   "id": "ecstasy:intensity:0"
+  },
+  {
+   "t": 433.307,
+   "type": "pattern",
+   "pattern": {
+    "inhale": 4.0,
+    "holdIn": 4.0,
+    "exhale": 4.0,
+    "holdOut": 0.0
+   },
+   "id": "ecstasy:pattern:0"
+  },
+  {
+   "t": 433.307,
+   "type": "anchor",
+   "mode": "speak",
+   "id": "ecstasy:anchor:0"
+  },
+  {
+   "t": 548.889,
+   "type": "trigger",
+   "kind": "snap",
+   "id": "ecstasy:trigger:0"
+  },
+  {
+   "t": 551.067,
+   "type": "trigger",
+   "kind": "bloom",
+   "id": "ecstasy:trigger:1"
+  },
+  {
+   "t": 607.268,
+   "type": "trigger",
+   "kind": "snap",
+   "id": "ecstasy:trigger:2"
+  },
+  {
+   "t": 620.746,
+   "type": "trigger",
+   "kind": "drop",
+   "id": "ecstasy:trigger:3"
+  },
+  {
+   "t": 627.526,
+   "type": "intensity",
+   "value": 0.35,
+   "ramp": 20.0,
+   "id": "afterglow:intensity:0"
+  },
+  {
+   "t": 627.526,
+   "type": "pattern",
+   "pattern": {
+    "inhale": 4.0,
+    "holdIn": 0.0,
+    "exhale": 4.0,
+    "holdOut": 0.0
+   },
+   "id": "afterglow:pattern:0"
+  },
+  {
+   "t": 627.526,
+   "type": "anchor",
+   "mode": "settle",
+   "id": "afterglow:anchor:0"
+  }
+ ],
+ "text": {
+  "stages": [
+   {
+    "name": "settling",
+    "lines": [
+     {
+      "start": 0.275,
+      "end": 1.84,
+      "text": "[softly] let's breathe together.",
+      "words": [
+       {
+        "w": "let's",
+        "s": 0.275,
+        "e": 0.4
+       },
+       {
+        "w": "breathe",
+        "s": 0.48,
+        "e": 1.04
+       },
+       {
+        "w": "together.",
+        "s": 1.12,
+        "e": 1.84
+       }
+      ]
+     },
+     {
+      "start": 4.107,
+      "end": 24.21,
+      "text": "breathe in... when the light comes closer. and breathe out... as it drifts away. just follow it... there's nothing else to do.",
+      "words": [
+       {
+        "w": "breathe",
+        "s": 4.107,
+        "e": 4.378
+       },
+       {
+        "w": "in...",
+        "s": 4.511,
+        "e": 4.839
+       },
+       {
+        "w": "when",
+        "s": 7.096,
+        "e": 7.154
+       },
+       {
+        "w": "the",
+        "s": 7.194,
+        "e": 7.314
+       },
+       {
+        "w": "light",
+        "s": 7.381,
+        "e": 7.714
+       },
+       {
+        "w": "comes",
+        "s": 7.781,
+        "e": 8.114
+       },
+       {
+        "w": "closer.",
+        "s": 8.214,
+        "e": 8.858
+       },
+       {
+        "w": "and",
+        "s": 11.194,
+        "e": 11.783
+       },
+       {
+        "w": "breathe",
+        "s": 11.843,
+        "e": 12.263
+       },
+       {
+        "w": "out...",
+        "s": 12.403,
+        "e": 12.864
+       },
+       {
+        "w": "as",
+        "s": 14.831,
+        "e": 14.991
+       },
+       {
+        "w": "it",
+        "s": 15.044,
+        "e": 15.151
+       },
+       {
+        "w": "drifts",
+        "s": 15.244,
+        "e": 15.791
+       },
+       {
+        "w": "away.",
+        "s": 15.903,
+        "e": 16.432
+       },
+       {
+        "w": "just",
+        "s": 18.703,
+        "e": 19.209
+       },
+       {
+        "w": "follow",
+        "s": 19.289,
+        "e": 19.769
+       },
+       {
+        "w": "it...",
+        "s": 19.876,
+        "e": 20.201
+       },
+       {
+        "w": "there's",
+        "s": 22.11,
+        "e": 22.327
+       },
+       {
+        "w": "nothing",
+        "s": 22.407,
+        "e": 22.967
+       },
+       {
+        "w": "else",
+        "s": 23.079,
+        "e": 23.527
+       },
+       {
+        "w": "to",
+        "s": 23.607,
+        "e": 23.767
+       },
+       {
+        "w": "do.",
+        "s": 23.874,
+        "e": 24.21
+       }
+      ]
+     },
+     {
+      "start": 48.691,
+      "end": 53.333,
+      "text": "good. keep breathing... just like that.",
+      "words": [
+       {
+        "w": "good.",
+        "s": 48.691,
+        "e": 49.098
+       },
+       {
+        "w": "keep",
+        "s": 49.652,
+        "e": 49.91
+       },
+       {
+        "w": "breathing...",
+        "s": 50.04,
+        "e": 50.542
+       },
+       {
+        "w": "just",
+        "s": 52.126,
+        "e": 52.574
+       },
+       {
+        "w": "like",
+        "s": 52.638,
+        "e": 52.894
+       },
+       {
+        "w": "that.",
+        "s": 53.032,
+        "e": 53.333
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "name": "invitation",
+    "lines": [
+     {
+      "start": 0.083,
+      "end": 10.167,
+      "text": "you chose to be here... something about this... draws you in.",
+      "words": [
+       {
+        "w": "you",
+        "s": 0.083,
+        "e": 0.165
+       },
+       {
+        "w": "chose",
+        "s": 0.294,
+        "e": 0.824
+       },
+       {
+        "w": "to",
+        "s": 0.879,
+        "e": 0.989
+       },
+       {
+        "w": "be",
+        "s": 1.071,
+        "e": 1.236
+       },
+       {
+        "w": "here...",
+        "s": 1.351,
+        "e": 1.815
+       },
+       {
+        "w": "something",
+        "s": 5.26,
+        "e": 5.928
+       },
+       {
+        "w": "about",
+        "s": 6.02,
+        "e": 6.422
+       },
+       {
+        "w": "this...",
+        "s": 6.551,
+        "e": 7.087
+       },
+       {
+        "w": "draws",
+        "s": 8.953,
+        "e": 9.434
+       },
+       {
+        "w": "you",
+        "s": 9.495,
+        "e": 9.681
+       },
+       {
+        "w": "in.",
+        "s": 9.818,
+        "e": 10.167
+       }
+      ]
+     },
+     {
+      "start": 14.983,
+      "end": 25.89,
+      "text": "notice the warmth... beginning... low in your body... spreading.",
+      "words": [
+       {
+        "w": "notice",
+        "s": 14.983,
+        "e": 15.489
+       },
+       {
+        "w": "the",
+        "s": 15.55,
+        "e": 15.736
+       },
+       {
+        "w": "warmth...",
+        "s": 15.829,
+        "e": 16.352
+       },
+       {
+        "w": "beginning...",
+        "s": 18.848,
+        "e": 19.638
+       },
+       {
+        "w": "low",
+        "s": 21.49,
+        "e": 21.799
+       },
+       {
+        "w": "in",
+        "s": 21.91,
+        "e": 22.129
+       },
+       {
+        "w": "your",
+        "s": 22.162,
+        "e": 22.294
+       },
+       {
+        "w": "body...",
+        "s": 22.419,
+        "e": 22.965
+       },
+       {
+        "w": "spreading.",
+        "s": 25.159,
+        "e": 25.89
+       }
+      ]
+     },
+     {
+      "start": 28.294,
+      "end": 38.345,
+      "text": "you already know... what you want... it is safe... to want this.",
+      "words": [
+       {
+        "w": "you",
+        "s": 28.294,
+        "e": 28.441
+       },
+       {
+        "w": "already",
+        "s": 28.612,
+        "e": 29.265
+       },
+       {
+        "w": "know...",
+        "s": 29.364,
+        "e": 29.945
+       },
+       {
+        "w": "what",
+        "s": 30.977,
+        "e": 31.174
+       },
+       {
+        "w": "you",
+        "s": 31.236,
+        "e": 31.422
+       },
+       {
+        "w": "want...",
+        "s": 31.504,
+        "e": 31.998
+       },
+       {
+        "w": "it",
+        "s": 35.22,
+        "e": 35.297
+       },
+       {
+        "w": "is",
+        "s": 35.38,
+        "e": 35.544
+       },
+       {
+        "w": "safe...",
+        "s": 35.66,
+        "e": 36.063
+       },
+       {
+        "w": "to",
+        "s": 37.125,
+        "e": 37.217
+       },
+       {
+        "w": "want",
+        "s": 37.299,
+        "e": 37.629
+       },
+       {
+        "w": "this.",
+        "s": 37.728,
+        "e": 38.345
+       }
+      ]
+     },
+     {
+      "start": 41.337,
+      "end": 48.864,
+      "text": "let yourself... be curious... let yourself... feel.",
+      "words": [
+       {
+        "w": "let",
+        "s": 41.337,
+        "e": 41.592
+       },
+       {
+        "w": "yourself...",
+        "s": 41.666,
+        "e": 42.29
+       },
+       {
+        "w": "be",
+        "s": 42.483,
+        "e": 42.581
+       },
+       {
+        "w": "curious...",
+        "s": 42.689,
+        "e": 43.6
+       },
+       {
+        "w": "let",
+        "s": 46.648,
+        "e": 46.893
+       },
+       {
+        "w": "yourself...",
+        "s": 46.976,
+        "e": 47.606
+       },
+       {
+        "w": "feel.",
+        "s": 48.413,
+        "e": 48.864
+       }
+      ]
+     },
+     {
+      "start": 51.726,
+      "end": 59.37,
+      "text": "every breath... pulls you... a little deeper... a little closer.",
+      "words": [
+       {
+        "w": "every",
+        "s": 51.726,
+        "e": 52.154
+       },
+       {
+        "w": "breath...",
+        "s": 52.237,
+        "e": 52.686
+       },
+       {
+        "w": "pulls",
+        "s": 53.573,
+        "e": 53.933
+       },
+       {
+        "w": "you...",
+        "s": 53.995,
+        "e": 54.376
+       },
+       {
+        "w": "a",
+        "s": 54.632,
+        "e": 54.675
+       },
+       {
+        "w": "little",
+        "s": 54.722,
+        "e": 55.004
+       },
+       {
+        "w": "deeper...",
+        "s": 55.087,
+        "e": 55.763
+       },
+       {
+        "w": "a",
+        "s": 57.897,
+        "e": 57.94
+       },
+       {
+        "w": "little",
+        "s": 57.999,
+        "e": 58.352
+       },
+       {
+        "w": "closer.",
+        "s": 58.47,
+        "e": 59.37
+       }
+      ]
+     },
+     {
+      "start": 62.618,
+      "end": 71.79,
+      "text": "you don't have to do anything... just watch... just feel.",
+      "words": [
+       {
+        "w": "you",
+        "s": 62.618,
+        "e": 62.731
+       },
+       {
+        "w": "don't",
+        "s": 62.813,
+        "e": 63.225
+       },
+       {
+        "w": "have",
+        "s": 63.291,
+        "e": 63.555
+       },
+       {
+        "w": "to",
+        "s": 63.637,
+        "e": 63.802
+       },
+       {
+        "w": "do",
+        "s": 63.926,
+        "e": 64.132
+       },
+       {
+        "w": "anything...",
+        "s": 64.224,
+        "e": 65.118
+       },
+       {
+        "w": "just",
+        "s": 67.041,
+        "e": 67.41
+       },
+       {
+        "w": "watch...",
+        "s": 67.52,
+        "e": 68.233
+       },
+       {
+        "w": "just",
+        "s": 70.623,
+        "e": 71.09
+       },
+       {
+        "w": "feel.",
+        "s": 71.206,
+        "e": 71.79
+       }
+      ]
+     },
+     {
+      "start": 74.398,
+      "end": 76.265,
+      "text": "do you want to go deeper?",
+      "words": [
+       {
+        "w": "do",
+        "s": 74.398,
+        "e": 74.44
+       },
+       {
+        "w": "you",
+        "s": 74.481,
+        "e": 74.605
+       },
+       {
+        "w": "want",
+        "s": 74.671,
+        "e": 74.935
+       },
+       {
+        "w": "to",
+        "s": 74.962,
+        "e": 75.017
+       },
+       {
+        "w": "go",
+        "s": 75.154,
+        "e": 75.429
+       },
+       {
+        "w": "deeper?",
+        "s": 75.535,
+        "e": 76.265
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "name": "surrender",
+    "lines": [
+     {
+      "start": 0.087,
+      "end": 8.017,
+      "text": "good... you said yes... [whispers] that pleases me.",
+      "words": [
+       {
+        "w": "good...",
+        "s": 0.087,
+        "e": 0.59
+       },
+       {
+        "w": "you",
+        "s": 2.286,
+        "e": 2.45
+       },
+       {
+        "w": "said",
+        "s": 2.518,
+        "e": 2.789
+       },
+       {
+        "w": "yes...",
+        "s": 2.937,
+        "e": 3.456
+       },
+       {
+        "w": "that",
+        "s": 6.663,
+        "e": 6.765
+       },
+       {
+        "w": "pleases",
+        "s": 6.952,
+        "e": 7.528
+       },
+       {
+        "w": "me.",
+        "s": 7.669,
+        "e": 8.017
+       }
+      ]
+     },
+     {
+      "start": 10.414,
+      "end": 19.402,
+      "text": "your body knows... what to do... feel the warmth... spreading.",
+      "words": [
+       {
+        "w": "your",
+        "s": 10.414,
+        "e": 10.459
+       },
+       {
+        "w": "body",
+        "s": 10.544,
+        "e": 10.883
+       },
+       {
+        "w": "knows...",
+        "s": 10.996,
+        "e": 11.633
+       },
+       {
+        "w": "what",
+        "s": 12.358,
+        "e": 12.562
+       },
+       {
+        "w": "to",
+        "s": 12.699,
+        "e": 12.816
+       },
+       {
+        "w": "do...",
+        "s": 12.93,
+        "e": 13.33
+       },
+       {
+        "w": "feel",
+        "s": 16.584,
+        "e": 16.807
+       },
+       {
+        "w": "the",
+        "s": 16.849,
+        "e": 16.942
+       },
+       {
+        "w": "warmth...",
+        "s": 17.073,
+        "e": 17.516
+       },
+       {
+        "w": "spreading.",
+        "s": 18.636,
+        "e": 19.402
+       }
+      ]
+     },
+     {
+      "start": 22.69,
+      "end": 34.302,
+      "text": "it feels good... to let go... to stop thinking... to just... obey.",
+      "words": [
+       {
+        "w": "it",
+        "s": 22.69,
+        "e": 22.751
+       },
+       {
+        "w": "feels",
+        "s": 22.822,
+        "e": 23.175
+       },
+       {
+        "w": "good...",
+        "s": 23.26,
+        "e": 23.733
+       },
+       {
+        "w": "to",
+        "s": 24.656,
+        "e": 24.688
+       },
+       {
+        "w": "let",
+        "s": 24.773,
+        "e": 25.027
+       },
+       {
+        "w": "go...",
+        "s": 25.141,
+        "e": 25.593
+       },
+       {
+        "w": "to",
+        "s": 28.604,
+        "e": 28.655
+       },
+       {
+        "w": "stop",
+        "s": 28.723,
+        "e": 28.995
+       },
+       {
+        "w": "thinking...",
+        "s": 29.064,
+        "e": 29.814
+       },
+       {
+        "w": "to",
+        "s": 31.75,
+        "e": 31.805
+       },
+       {
+        "w": "just...",
+        "s": 31.941,
+        "e": 32.536
+       },
+       {
+        "w": "obey.",
+        "s": 33.693,
+        "e": 34.302
+       }
+      ]
+     },
+     {
+      "start": 37.297,
+      "end": 47.718,
+      "text": "every breath... makes you more receptive... more open... more mine.",
+      "words": [
+       {
+        "w": "every",
+        "s": 37.297,
+        "e": 37.535
+       },
+       {
+        "w": "breath...",
+        "s": 37.608,
+        "e": 38.026
+       },
+       {
+        "w": "makes",
+        "s": 39.226,
+        "e": 39.417
+       },
+       {
+        "w": "you",
+        "s": 39.467,
+        "e": 39.595
+       },
+       {
+        "w": "more",
+        "s": 39.679,
+        "e": 40.019
+       },
+       {
+        "w": "receptive...",
+        "s": 40.12,
+        "e": 41.016
+       },
+       {
+        "w": "more",
+        "s": 43.43,
+        "e": 43.636
+       },
+       {
+        "w": "open...",
+        "s": 43.787,
+        "e": 44.467
+       },
+       {
+        "w": "more",
+        "s": 46.836,
+        "e": 46.978
+       },
+       {
+        "w": "mine.",
+        "s": 47.097,
+        "e": 47.718
+       }
+      ]
+     },
+     {
+      "start": 50.269,
+      "end": 57.465,
+      "text": "you don't need to resist... you don't want... to resist.",
+      "words": [
+       {
+        "w": "you",
+        "s": 50.269,
+        "e": 50.317
+       },
+       {
+        "w": "don't",
+        "s": 50.359,
+        "e": 50.571
+       },
+       {
+        "w": "need",
+        "s": 50.678,
+        "e": 51.08
+       },
+       {
+        "w": "to",
+        "s": 51.772,
+        "e": 51.811
+       },
+       {
+        "w": "resist...",
+        "s": 51.921,
+        "e": 52.659
+       },
+       {
+        "w": "you",
+        "s": 54.75,
+        "e": 54.776
+       },
+       {
+        "w": "don't",
+        "s": 54.818,
+        "e": 55.03
+       },
+       {
+        "w": "want...",
+        "s": 55.132,
+        "e": 55.678
+       },
+       {
+        "w": "to",
+        "s": 56.576,
+        "e": 56.617
+       },
+       {
+        "w": "resist.",
+        "s": 56.713,
+        "e": 57.465
+       }
+      ]
+     },
+     {
+      "start": 58.113,
+      "end": 67.38,
+      "text": "the pleasure builds... when you stop trying... when you... surrender.",
+      "words": [
+       {
+        "w": "the",
+        "s": 58.113,
+        "e": 59.195
+       },
+       {
+        "w": "pleasure",
+        "s": 59.251,
+        "e": 59.703
+       },
+       {
+        "w": "builds...",
+        "s": 59.8,
+        "e": 60.459
+       },
+       {
+        "w": "when",
+        "s": 61.341,
+        "e": 61.452
+       },
+       {
+        "w": "you",
+        "s": 61.473,
+        "e": 61.537
+       },
+       {
+        "w": "stop",
+        "s": 61.622,
+        "e": 61.961
+       },
+       {
+        "w": "trying...",
+        "s": 62.046,
+        "e": 62.731
+       },
+       {
+        "w": "when",
+        "s": 65.128,
+        "e": 65.231
+       },
+       {
+        "w": "you...",
+        "s": 65.337,
+        "e": 65.783
+       },
+       {
+        "w": "surrender.",
+        "s": 66.597,
+        "e": 67.38
+       }
+      ]
+     },
+     {
+      "start": 69.583,
+      "end": 76.653,
+      "text": "that's it... just like that... [whispers] so good.",
+      "words": [
+       {
+        "w": "that's",
+        "s": 69.583,
+        "e": 69.801
+       },
+       {
+        "w": "it...",
+        "s": 69.888,
+        "e": 70.244
+       },
+       {
+        "w": "just",
+        "s": 71.734,
+        "e": 71.905
+       },
+       {
+        "w": "like",
+        "s": 71.956,
+        "e": 72.159
+       },
+       {
+        "w": "that...",
+        "s": 72.303,
+        "e": 72.607
+       },
+       {
+        "w": "so",
+        "s": 75.973,
+        "e": 76.029
+       },
+       {
+        "w": "good.",
+        "s": 76.131,
+        "e": 76.653
+       }
+      ]
+     },
+     {
+      "start": 79.098,
+      "end": 92.023,
+      "text": "feel my voice... inside you... warm... commanding... impossible to ignore.",
+      "words": [
+       {
+        "w": "feel",
+        "s": 79.098,
+        "e": 79.151
+       },
+       {
+        "w": "my",
+        "s": 79.207,
+        "e": 79.321
+       },
+       {
+        "w": "voice...",
+        "s": 79.448,
+        "e": 80.128
+       },
+       {
+        "w": "inside",
+        "s": 80.964,
+        "e": 81.473
+       },
+       {
+        "w": "you...",
+        "s": 81.558,
+        "e": 81.981
+       },
+       {
+        "w": "warm...",
+        "s": 84.51,
+        "e": 85.092
+       },
+       {
+        "w": "commanding...",
+        "s": 87.011,
+        "e": 87.85
+       },
+       {
+        "w": "impossible",
+        "s": 90.07,
+        "e": 90.797
+       },
+       {
+        "w": "to",
+        "s": 90.966,
+        "e": 91.306
+       },
+       {
+        "w": "ignore.",
+        "s": 91.379,
+        "e": 92.023
+       }
+      ]
+     },
+     {
+      "start": 94.49,
+      "end": 105.08,
+      "text": "your thoughts... are slowing down... melting... dissolving... into warmth.",
+      "words": [
+       {
+        "w": "your",
+        "s": 94.49,
+        "e": 94.522
+       },
+       {
+        "w": "thoughts...",
+        "s": 94.597,
+        "e": 95.279
+       },
+       {
+        "w": "are",
+        "s": 96.092,
+        "e": 96.155
+       },
+       {
+        "w": "slowing",
+        "s": 96.219,
+        "e": 96.664
+       },
+       {
+        "w": "down...",
+        "s": 96.749,
+        "e": 97.258
+       },
+       {
+        "w": "melting...",
+        "s": 99.416,
+        "e": 100.079
+       },
+       {
+        "w": "dissolving...",
+        "s": 101.83,
+        "e": 102.71
+       },
+       {
+        "w": "into",
+        "s": 104.305,
+        "e": 104.538
+       },
+       {
+        "w": "warmth.",
+        "s": 104.611,
+        "e": 105.08
+       }
+      ]
+     },
+     {
+      "start": 107.673,
+      "end": 110.703,
+      "text": "do you want to surrender completely?",
+      "words": [
+       {
+        "w": "do",
+        "s": 107.673,
+        "e": 107.763
+       },
+       {
+        "w": "you",
+        "s": 107.826,
+        "e": 108.017
+       },
+       {
+        "w": "want",
+        "s": 108.085,
+        "e": 108.356
+       },
+       {
+        "w": "to",
+        "s": 108.451,
+        "e": 108.611
+       },
+       {
+        "w": "surrender",
+        "s": 108.704,
+        "e": 109.544
+       },
+       {
+        "w": "completely?",
+        "s": 109.644,
+        "e": 110.703
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "name": "devotion",
+    "lines": [
+     {
+      "start": 0.296,
+      "end": 4.394,
+      "text": "[softly] that's it. feel yourself sinking.",
+      "words": [
+       {
+        "w": "that's",
+        "s": 0.296,
+        "e": 0.528
+       },
+       {
+        "w": "it.",
+        "s": 0.674,
+        "e": 1.074
+       },
+       {
+        "w": "feel",
+        "s": 2.585,
+        "e": 2.815
+       },
+       {
+        "w": "yourself",
+        "s": 2.903,
+        "e": 3.607
+       },
+       {
+        "w": "sinking.",
+        "s": 3.706,
+        "e": 4.394
+       }
+      ]
+     },
+     {
+      "start": 8.809,
+      "end": 22.036,
+      "text": "you belong... to this feeling now... let it... take you.",
+      "words": [
+       {
+        "w": "you",
+        "s": 8.809,
+        "e": 9.0
+       },
+       {
+        "w": "belong...",
+        "s": 9.138,
+        "e": 9.929
+       },
+       {
+        "w": "to",
+        "s": 13.164,
+        "e": 13.246
+       },
+       {
+        "w": "this",
+        "s": 13.334,
+        "e": 13.686
+       },
+       {
+        "w": "feeling",
+        "s": 13.796,
+        "e": 14.566
+       },
+       {
+        "w": "now...",
+        "s": 14.887,
+        "e": 15.544
+       },
+       {
+        "w": "let",
+        "s": 19.513,
+        "e": 19.725
+       },
+       {
+        "w": "it...",
+        "s": 19.872,
+        "e": 20.263
+       },
+       {
+        "w": "take",
+        "s": 21.147,
+        "e": 21.473
+       },
+       {
+        "w": "you.",
+        "s": 21.618,
+        "e": 22.036
+       }
+      ]
+     },
+     {
+      "start": 23.643,
+      "end": 36.137,
+      "text": "deeper... the pleasure grows... with every breath... you take.",
+      "words": [
+       {
+        "w": "deeper...",
+        "s": 23.643,
+        "e": 24.23
+       },
+       {
+        "w": "the",
+        "s": 29.41,
+        "e": 29.464
+       },
+       {
+        "w": "pleasure",
+        "s": 29.564,
+        "e": 29.992
+       },
+       {
+        "w": "grows...",
+        "s": 30.138,
+        "e": 31.006
+       },
+       {
+        "w": "with",
+        "s": 32.96,
+        "e": 33.215
+       },
+       {
+        "w": "every",
+        "s": 33.318,
+        "e": 33.831
+       },
+       {
+        "w": "breath...",
+        "s": 33.919,
+        "e": 34.39
+       },
+       {
+        "w": "you",
+        "s": 35.539,
+        "e": 35.753
+       },
+       {
+        "w": "take.",
+        "s": 35.841,
+        "e": 36.137
+       }
+      ]
+     },
+     {
+      "start": 40.616,
+      "end": 51.158,
+      "text": "you love... how this feels... you need... how this feels.",
+      "words": [
+       {
+        "w": "you",
+        "s": 40.616,
+        "e": 40.74
+       },
+       {
+        "w": "love...",
+        "s": 40.881,
+        "e": 41.414
+       },
+       {
+        "w": "how",
+        "s": 42.494,
+        "e": 42.626
+       },
+       {
+        "w": "this",
+        "s": 42.696,
+        "e": 42.978
+       },
+       {
+        "w": "feels...",
+        "s": 43.11,
+        "e": 43.893
+       },
+       {
+        "w": "you",
+        "s": 47.681,
+        "e": 47.778
+       },
+       {
+        "w": "need...",
+        "s": 47.919,
+        "e": 48.604
+       },
+       {
+        "w": "how",
+        "s": 49.748,
+        "e": 49.873
+       },
+       {
+        "w": "this",
+        "s": 49.944,
+        "e": 50.225
+       },
+       {
+        "w": "feels.",
+        "s": 50.357,
+        "e": 51.158
+       }
+      ]
+     },
+     {
+      "start": 55.511,
+      "end": 68.46,
+      "text": "so easy to obey... so natural... like you were made... for this.",
+      "words": [
+       {
+        "w": "so",
+        "s": 55.511,
+        "e": 55.849
+       },
+       {
+        "w": "easy",
+        "s": 56.06,
+        "e": 56.553
+       },
+       {
+        "w": "to",
+        "s": 56.671,
+        "e": 56.905
+       },
+       {
+        "w": "obey...",
+        "s": 57.011,
+        "e": 57.606
+       },
+       {
+        "w": "so",
+        "s": 60.988,
+        "e": 61.229
+       },
+       {
+        "w": "natural...",
+        "s": 61.328,
+        "e": 62.153
+       },
+       {
+        "w": "like",
+        "s": 65.031,
+        "e": 65.288
+       },
+       {
+        "w": "you",
+        "s": 65.412,
+        "e": 65.552
+       },
+       {
+        "w": "were",
+        "s": 65.588,
+        "e": 65.728
+       },
+       {
+        "w": "made...",
+        "s": 65.869,
+        "e": 66.517
+       },
+       {
+        "w": "for",
+        "s": 67.555,
+        "e": 67.68
+       },
+       {
+        "w": "this.",
+        "s": 67.804,
+        "e": 68.46
+       }
+      ]
+     },
+     {
+      "start": 72.119,
+      "end": 85.977,
+      "text": "trust this feeling... trust my voice... let everything else fade.",
+      "words": [
+       {
+        "w": "trust",
+        "s": 72.119,
+        "e": 72.501
+       },
+       {
+        "w": "this",
+        "s": 72.571,
+        "e": 72.853
+       },
+       {
+        "w": "feeling...",
+        "s": 72.93,
+        "e": 73.626
+       },
+       {
+        "w": "trust",
+        "s": 77.023,
+        "e": 77.536
+       },
+       {
+        "w": "my",
+        "s": 77.743,
+        "e": 77.976
+       },
+       {
+        "w": "voice...",
+        "s": 78.11,
+        "e": 78.79
+       },
+       {
+        "w": "let",
+        "s": 82.557,
+        "e": 82.802
+       },
+       {
+        "w": "everything",
+        "s": 82.877,
+        "e": 83.629
+       },
+       {
+        "w": "else",
+        "s": 83.777,
+        "e": 84.25
+       },
+       {
+        "w": "fade.",
+        "s": 84.782,
+        "e": 85.977
+       }
+      ]
+     },
+     {
+      "start": 89.864,
+      "end": 106.905,
+      "text": "your mind... is soft and open... perfectly receptive... perfectly mine.",
+      "words": [
+       {
+        "w": "your",
+        "s": 89.864,
+        "e": 89.959
+       },
+       {
+        "w": "mind...",
+        "s": 90.118,
+        "e": 90.817
+       },
+       {
+        "w": "is",
+        "s": 92.595,
+        "e": 92.739
+       },
+       {
+        "w": "soft",
+        "s": 92.897,
+        "e": 93.52
+       },
+       {
+        "w": "and",
+        "s": 94.285,
+        "e": 94.548
+       },
+       {
+        "w": "open...",
+        "s": 94.671,
+        "e": 95.35
+       },
+       {
+        "w": "perfectly",
+        "s": 99.333,
+        "e": 99.978
+       },
+       {
+        "w": "receptive...",
+        "s": 100.093,
+        "e": 101.044
+       },
+       {
+        "w": "perfectly",
+        "s": 104.626,
+        "e": 105.462
+       },
+       {
+        "w": "mine.",
+        "s": 106.214,
+        "e": 106.905
+       }
+      ]
+     },
+     {
+      "start": 111.595,
+      "end": 122.624,
+      "text": "feel the heat... building... pulsing... spreading through every part of you.",
+      "words": [
+       {
+        "w": "feel",
+        "s": 111.595,
+        "e": 111.833
+       },
+       {
+        "w": "the",
+        "s": 111.877,
+        "e": 112.009
+       },
+       {
+        "w": "heat...",
+        "s": 112.132,
+        "e": 112.759
+       },
+       {
+        "w": "building...",
+        "s": 114.033,
+        "e": 114.834
+       },
+       {
+        "w": "pulsing...",
+        "s": 117.361,
+        "e": 119.368
+       },
+       {
+        "w": "spreading",
+        "s": 119.447,
+        "e": 120.16
+       },
+       {
+        "w": "through",
+        "s": 120.204,
+        "e": 120.512
+       },
+       {
+        "w": "every",
+        "s": 120.658,
+        "e": 121.392
+       },
+       {
+        "w": "part",
+        "s": 121.48,
+        "e": 121.832
+       },
+       {
+        "w": "of",
+        "s": 121.968,
+        "e": 122.184
+       },
+       {
+        "w": "you.",
+        "s": 122.25,
+        "e": 122.624
+       }
+      ]
+     },
+     {
+      "start": 126.266,
+      "end": 140.788,
+      "text": "you were made for this... for surrender... for obedience... for pleasure.",
+      "words": [
+       {
+        "w": "you",
+        "s": 126.266,
+        "e": 126.379
+       },
+       {
+        "w": "were",
+        "s": 126.432,
+        "e": 126.643
+       },
+       {
+        "w": "made",
+        "s": 126.731,
+        "e": 127.069
+       },
+       {
+        "w": "for",
+        "s": 127.127,
+        "e": 127.259
+       },
+       {
+        "w": "this...",
+        "s": 127.385,
+        "e": 128.012
+       },
+       {
+        "w": "for",
+        "s": 130.953,
+        "e": 131.088
+       },
+       {
+        "w": "surrender...",
+        "s": 131.176,
+        "e": 132.15
+       },
+       {
+        "w": "for",
+        "s": 135.133,
+        "e": 135.378
+       },
+       {
+        "w": "obedience...",
+        "s": 135.562,
+        "e": 136.82
+       },
+       {
+        "w": "for",
+        "s": 139.806,
+        "e": 139.935
+       },
+       {
+        "w": "pleasure.",
+        "s": 140.095,
+        "e": 140.788
+       }
+      ]
+     },
+     {
+      "start": 145.057,
+      "end": 159.962,
+      "text": "let the waves... wash over you... deeper... and deeper... and deeper.",
+      "words": [
+       {
+        "w": "let",
+        "s": 145.057,
+        "e": 145.251
+       },
+       {
+        "w": "the",
+        "s": 145.295,
+        "e": 145.361
+       },
+       {
+        "w": "waves...",
+        "s": 145.559,
+        "e": 146.362
+       },
+       {
+        "w": "wash",
+        "s": 147.577,
+        "e": 147.999
+       },
+       {
+        "w": "over",
+        "s": 148.087,
+        "e": 148.439
+       },
+       {
+        "w": "you...",
+        "s": 148.527,
+        "e": 148.967
+       },
+       {
+        "w": "deeper...",
+        "s": 151.944,
+        "e": 152.795
+       },
+       {
+        "w": "and",
+        "s": 154.979,
+        "e": 155.309
+       },
+       {
+        "w": "deeper...",
+        "s": 155.397,
+        "e": 156.151
+       },
+       {
+        "w": "and",
+        "s": 158.818,
+        "e": 159.082
+       },
+       {
+        "w": "deeper.",
+        "s": 159.17,
+        "e": 159.962
+       }
+      ]
+     },
+     {
+      "start": 163.399,
+      "end": 173.782,
+      "text": "[whispers] good... such a good subject... I'm so pleased... with you.",
+      "words": [
+       {
+        "w": "good...",
+        "s": 163.399,
+        "e": 165.371
+       },
+       {
+        "w": "such",
+        "s": 165.459,
+        "e": 165.811
+       },
+       {
+        "w": "a",
+        "s": 165.978,
+        "e": 166.075
+       },
+       {
+        "w": "good",
+        "s": 166.306,
+        "e": 166.686
+       },
+       {
+        "w": "subject...",
+        "s": 166.833,
+        "e": 167.919
+       },
+       {
+        "w": "I'm",
+        "s": 171.255,
+        "e": 171.342
+       },
+       {
+        "w": "so",
+        "s": 171.518,
+        "e": 171.87
+       },
+       {
+        "w": "pleased...",
+        "s": 171.969,
+        "e": 172.84
+       },
+       {
+        "w": "with",
+        "s": 173.126,
+        "e": 173.278
+       },
+       {
+        "w": "you.",
+        "s": 173.366,
+        "e": 173.782
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "name": "ecstasy",
+    "lines": [
+     {
+      "start": 0.043,
+      "end": 17.557,
+      "text": "you belong... to this moment... completely... body... and mind.",
+      "words": [
+       {
+        "w": "you",
+        "s": 0.043,
+        "e": 0.09
+       },
+       {
+        "w": "belong...",
+        "s": 0.219,
+        "e": 0.979
+       },
+       {
+        "w": "to",
+        "s": 3.546,
+        "e": 3.667
+       },
+       {
+        "w": "this",
+        "s": 3.739,
+        "e": 4.028
+       },
+       {
+        "w": "moment...",
+        "s": 4.157,
+        "e": 4.926
+       },
+       {
+        "w": "completely...",
+        "s": 7.47,
+        "e": 8.492
+       },
+       {
+        "w": "body...",
+        "s": 13.376,
+        "e": 13.942
+       },
+       {
+        "w": "and",
+        "s": 16.293,
+        "e": 16.669
+       },
+       {
+        "w": "mind.",
+        "s": 16.832,
+        "e": 17.557
+       }
+      ]
+     },
+     {
+      "start": 22.604,
+      "end": 34.672,
+      "text": "pure surrender... pure pleasure... there is nothing else.",
+      "words": [
+       {
+        "w": "pure",
+        "s": 22.604,
+        "e": 23.11
+       },
+       {
+        "w": "surrender...",
+        "s": 23.201,
+        "e": 24.191
+       },
+       {
+        "w": "pure",
+        "s": 28.009,
+        "e": 28.501
+       },
+       {
+        "w": "pleasure...",
+        "s": 28.592,
+        "e": 29.437
+       },
+       {
+        "w": "there",
+        "s": 32.937,
+        "e": 33.074
+       },
+       {
+        "w": "is",
+        "s": 33.165,
+        "e": 33.346
+       },
+       {
+        "w": "nothing",
+        "s": 33.413,
+        "e": 33.888
+       },
+       {
+        "w": "else.",
+        "s": 33.996,
+        "e": 34.672
+       }
+      ]
+     },
+     {
+      "start": 39.742,
+      "end": 54.529,
+      "text": "feel it building... higher... hotter... you can't stop it now.",
+      "words": [
+       {
+        "w": "feel",
+        "s": 39.742,
+        "e": 40.058
+       },
+       {
+        "w": "it",
+        "s": 40.118,
+        "e": 40.239
+       },
+       {
+        "w": "building...",
+        "s": 40.451,
+        "e": 41.144
+       },
+       {
+        "w": "higher...",
+        "s": 44.058,
+        "e": 44.792
+       },
+       {
+        "w": "hotter...",
+        "s": 47.988,
+        "e": 48.586
+       },
+       {
+        "w": "you",
+        "s": 52.614,
+        "e": 52.662
+       },
+       {
+        "w": "can't",
+        "s": 52.775,
+        "e": 53.204
+       },
+       {
+        "w": "stop",
+        "s": 53.297,
+        "e": 53.656
+       },
+       {
+        "w": "it",
+        "s": 53.716,
+        "e": 53.837
+       },
+       {
+        "w": "now.",
+        "s": 53.973,
+        "e": 54.529
+       }
+      ]
+     },
+     {
+      "start": 58.329,
+      "end": 71.327,
+      "text": "deeper... and deeper... wave after wave... of bliss.",
+      "words": [
+       {
+        "w": "deeper...",
+        "s": 58.329,
+        "e": 59.031
+       },
+       {
+        "w": "and",
+        "s": 61.486,
+        "e": 61.825
+       },
+       {
+        "w": "deeper...",
+        "s": 61.915,
+        "e": 62.657
+       },
+       {
+        "w": "wave",
+        "s": 66.951,
+        "e": 67.632
+       },
+       {
+        "w": "after",
+        "s": 67.797,
+        "e": 68.398
+       },
+       {
+        "w": "wave...",
+        "s": 68.579,
+        "e": 69.25
+       },
+       {
+        "w": "of",
+        "s": 70.242,
+        "e": 70.423
+       },
+       {
+        "w": "bliss.",
+        "s": 70.58,
+        "e": 71.327
+       }
+      ]
+     },
+     {
+      "start": 75.967,
+      "end": 86.17,
+      "text": "good... so good... you're exactly where you need to be.",
+      "words": [
+       {
+        "w": "good...",
+        "s": 75.967,
+        "e": 77.65
+       },
+       {
+        "w": "so",
+        "s": 77.8,
+        "e": 78.102
+       },
+       {
+        "w": "good...",
+        "s": 78.228,
+        "e": 78.868
+       },
+       {
+        "w": "you're",
+        "s": 83.402,
+        "e": 83.548
+       },
+       {
+        "w": "exactly",
+        "s": 83.661,
+        "e": 84.452
+       },
+       {
+        "w": "where",
+        "s": 84.528,
+        "e": 84.904
+       },
+       {
+        "w": "you",
+        "s": 84.972,
+        "e": 85.176
+       },
+       {
+        "w": "need",
+        "s": 85.23,
+        "e": 85.447
+       },
+       {
+        "w": "to",
+        "s": 85.567,
+        "e": 85.718
+       },
+       {
+        "w": "be.",
+        "s": 85.827,
+        "e": 86.17
+       }
+      ]
+     },
+     {
+      "start": 90.497,
+      "end": 106.232,
+      "text": "let it consume you... every thought... every sensation... mine.",
+      "words": [
+       {
+        "w": "let",
+        "s": 90.497,
+        "e": 90.683
+       },
+       {
+        "w": "it",
+        "s": 90.743,
+        "e": 90.864
+       },
+       {
+        "w": "consume",
+        "s": 90.965,
+        "e": 91.677
+       },
+       {
+        "w": "you...",
+        "s": 91.768,
+        "e": 92.195
+       },
+       {
+        "w": "every",
+        "s": 96.159,
+        "e": 96.611
+       },
+       {
+        "w": "thought...",
+        "s": 96.701,
+        "e": 97.437
+       },
+       {
+        "w": "every",
+        "s": 100.96,
+        "e": 101.468
+       },
+       {
+        "w": "sensation...",
+        "s": 101.586,
+        "e": 102.824
+       },
+       {
+        "w": "mine.",
+        "s": 105.457,
+        "e": 106.232
+       }
+      ]
+     },
+     {
+      "start": 107.543,
+      "end": 117.746,
+      "text": "the pleasure is overwhelming now... let it crash over you.",
+      "words": [
+       {
+        "w": "the",
+        "s": 107.543,
+        "e": 109.103
+       },
+       {
+        "w": "pleasure",
+        "s": 109.349,
+        "e": 109.826
+       },
+       {
+        "w": "is",
+        "s": 110.057,
+        "e": 110.278
+       },
+       {
+        "w": "overwhelming",
+        "s": 110.361,
+        "e": 111.363
+       },
+       {
+        "w": "now...",
+        "s": 111.476,
+        "e": 112.056
+       },
+       {
+        "w": "let",
+        "s": 115.582,
+        "e": 115.806
+       },
+       {
+        "w": "it",
+        "s": 115.877,
+        "e": 116.021
+       },
+       {
+        "w": "crash",
+        "s": 116.147,
+        "e": 116.776
+       },
+       {
+        "w": "over",
+        "s": 116.862,
+        "e": 117.207
+       },
+       {
+        "w": "you.",
+        "s": 117.315,
+        "e": 117.746
+       }
+      ]
+     },
+     {
+      "start": 118.188,
+      "end": 138.353,
+      "text": "you are perfect... like this... completely surrendered... completely lost.",
+      "words": [
+       {
+        "w": "you",
+        "s": 118.188,
+        "e": 118.426
+       },
+       {
+        "w": "are",
+        "s": 118.517,
+        "e": 118.788
+       },
+       {
+        "w": "perfect...",
+        "s": 118.983,
+        "e": 119.835
+       },
+       {
+        "w": "like",
+        "s": 124.406,
+        "e": 124.708
+       },
+       {
+        "w": "this...",
+        "s": 124.936,
+        "e": 125.544
+       },
+       {
+        "w": "completely",
+        "s": 129.762,
+        "e": 130.604
+       },
+       {
+        "w": "surrendered...",
+        "s": 130.686,
+        "e": 131.736
+       },
+       {
+        "w": "completely",
+        "s": 136.342,
+        "e": 137.177
+       },
+       {
+        "w": "lost.",
+        "s": 137.507,
+        "e": 138.353
+       }
+      ]
+     },
+     {
+      "start": 143.489,
+      "end": 159.72,
+      "text": "give in... completely... there is nothing... but this feeling.",
+      "words": [
+       {
+        "w": "give",
+        "s": 143.489,
+        "e": 143.709
+       },
+       {
+        "w": "in...",
+        "s": 143.89,
+        "e": 144.308
+       },
+       {
+        "w": "completely...",
+        "s": 147.591,
+        "e": 148.56
+       },
+       {
+        "w": "there",
+        "s": 153.682,
+        "e": 153.873
+       },
+       {
+        "w": "is",
+        "s": 153.964,
+        "e": 154.144
+       },
+       {
+        "w": "nothing...",
+        "s": 154.223,
+        "e": 154.958
+       },
+       {
+        "w": "but",
+        "s": 158.334,
+        "e": 158.555
+       },
+       {
+        "w": "this",
+        "s": 158.703,
+        "e": 158.916
+       },
+       {
+        "w": "feeling.",
+        "s": 158.995,
+        "e": 159.72
+       }
+      ]
+     },
+     {
+      "start": 165.289,
+      "end": 187.379,
+      "text": "[whispers] let go... now... completely... [exhales] feel... everything.",
+      "words": [
+       {
+        "w": "let",
+        "s": 165.289,
+        "e": 165.357
+       },
+       {
+        "w": "go...",
+        "s": 165.549,
+        "e": 166.015
+       },
+       {
+        "w": "now...",
+        "s": 168.736,
+        "e": 169.456
+       },
+       {
+        "w": "completely...",
+        "s": 173.961,
+        "e": 175.066
+       },
+       {
+        "w": "feel...",
+        "s": 182.862,
+        "e": 183.453
+       },
+       {
+        "w": "everything.",
+        "s": 186.328,
+        "e": 187.379
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "name": "afterglow",
+    "lines": [
+     {
+      "start": 0.044,
+      "end": 11.396,
+      "text": "slowly now... gently... returning... to yourself.",
+      "words": [
+       {
+        "w": "slowly",
+        "s": 0.044,
+        "e": 0.734
+       },
+       {
+        "w": "now...",
+        "s": 0.857,
+        "e": 1.278
+       },
+       {
+        "w": "gently...",
+        "s": 4.548,
+        "e": 5.23
+       },
+       {
+        "w": "returning...",
+        "s": 7.955,
+        "e": 8.944
+       },
+       {
+        "w": "to",
+        "s": 10.482,
+        "e": 10.639
+       },
+       {
+        "w": "yourself.",
+        "s": 10.721,
+        "e": 11.396
+       }
+      ]
+     },
+     {
+      "start": 14.177,
+      "end": 21.629,
+      "text": "carrying this warmth... with you... this feeling... of surrender.",
+      "words": [
+       {
+        "w": "carrying",
+        "s": 14.177,
+        "e": 14.861
+       },
+       {
+        "w": "this",
+        "s": 14.942,
+        "e": 15.269
+       },
+       {
+        "w": "warmth...",
+        "s": 15.374,
+        "e": 15.856
+       },
+       {
+        "w": "with",
+        "s": 16.63,
+        "e": 16.837
+       },
+       {
+        "w": "you...",
+        "s": 16.959,
+        "e": 17.393
+       },
+       {
+        "w": "this",
+        "s": 19.375,
+        "e": 19.565
+       },
+       {
+        "w": "feeling...",
+        "s": 19.801,
+        "e": 20.405
+       },
+       {
+        "w": "of",
+        "s": 20.545,
+        "e": 20.707
+       },
+       {
+        "w": "surrender.",
+        "s": 20.781,
+        "e": 21.629
+       }
+      ]
+     },
+     {
+      "start": 24.301,
+      "end": 29.39,
+      "text": "you did so well... I'm very pleased... with you.",
+      "words": [
+       {
+        "w": "you",
+        "s": 24.301,
+        "e": 24.327
+       },
+       {
+        "w": "did",
+        "s": 24.449,
+        "e": 24.816
+       },
+       {
+        "w": "so",
+        "s": 24.952,
+        "e": 25.224
+       },
+       {
+        "w": "well...",
+        "s": 25.29,
+        "e": 25.712
+       },
+       {
+        "w": "I'm",
+        "s": 27.153,
+        "e": 27.35
+       },
+       {
+        "w": "very",
+        "s": 27.464,
+        "e": 27.921
+       },
+       {
+        "w": "pleased...",
+        "s": 28.025,
+        "e": 28.709
+       },
+       {
+        "w": "with",
+        "s": 28.81,
+        "e": 28.969
+       },
+       {
+        "w": "you.",
+        "s": 29.06,
+        "e": 29.39
+       }
+      ]
+     },
+     {
+      "start": 31.888,
+      "end": 39.764,
+      "text": "remember this feeling... how easy it was... how good it felt.",
+      "words": [
+       {
+        "w": "remember",
+        "s": 31.888,
+        "e": 32.388
+       },
+       {
+        "w": "this",
+        "s": 32.454,
+        "e": 32.715
+       },
+       {
+        "w": "feeling...",
+        "s": 32.786,
+        "e": 33.406
+       },
+       {
+        "w": "how",
+        "s": 35.128,
+        "e": 35.247
+       },
+       {
+        "w": "easy",
+        "s": 35.345,
+        "e": 35.736
+       },
+       {
+        "w": "it",
+        "s": 35.79,
+        "e": 35.899
+       },
+       {
+        "w": "was...",
+        "s": 36.042,
+        "e": 36.649
+       },
+       {
+        "w": "how",
+        "s": 38.319,
+        "e": 38.417
+       },
+       {
+        "w": "good",
+        "s": 38.498,
+        "e": 38.825
+       },
+       {
+        "w": "it",
+        "s": 38.906,
+        "e": 39.069
+       },
+       {
+        "w": "felt.",
+        "s": 39.184,
+        "e": 39.764
+       }
+      ]
+     },
+     {
+      "start": 42.483,
+      "end": 49.945,
+      "text": "gentle now... soft... you are safe.",
+      "words": [
+       {
+        "w": "gentle",
+        "s": 42.483,
+        "e": 42.865
+       },
+       {
+        "w": "now...",
+        "s": 42.988,
+        "e": 43.443
+       },
+       {
+        "w": "soft...",
+        "s": 45.924,
+        "e": 46.639
+       },
+       {
+        "w": "you",
+        "s": 49.086,
+        "e": 49.169
+       },
+       {
+        "w": "are",
+        "s": 49.231,
+        "e": 49.414
+       },
+       {
+        "w": "safe.",
+        "s": 49.561,
+        "e": 49.945
+       }
+      ]
+     },
+     {
+      "start": 52.794,
+      "end": 60.423,
+      "text": "you can come back... whenever you want... [whispers] I'll be here.",
+      "words": [
+       {
+        "w": "you",
+        "s": 52.794,
+        "e": 52.839
+       },
+       {
+        "w": "can",
+        "s": 52.959,
+        "e": 53.166
+       },
+       {
+        "w": "come",
+        "s": 53.215,
+        "e": 53.411
+       },
+       {
+        "w": "back...",
+        "s": 53.508,
+        "e": 53.991
+       },
+       {
+        "w": "whenever",
+        "s": 55.473,
+        "e": 55.874
+       },
+       {
+        "w": "you",
+        "s": 55.915,
+        "e": 56.037
+       },
+       {
+        "w": "want...",
+        "s": 56.119,
+        "e": 56.615
+       },
+       {
+        "w": "I'll",
+        "s": 59.644,
+        "e": 59.767
+       },
+       {
+        "w": "be",
+        "s": 59.821,
+        "e": 59.93
+       },
+       {
+        "w": "here.",
+        "s": 60.028,
+        "e": 60.423
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ }
+}

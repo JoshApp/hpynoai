@@ -1,0 +1,114 @@
+/* Velvet design tokens — single source of truth for the HTML layer.
+   Shader palette mirrors these in src/engine/world/palette.ts */
+:root {
+  color-scheme: dark;
+
+  --bg: #07040a;
+  --wine: #4a0f24;
+  --wine-deep: #2a0714;
+  --blush: #ff9aa8;
+  --skin: #e8b39a;
+  --silver: #e9e4f0;
+  --ash: #8a8290;
+  --ash-dim: #4d4754;
+
+  --glass-fill: rgba(7, 4, 10, 0.4);
+  --glass-border: rgba(233, 228, 240, 0.1);
+  --glass-blur: 24px;
+  --radius: 16px;
+  --radius-sm: 10px;
+
+  --font-display: 'Cormorant Garamond', 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+  --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-fast: 200ms;
+  --dur-ui: 480ms;
+  --dur-slow: 900ms;
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+
+  --tap: 44px;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--silver);
+  font-family: var(--font-ui);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#world {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+
+#app {
+  position: fixed;
+  inset: 0;
+  pointer-events: none; /* children opt back in */
+}
+#app > * { pointer-events: auto; }
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-fast: 0ms; --dur-ui: 0ms; --dur-slow: 0ms; }
+}
+
+/* ── Shared UI primitives ── */
+.glass {
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+}
+.btn {
+  appearance: none; -webkit-appearance: none;
+  min-height: var(--tap); padding: 0 1.25rem;
+  border-radius: 999px; border: 1px solid var(--glass-border);
+  background: rgba(233, 228, 240, 0.06); color: var(--silver);
+  font: 500 0.95rem/1 var(--font-ui); letter-spacing: 0.02em;
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+}
+.btn:hover { background: rgba(233, 228, 240, 0.1); }
+.btn:active { transform: scale(0.97); }
+.btn:focus-visible { outline: 2px solid var(--blush); outline-offset: 2px; }
+.btn-primary { background: var(--wine); border-color: rgba(255, 154, 168, 0.35); }
+.btn-primary:hover { background: #5c1330; }
+.btn-ghost { background: transparent; border-color: transparent; }
+.btn-icon { width: var(--tap); padding: 0; border-radius: 50%; }
+.wordmark { font-family: var(--font-display); font-weight: 400; letter-spacing: 0.32em; text-transform: uppercase; }
+.eyebrow { font-size: 0.72rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ash); }
+.muted { color: var(--ash); }
+.stack { display: flex; flex-direction: column; gap: 0.75rem; }
+.row { display: flex; align-items: center; gap: 0.75rem; }
+input[type=range].slider {
+  -webkit-appearance: none; appearance: none; width: 100%; height: var(--tap); background: transparent; margin: 0;
+}
+input[type=range].slider::-webkit-slider-runnable-track { height: 3px; background: rgba(233,228,240,0.18); border-radius: 2px; }
+input[type=range].slider::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; margin-top: -9.5px; border-radius: 50%; background: var(--silver); border: 2px solid var(--wine); box-shadow: 0 0 0 4px rgba(7,4,10,0.5); }
+input[type=range].slider::-moz-range-track { height: 3px; background: rgba(233,228,240,0.18); border-radius: 2px; }
+input[type=range].slider::-moz-range-thumb { width: 22px; height: 22px; border-radius: 50%; background: var(--silver); border: 2px solid var(--wine); }
+.fade-in { animation: fadeIn var(--dur-slow) var(--ease-out) both; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
